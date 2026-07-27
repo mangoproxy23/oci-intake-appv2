@@ -405,37 +405,82 @@
             <p>These selections are used in the downloadable architecture package.</p>
           </div>
 
+          <section class="region-map-panel" aria-labelledby="regionMapTitle">
+            <div class="region-map-header">
+              <div>
+                <p class="page-kicker">Region Map</p>
+                <h4 id="regionMapTitle">Choose Primary and DR Regions</h4>
+                <p id="regionMapInstruction">Select the Primary region first, then select the DR region.</p>
+              </div>
+              <button id="clearRegionMap" class="region-map-clear" type="button">Clear Selections</button>
+            </div>
+
+            <div class="region-selection-bar" aria-label="Region Selection Status">
+              <button class="region-selection-slot is-active" type="button" data-region-target="primary">
+                <span class="region-selection-number">1</span>
+                <span>
+                  <small>Primary Region</small>
+                  <strong id="primaryRegionSummary">Select on map</strong>
+                </span>
+              </button>
+              <span class="region-selection-connector" aria-hidden="true"></span>
+              <button class="region-selection-slot" type="button" data-region-target="dr">
+                <span class="region-selection-number">2</span>
+                <span>
+                  <small>DR Region</small>
+                  <strong id="drRegionSummary">Select on map</strong>
+                </span>
+              </button>
+            </div>
+
+            <div class="region-map-filters" role="group" aria-label="Map Area">
+              <button class="is-active" type="button" data-map-view="world">World</button>
+              <button type="button" data-map-view="americas">Americas</button>
+              <button type="button" data-map-view="europe">Europe</button>
+              <button type="button" data-map-view="mea">Middle East and Africa</button>
+              <button type="button" data-map-view="apac">Asia Pacific</button>
+            </div>
+
+            <div class="region-map-canvas">
+              <svg id="ociRegionMap" viewBox="0 0 1000 500" role="group" aria-label="Interactive map of OCI commercial regions">
+                <image
+                  class="region-map-reference"
+                  href="/static/assets/oci-region-world-map.png"
+                  x="0"
+                  y="0"
+                  width="1000"
+                  height="500"
+                  preserveAspectRatio="none"
+                  aria-hidden="true"
+                ></image>
+                <g id="ociRegionMarkers"></g>
+              </svg>
+              <div id="regionMapHover" class="region-map-hover" hidden>
+                <strong></strong>
+                <span></span>
+              </div>
+            </div>
+
+            <div class="region-map-footer">
+              <p id="regionMapLive" role="status" aria-live="polite">Choose a Primary region.</p>
+              <div class="region-map-legend" aria-label="Map Legend">
+                <span><i class="is-primary"></i>Primary</span>
+                <span><i class="is-dr"></i>DR</span>
+                <span><i class="is-multi-ad"></i>3 AD Region</span>
+              </div>
+            </div>
+          </section>
+
           <div class="architecture-options-grid">
             <div class="diagram-card">
               <div class="diagram-card-head">
                 <span class="diagram-card-title">Primary Region</span>
-                <span class="diagram-card-sub">Where the migrated workloads land</span>
+                <span class="diagram-card-sub">Use the map or search for a region by name</span>
               </div>
               <label class="diagram-field">
                 <span class="diagram-field-label">Primary OCI Region</span>
                 <select id="primaryRegion" class="diagram-select" data-searchable="region">
-                  <option value="" data-ads="1" data-pin="auto">Auto (unnamed region - pick a region to enable AD split)</option>
-                  <option value="us-ashburn-1" data-ads="3">US East (Ashburn) - 3 ADs</option>
-                  <option value="us-phoenix-1" data-ads="3">US West (Phoenix) - 3 ADs</option>
-                  <option value="uk-london-1" data-ads="3">UK South (London) - 3 ADs</option>
-                  <option value="eu-frankfurt-1" data-ads="3">Germany Central (Frankfurt) - 3 ADs</option>
-                  <option value="ap-sydney-1" data-ads="1">Australia East (Sydney) - 1 AD</option>
-                  <option value="sa-saopaulo-1" data-ads="1">Brazil East (Sao Paulo) - 1 AD</option>
-                  <option value="ca-montreal-1" data-ads="1">Canada Southeast (Montreal) - 1 AD</option>
-                  <option value="ca-toronto-1" data-ads="1">Canada Southeast (Toronto) - 1 AD</option>
-                  <option value="eu-paris-1" data-ads="1">France Central (Paris) - 1 AD</option>
-                  <option value="ap-mumbai-1" data-ads="1">India West (Mumbai) - 1 AD</option>
-                  <option value="ap-osaka-1" data-ads="1">Japan Central (Osaka) - 1 AD</option>
-                  <option value="ap-tokyo-1" data-ads="1">Japan East (Tokyo) - 1 AD</option>
-                  <option value="eu-amsterdam-1" data-ads="1">Netherlands NW (Amsterdam) - 1 AD</option>
-                  <option value="me-jeddah-1" data-ads="1">Saudi Arabia West (Jeddah) - 1 AD</option>
-                  <option value="ap-singapore-1" data-ads="1">Singapore - 1 AD</option>
-                  <option value="ap-seoul-1" data-ads="1">South Korea Central (Seoul) - 1 AD</option>
-                  <option value="eu-madrid-1" data-ads="1">Spain Central (Madrid) - 1 AD</option>
-                  <option value="eu-zurich-1" data-ads="1">Switzerland North (Zurich) - 1 AD</option>
-                  <option value="me-dubai-1" data-ads="1">UAE East (Dubai) - 1 AD</option>
-                  <option value="us-chicago-1" data-ads="1">US Midwest (Chicago) - 1 AD</option>
-                  <option value="us-sanjose-1" data-ads="1">US West (San Jose) - 1 AD</option>
+                  <option value="" data-ads="1" data-pin="auto">Select a Primary region</option>
                 </select>
               </label>
               <label class="diagram-switch" id="splitAcrossADsRow">
@@ -466,7 +511,7 @@
             <div class="diagram-card">
               <div class="diagram-card-head">
                 <span class="diagram-card-title">Disaster Recovery</span>
-                <span class="diagram-card-sub">Add a secondary region when the design requires it</span>
+                <span class="diagram-card-sub">The second map selection enables the DR region</span>
               </div>
               <label class="diagram-switch">
                 <input type="checkbox" id="enableDr" />
@@ -480,28 +525,7 @@
                 <label class="diagram-field">
                   <span class="diagram-field-label">DR Region</span>
                   <select id="drRegion" class="diagram-select" data-searchable="region">
-                    <option value="" data-pin="auto">Auto (unnamed secondary region)</option>
-                    <option value="us-ashburn-1" data-ads="3">US East (Ashburn)</option>
-                    <option value="us-phoenix-1" data-ads="3">US West (Phoenix)</option>
-                    <option value="uk-london-1" data-ads="3">UK South (London)</option>
-                    <option value="eu-frankfurt-1" data-ads="3">Germany Central (Frankfurt)</option>
-                    <option value="ap-sydney-1">Australia East (Sydney)</option>
-                    <option value="sa-saopaulo-1">Brazil East (Sao Paulo)</option>
-                    <option value="ca-montreal-1">Canada Southeast (Montreal)</option>
-                    <option value="ca-toronto-1">Canada Southeast (Toronto)</option>
-                    <option value="eu-paris-1">France Central (Paris)</option>
-                    <option value="ap-mumbai-1">India West (Mumbai)</option>
-                    <option value="ap-osaka-1">Japan Central (Osaka)</option>
-                    <option value="ap-tokyo-1">Japan East (Tokyo)</option>
-                    <option value="eu-amsterdam-1">Netherlands NW (Amsterdam)</option>
-                    <option value="me-jeddah-1">Saudi Arabia West (Jeddah)</option>
-                    <option value="ap-singapore-1">Singapore</option>
-                    <option value="ap-seoul-1">South Korea Central (Seoul)</option>
-                    <option value="eu-madrid-1">Spain Central (Madrid)</option>
-                    <option value="eu-zurich-1">Switzerland North (Zurich)</option>
-                    <option value="me-dubai-1">UAE East (Dubai)</option>
-                    <option value="us-chicago-1">US Midwest (Chicago)</option>
-                    <option value="us-sanjose-1">US West (San Jose)</option>
+                    <option value="" data-ads="1" data-pin="auto">Select a DR region</option>
                   </select>
                 </label>
                 <div class="diagram-field">

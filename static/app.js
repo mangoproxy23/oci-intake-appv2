@@ -369,6 +369,76 @@ function setSettingsOpen(open) {
   });
 })();
 
+// Current OCI commercial regions. Names, identifiers, realms, and AD counts follow the
+// Oracle Regions and Availability Domains catalog. Coordinates are used only to place
+// the selector markers and never affect pricing or architecture quantities.
+const OCI_REGIONS = [
+  { id: "ap-sydney-1", name: "Australia East (Sydney)", location: "Sydney, Australia", key: "SYD", realm: "OC1", ads: 1, lat: -33.87, lon: 151.21, zone: "apac" },
+  { id: "ap-melbourne-1", name: "Australia Southeast (Melbourne)", location: "Melbourne, Australia", key: "MEL", realm: "OC1", ads: 1, lat: -37.81, lon: 144.96, zone: "apac" },
+  { id: "sa-saopaulo-1", name: "Brazil East (Sao Paulo)", location: "Sao Paulo, Brazil", key: "GRU", realm: "OC1", ads: 1, lat: -23.55, lon: -46.63, zone: "americas" },
+  { id: "sa-vinhedo-1", name: "Brazil Southeast (Vinhedo)", location: "Vinhedo, Brazil", key: "VCP", realm: "OC1", ads: 1, lat: -21.8, lon: -43.9, zone: "americas" },
+  { id: "ca-montreal-1", name: "Canada Southeast (Montreal)", location: "Montreal, Canada", key: "YUL", realm: "OC1", ads: 1, lat: 45.5, lon: -73.57, zone: "americas" },
+  { id: "ca-toronto-1", name: "Canada Southeast (Toronto)", location: "Toronto, Canada", key: "YYZ", realm: "OC1", ads: 1, lat: 43.65, lon: -79.38, zone: "americas" },
+  { id: "sa-santiago-1", name: "Chile Central (Santiago)", location: "Santiago, Chile", key: "SCL", realm: "OC1", ads: 1, lat: -33.45, lon: -70.67, zone: "americas" },
+  { id: "sa-valparaiso-1", name: "Chile West (Valparaiso)", location: "Valparaiso, Chile", key: "VAP", realm: "OC1", ads: 1, lat: -30.7, lon: -73.4, zone: "americas" },
+  { id: "sa-bogota-1", name: "Colombia Central (Bogota)", location: "Bogota, Colombia", key: "BOG", realm: "OC1", ads: 1, lat: 4.71, lon: -74.07, zone: "americas" },
+  { id: "eu-paris-1", name: "France Central (Paris)", location: "Paris, France", key: "CDG", realm: "OC1", ads: 1, lat: 48.86, lon: 2.35, zone: "europe" },
+  { id: "eu-marseille-1", name: "France South (Marseille)", location: "Marseille, France", key: "MRS", realm: "OC1", ads: 1, lat: 42.2, lon: 3.6, zone: "europe" },
+  { id: "eu-frankfurt-1", name: "Germany Central (Frankfurt)", location: "Frankfurt, Germany", key: "FRA", realm: "OC1", ads: 3, lat: 50.11, lon: 11.7, zone: "europe" },
+  { id: "ap-hyderabad-1", name: "India South (Hyderabad)", location: "Hyderabad, India", key: "HYD", realm: "OC1", ads: 1, lat: 17.39, lon: 78.49, zone: "apac" },
+  { id: "ap-mumbai-1", name: "India West (Mumbai)", location: "Mumbai, India", key: "BOM", realm: "OC1", ads: 1, lat: 19.08, lon: 72.88, zone: "apac" },
+  { id: "ap-batam-1", name: "Indonesia North (Batam)", location: "Batam, Indonesia", key: "HSG", realm: "OC1", ads: 1, lat: 1.13, lon: 101.8, zone: "apac" },
+  { id: "il-jerusalem-1", name: "Israel Central (Jerusalem)", location: "Jerusalem, Israel", key: "MTZ", realm: "OC1", ads: 1, lat: 31.77, lon: 35.21, zone: "mea" },
+  { id: "eu-milan-1", name: "Italy Northwest (Milan)", location: "Milan, Italy", key: "LIN", realm: "OC1", ads: 1, lat: 46.9, lon: 12.3, zone: "europe" },
+  { id: "eu-turin-1", name: "Italy North (Turin)", location: "Turin, Italy", key: "NRQ", realm: "OC1", ads: 1, lat: 44.1, lon: 8.5, zone: "europe" },
+  { id: "ap-osaka-1", name: "Japan Central (Osaka)", location: "Osaka, Japan", key: "KIX", realm: "OC1", ads: 1, lat: 33.3, lon: 133.6, zone: "apac" },
+  { id: "ap-tokyo-1", name: "Japan East (Tokyo)", location: "Tokyo, Japan", key: "NRT", realm: "OC1", ads: 1, lat: 36.8, lon: 141.7, zone: "apac" },
+  { id: "ap-kulai-2", name: "Malaysia West 2 (Kulai)", location: "Kulai, Malaysia", key: "JBP", realm: "OC1", ads: 1, lat: 3.6, lon: 100.9, zone: "apac" },
+  { id: "mx-queretaro-1", name: "Mexico Central (Queretaro)", location: "Queretaro, Mexico", key: "QRO", realm: "OC1", ads: 1, lat: 20.59, lon: -100.39, zone: "americas" },
+  { id: "mx-monterrey-1", name: "Mexico Northeast (Monterrey)", location: "Monterrey, Mexico", key: "MTY", realm: "OC1", ads: 1, lat: 25.69, lon: -100.32, zone: "americas" },
+  { id: "af-casablanca-1", name: "Morocco West (Casablanca)", location: "Casablanca, Morocco", key: "LEJ", realm: "OC1", ads: 1, lat: 33.57, lon: -7.59, zone: "mea" },
+  { id: "eu-amsterdam-1", name: "Netherlands Northwest (Amsterdam)", location: "Amsterdam, Netherlands", key: "AMS", realm: "OC1", ads: 1, lat: 53.8, lon: 2.0, zone: "europe" },
+  { id: "me-riyadh-1", name: "Saudi Arabia Central (Riyadh)", location: "Riyadh, Saudi Arabia", key: "RUH", realm: "OC1", ads: 1, lat: 24.71, lon: 46.68, zone: "mea" },
+  { id: "me-jeddah-1", name: "Saudi Arabia West (Jeddah)", location: "Jeddah, Saudi Arabia", key: "JED", realm: "OC1", ads: 1, lat: 21.49, lon: 39.19, zone: "mea" },
+  { id: "eu-jovanovac-1", name: "Serbia Central (Jovanovac)", location: "Jovanovac, Serbia", key: "BEG", realm: "OC20", ads: 1, lat: 43.8, lon: 21.8, zone: "europe" },
+  { id: "ap-singapore-1", name: "Singapore (Singapore)", location: "Singapore, Singapore", key: "SIN", realm: "OC1", ads: 1, lat: -1.0, lon: 105.6, zone: "apac" },
+  { id: "ap-singapore-2", name: "Singapore West (Singapore)", location: "Singapore, Singapore", key: "XSP", realm: "OC1", ads: 1, lat: 3.2, lon: 107.2, zone: "apac" },
+  { id: "af-johannesburg-1", name: "South Africa Central (Johannesburg)", location: "Johannesburg, South Africa", key: "JNB", realm: "OC1", ads: 1, lat: -26.2, lon: 28.05, zone: "mea" },
+  { id: "ap-seoul-1", name: "South Korea Central (Seoul)", location: "Seoul, South Korea", key: "ICN", realm: "OC1", ads: 1, lat: 37.57, lon: 125.0, zone: "apac" },
+  { id: "ap-chuncheon-1", name: "South Korea North (Chuncheon)", location: "Chuncheon, South Korea", key: "YNY", realm: "OC1", ads: 1, lat: 40.4, lon: 129.8, zone: "apac" },
+  { id: "eu-madrid-1", name: "Spain Central (Madrid)", location: "Madrid, Spain", key: "MAD", realm: "OC1", ads: 1, lat: 40.42, lon: -3.7, zone: "europe" },
+  { id: "eu-madrid-3", name: "Spain Central (Madrid 3)", location: "Madrid, Spain", key: "ORF", realm: "OC1", ads: 1, lat: 37.7, lon: -1.3, zone: "europe" },
+  { id: "eu-stockholm-1", name: "Sweden Central (Stockholm)", location: "Stockholm, Sweden", key: "ARN", realm: "OC1", ads: 1, lat: 59.33, lon: 18.07, zone: "europe" },
+  { id: "eu-zurich-1", name: "Switzerland North (Zurich)", location: "Zurich, Switzerland", key: "ZRH", realm: "OC1", ads: 1, lat: 48.0, lon: 6.0, zone: "europe" },
+  { id: "me-abudhabi-1", name: "UAE Central (Abu Dhabi)", location: "Abu Dhabi, UAE", key: "AUH", realm: "OC1", ads: 1, lat: 23.0, lon: 52.3, zone: "mea" },
+  { id: "me-dubai-1", name: "UAE East (Dubai)", location: "Dubai, UAE", key: "DXB", realm: "OC1", ads: 1, lat: 27.3, lon: 57.4, zone: "mea" },
+  { id: "uk-london-1", name: "UK South (London)", location: "London, United Kingdom", key: "LHR", realm: "OC1", ads: 3, lat: 51.51, lon: -0.13, zone: "europe" },
+  { id: "uk-cardiff-1", name: "UK West (Newport)", location: "Newport, United Kingdom", key: "CWL", realm: "OC1", ads: 1, lat: 49.2, lon: -5.2, zone: "europe" },
+  { id: "us-ashburn-1", name: "US East (Ashburn)", location: "Ashburn, VA", key: "IAD", realm: "OC1", ads: 3, lat: 39.04, lon: -77.49, zone: "americas" },
+  { id: "us-chicago-1", name: "US Midwest (Chicago)", location: "Chicago, IL", key: "ORD", realm: "OC1", ads: 3, lat: 41.88, lon: -87.63, zone: "americas" },
+  { id: "us-phoenix-1", name: "US West (Phoenix)", location: "Phoenix, AZ", key: "PHX", realm: "OC1", ads: 3, lat: 33.45, lon: -112.07, zone: "americas" },
+  { id: "us-sanjose-1", name: "US West (San Jose)", location: "San Jose, CA", key: "SJC", realm: "OC1", ads: 1, lat: 37.34, lon: -121.89, zone: "americas" },
+];
+
+const OCI_REGION_BY_ID = new Map(OCI_REGIONS.map((region) => [region.id, region]));
+
+function populateRegionSelects() {
+  document.querySelectorAll('select[data-searchable="region"]').forEach((select) => {
+    const first = select.options[0];
+    select.innerHTML = "";
+    if (first) select.appendChild(first);
+    OCI_REGIONS.forEach((region) => {
+      const option = document.createElement("option");
+      option.value = region.id;
+      option.dataset.ads = String(region.ads);
+      option.dataset.realm = region.realm;
+      option.textContent = `${region.name} | ${region.id}`;
+      select.appendChild(option);
+    });
+  });
+}
+populateRegionSelects();
+
 // Diagram & DR options: region picks + AD split. The primary region's AD count enables
 // the "split across ADs" toggle; a 1-AD region can't split.
 const state_diagramOptions_default = {
@@ -391,10 +461,28 @@ function _syncAdSplitControl() {
   const ads = Number(sel.selectedOptions[0]?.dataset.ads || 1);
   state.diagramOptions.primaryRegion = sel.value;
   state.diagramOptions.primaryAds = ads;
+  if (
+    sel.value
+    && state.diagramOptions.enableDr
+    && (
+      sel.value === state.diagramOptions.drRegion
+      || OCI_REGION_BY_ID.get(sel.value)?.realm
+        !== OCI_REGION_BY_ID.get(state.diagramOptions.drRegion)?.realm
+    )
+  ) {
+    state.diagramOptions.drRegion = "";
+    const drSelect = document.querySelector("#drRegion");
+    if (drSelect) {
+      drSelect.value = "";
+      const drInput = drSelect.closest(".diagram-combo")?.querySelector(".diagram-combo-input");
+      if (drInput) drInput.value = drSelect.selectedOptions[0]?.textContent.trim() || "";
+    }
+  }
   chk.disabled = ads < 2;
   if (ads < 2) { chk.checked = false; state.diagramOptions.splitADs = false; }
   if (hint) hint.textContent = ads >= 2 ? `${ads} availability domains available` : "Pick a multi-AD region to enable";
   _syncAdSplitResources();
+  updateRegionMap();
 }
 document.querySelector("#primaryRegion")?.addEventListener("change", _syncAdSplitControl);
 document.querySelector("#splitAcrossADs")?.addEventListener("change", (e) => {
@@ -410,7 +498,22 @@ function _syncAdSplitResourceState() {
 ["#adSplitVms", "#adSplitDbs"].forEach((s) =>
   document.querySelector(s)?.addEventListener("change", _syncAdSplitResourceState));
 document.querySelector("#drRegion")?.addEventListener("change", (e) => {
-  state.diagramOptions.drRegion = e.target.value;
+  const primary = OCI_REGION_BY_ID.get(state.diagramOptions.primaryRegion);
+  const selectedDr = OCI_REGION_BY_ID.get(e.target.value);
+  let validationMessage = "";
+  if (e.target.value && e.target.value === state.diagramOptions.primaryRegion) {
+    e.target.value = "";
+    state.diagramOptions.drRegion = "";
+    validationMessage = "The Primary and DR regions must be different.";
+  } else if (primary && selectedDr && primary.realm !== selectedDr.realm) {
+    e.target.value = "";
+    state.diagramOptions.drRegion = "";
+    validationMessage = "The Primary and DR regions must be in the same OCI realm.";
+  } else {
+    state.diagramOptions.drRegion = e.target.value;
+  }
+  updateRegionMap();
+  if (validationMessage) setRegionMapMessage(validationMessage, "error");
 });
 // Enable-DR toggle reveals the DR sub-options (region + which resources to replicate).
 document.querySelector("#enableDr")?.addEventListener("change", (e) => {
@@ -418,6 +521,7 @@ document.querySelector("#enableDr")?.addEventListener("change", (e) => {
   state.diagramOptions.enableDr = on;
   const sub = document.querySelector("#drSubOptions");
   if (sub) sub.hidden = !on;
+  updateRegionMap();
 });
 function _syncDrReplicate() {
   state.diagramOptions.drReplicate = {
@@ -428,6 +532,261 @@ function _syncDrReplicate() {
 }
 ["#drRepVms", "#drRepDbs", "#drRepObj"].forEach((sel) =>
   document.querySelector(sel)?.addEventListener("change", _syncDrReplicate));
+
+const REGION_MAP_VIEWS = {
+  world: { viewBox: "0 0 1000 500", label: "World", markerScale: 1 },
+  americas: { viewBox: "90 65 340 350", label: "Americas", markerScale: 0.55 },
+  europe: { viewBox: "462 66 125 95", label: "Europe", markerScale: 0.2 },
+  mea: { viewBox: "445 115 235 255", label: "Middle East and Africa", markerScale: 0.42 },
+  apac: { viewBox: "675 65 310 350", label: "Asia Pacific", markerScale: 0.5 },
+};
+
+let regionMapTarget = "primary";
+let regionMapView = "world";
+
+function regionMapPoint(region) {
+  return {
+    x: ((region.lon + 180) / 360) * 1000,
+    y: ((90 - region.lat) / 180) * 500,
+  };
+}
+
+function scaleRegionMapMarkers() {
+  const scale = REGION_MAP_VIEWS[regionMapView]?.markerScale || 1;
+  document.querySelectorAll("#ociRegionMarkers circle[data-base-radius]").forEach((circle) => {
+    circle.setAttribute("r", String(Number(circle.dataset.baseRadius) * scale));
+  });
+}
+
+function setRegionMapMessage(message, tone = "") {
+  const live = document.querySelector("#regionMapLive");
+  if (!live) return;
+  live.textContent = message;
+  if (tone) live.dataset.tone = tone;
+  else delete live.dataset.tone;
+}
+
+function setRegionControlValue(id, value) {
+  const select = document.querySelector(id);
+  if (!select) return;
+  select.value = value || "";
+  select.dispatchEvent(new Event("change", { bubbles: true }));
+}
+
+function setDrRegionEnabled(enabled) {
+  const checkbox = document.querySelector("#enableDr");
+  if (!checkbox || checkbox.checked === !!enabled) return;
+  checkbox.checked = !!enabled;
+  checkbox.dispatchEvent(new Event("change", { bubbles: true }));
+}
+
+function selectRegionFromMap(regionId) {
+  const region = OCI_REGION_BY_ID.get(regionId);
+  if (!region) return;
+  const primary = state.diagramOptions.primaryRegion || "";
+  const activeDr = state.diagramOptions.enableDr ? state.diagramOptions.drRegion || "" : "";
+
+  if (!primary || regionMapTarget === "primary") {
+    if (region.id === activeDr) {
+      setRegionMapMessage("Choose a Primary region that is different from the DR region.", "error");
+      return;
+    }
+    setRegionControlValue("#primaryRegion", region.id);
+    regionMapTarget = "dr";
+    setRegionMapMessage(`${region.name} is Primary. Now choose the DR region.`, "success");
+    updateRegionMap();
+    return;
+  }
+
+  if (!activeDr || regionMapTarget === "dr") {
+    if (region.id === primary) {
+      setRegionMapMessage("Choose a DR region that is different from the Primary region.", "error");
+      return;
+    }
+    const primaryRegion = OCI_REGION_BY_ID.get(primary);
+    if (primaryRegion && primaryRegion.realm !== region.realm) {
+      setRegionMapMessage("Choose a DR region in the same OCI realm as the Primary region.", "error");
+      return;
+    }
+    setDrRegionEnabled(true);
+    setRegionControlValue("#drRegion", region.id);
+    regionMapTarget = null;
+    setRegionMapMessage(`${region.name} is the DR region. Both regions are selected.`, "success");
+    updateRegionMap();
+    return;
+  }
+
+  if (region.id === primary) {
+    regionMapTarget = "primary";
+    setRegionMapMessage("Primary region selected for editing. Choose its replacement on the map.");
+  } else if (region.id === activeDr) {
+    regionMapTarget = "dr";
+    setRegionMapMessage("DR region selected for editing. Choose its replacement on the map.");
+  } else {
+    setRegionMapMessage("Choose Primary or DR above before replacing a selected region.");
+  }
+  updateRegionMap();
+}
+
+function updateRegionMap() {
+  const map = document.querySelector("#ociRegionMap");
+  const markerLayer = document.querySelector("#ociRegionMarkers");
+  if (!map || !markerLayer) return;
+
+  const primary = state.diagramOptions.primaryRegion || "";
+  const dr = state.diagramOptions.enableDr ? state.diagramOptions.drRegion || "" : "";
+  if (!primary) regionMapTarget = "primary";
+  else if (!dr && regionMapTarget !== "primary") regionMapTarget = "dr";
+
+  const primaryRegion = OCI_REGION_BY_ID.get(primary);
+  const drRegion = OCI_REGION_BY_ID.get(dr);
+  const primarySummary = document.querySelector("#primaryRegionSummary");
+  const drSummary = document.querySelector("#drRegionSummary");
+  if (primarySummary) primarySummary.textContent = primaryRegion?.name || "Select on map";
+  if (drSummary) drSummary.textContent = drRegion?.name || "Select on map";
+
+  document.querySelectorAll("[data-region-target]").forEach((button) => {
+    button.classList.toggle("is-active", button.dataset.regionTarget === regionMapTarget);
+    button.classList.toggle(
+      "is-complete",
+      button.dataset.regionTarget === "primary" ? !!primaryRegion : !!drRegion,
+    );
+  });
+
+  const instruction = document.querySelector("#regionMapInstruction");
+  if (instruction) {
+    instruction.textContent = !primaryRegion
+      ? "Select the Primary region first, then select the DR region."
+      : !drRegion
+        ? "Primary selected. Your next map click sets the DR region."
+        : "Both regions are selected. Choose Primary or DR above to replace one.";
+  }
+
+  if (!primaryRegion) {
+    setRegionMapMessage("Choose a Primary region.");
+  } else if (!drRegion) {
+    setRegionMapMessage(`${primaryRegion.name} is Primary. Choose a DR region.`);
+  } else {
+    setRegionMapMessage(`${primaryRegion.name} is Primary. ${drRegion.name} is DR.`, "success");
+  }
+
+  markerLayer.querySelectorAll(".oci-region-marker").forEach((marker) => {
+    const id = marker.dataset.region;
+    const markerRegion = OCI_REGION_BY_ID.get(id);
+    const incompatibleDrRealm = !!(
+      primaryRegion
+      && markerRegion
+      && regionMapTarget === "dr"
+      && markerRegion.realm !== primaryRegion.realm
+    );
+    marker.classList.toggle("is-primary", id === primary);
+    marker.classList.toggle("is-dr", id === dr);
+    marker.classList.toggle("is-unavailable", incompatibleDrRealm);
+    marker.setAttribute("aria-disabled", String(incompatibleDrRealm));
+    marker.setAttribute(
+      "aria-pressed",
+      String(id === primary || id === dr),
+    );
+  });
+}
+
+function initializeRegionMap() {
+  const map = document.querySelector("#ociRegionMap");
+  const markerLayer = document.querySelector("#ociRegionMarkers");
+  const hover = document.querySelector("#regionMapHover");
+  if (!map || !markerLayer) return;
+
+  const svgNs = "http://www.w3.org/2000/svg";
+  OCI_REGIONS.forEach((region) => {
+    const point = regionMapPoint(region);
+    const marker = document.createElementNS(svgNs, "g");
+    marker.classList.add("oci-region-marker");
+    if (region.ads >= 3) marker.classList.add("is-multi-ad");
+    marker.dataset.region = region.id;
+    marker.dataset.zone = region.zone;
+    marker.setAttribute("transform", `translate(${point.x.toFixed(2)} ${point.y.toFixed(2)})`);
+    marker.setAttribute("role", "button");
+    marker.setAttribute("tabindex", "0");
+    marker.setAttribute("aria-pressed", "false");
+    marker.setAttribute(
+      "aria-label",
+      `${region.name}, ${region.id}, ${region.ads} availability ${region.ads === 1 ? "domain" : "domains"}`,
+    );
+
+    const hit = document.createElementNS(svgNs, "circle");
+    hit.classList.add("region-marker-hit");
+    hit.dataset.baseRadius = "11";
+    hit.setAttribute("r", "11");
+    const ring = document.createElementNS(svgNs, "circle");
+    ring.classList.add("region-marker-ring");
+    ring.dataset.baseRadius = region.ads >= 3 ? "7" : "5.5";
+    ring.setAttribute("r", ring.dataset.baseRadius);
+    const dot = document.createElementNS(svgNs, "circle");
+    dot.classList.add("region-marker-dot");
+    dot.dataset.baseRadius = region.ads >= 3 ? "3.5" : "3";
+    dot.setAttribute("r", dot.dataset.baseRadius);
+    marker.append(hit, ring, dot);
+
+    const showHover = (event) => {
+      if (!hover) return;
+      hover.hidden = false;
+      hover.querySelector("strong").textContent = region.name;
+      hover.querySelector("span").textContent =
+        `${region.id} | ${region.ads} ${region.ads === 1 ? "AD" : "ADs"} | ${region.realm}`;
+      const canvas = map.closest(".region-map-canvas");
+      const rect = canvas.getBoundingClientRect();
+      const clientX = event.clientX || rect.left + rect.width / 2;
+      const clientY = event.clientY || rect.top + 24;
+      hover.style.left = `${Math.min(rect.width - 220, Math.max(8, clientX - rect.left + 12))}px`;
+      hover.style.top = `${Math.min(rect.height - 58, Math.max(8, clientY - rect.top + 12))}px`;
+    };
+    marker.addEventListener("pointerenter", showHover);
+    marker.addEventListener("pointermove", showHover);
+    marker.addEventListener("pointerleave", () => { if (hover) hover.hidden = true; });
+    marker.addEventListener("focus", showHover);
+    marker.addEventListener("blur", () => { if (hover) hover.hidden = true; });
+    marker.addEventListener("click", () => selectRegionFromMap(region.id));
+    marker.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      selectRegionFromMap(region.id);
+    });
+    markerLayer.appendChild(marker);
+  });
+
+  document.querySelectorAll("[data-map-view]").forEach((button) => {
+    button.addEventListener("click", () => {
+      regionMapView = button.dataset.mapView || "world";
+      map.setAttribute("viewBox", REGION_MAP_VIEWS[regionMapView].viewBox);
+      scaleRegionMapMarkers();
+      document.querySelectorAll("[data-map-view]").forEach((candidate) => {
+        candidate.classList.toggle("is-active", candidate === button);
+      });
+      setRegionMapMessage(`Showing ${REGION_MAP_VIEWS[regionMapView].label} regions.`);
+    });
+  });
+
+  document.querySelectorAll("[data-region-target]").forEach((button) => {
+    button.addEventListener("click", () => {
+      regionMapTarget = button.dataset.regionTarget;
+      const label = regionMapTarget === "primary" ? "Primary" : "DR";
+      setRegionMapMessage(`Choose the ${label} region on the map.`);
+      updateRegionMap();
+    });
+  });
+
+  document.querySelector("#clearRegionMap")?.addEventListener("click", () => {
+    regionMapTarget = "primary";
+    setDrRegionEnabled(false);
+    setRegionControlValue("#drRegion", "");
+    setRegionControlValue("#primaryRegion", "");
+    setRegionMapMessage("Selections cleared. Choose a Primary region.");
+    updateRegionMap();
+  });
+
+  scaleRegionMapMarkers();
+  updateRegionMap();
+}
 
 // Turn a native region <select> into a searchable combobox. The hidden <select> stays the
 // source of truth (and keeps firing 'change'), so all the AD-split / DR wiring above is
@@ -458,6 +817,7 @@ function enhanceSearchableSelect(select) {
     value: o.value,
     label: o.textContent.trim(),
     ads: Number(o.dataset.ads || 0),
+    realm: o.dataset.realm || "",
     pin: o.dataset.pin || "",
   }));
   const labelFor = (v) => (opts.find((o) => o.value === v) || opts[0] || { label: "" }).label;
@@ -480,10 +840,19 @@ function enhanceSearchableSelect(select) {
     panel.innerHTML = "";
     rendered = [];
     const addOpt = (o) => {
+      const primaryRealm = OCI_REGION_BY_ID.get(state.diagramOptions.primaryRegion)?.realm || "";
+      const unavailable = !!(
+        select.id === "drRegion"
+        && o.value
+        && primaryRealm
+        && o.realm !== primaryRealm
+      );
       const el = document.createElement("div");
       el.className = "diagram-combo-opt";
       el.setAttribute("role", "option");
       el.setAttribute("aria-selected", String(o.value === select.value));
+      el.setAttribute("aria-disabled", String(unavailable));
+      el.classList.toggle("is-disabled", unavailable);
       const txt = document.createElement("span");
       txt.textContent = o.label;
       el.appendChild(txt);
@@ -494,7 +863,10 @@ function enhanceSearchableSelect(select) {
         el.appendChild(b);
       }
       const idx = rendered.length;
-      el.addEventListener("mousedown", (e) => { e.preventDefault(); choose(o.value); });
+      el.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        if (!unavailable) choose(o.value);
+      });
       el.addEventListener("mousemove", () => { activeIdx = idx; paintActive(); });
       panel.appendChild(el);
       rendered.push({ el, value: o.value });
@@ -566,6 +938,7 @@ function enhanceSearchableSelect(select) {
 }
 document.querySelectorAll('select[data-searchable="region"]').forEach(enhanceSearchableSelect);
 _syncAdSplitControl();
+initializeRegionMap();
 
 function rowSourceName(row) {
   return row.fullServiceMapping?.sourceService || row.sourceService || fallbackEntityName(row, "Source line");

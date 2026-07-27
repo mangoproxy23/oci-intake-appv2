@@ -31,6 +31,7 @@ uploads/*
 *.docx
 *.drawio
 *.png
+!static/assets/oci-region-world-map.png
 *.svg
 oci_network_diagram.*
 option1_sftpgo.png

@@ -421,7 +421,56 @@ async function main() {
     throw new Error("Deliverables unlocked before Architecture was completed.");
   }
   await page.getByRole("button", { name: "Continue to Deliverables" }).waitFor({ timeout: 20000 });
-  await page.locator("#primaryRegion").selectOption("us-ashburn-1");
+  const regionMarkers = page.locator("#ociRegionMarkers .oci-region-marker");
+  if ((await regionMarkers.count()) !== 45) {
+    throw new Error(`Architecture map did not render all 45 commercial regions.`);
+  }
+  await page.locator('[data-map-view="europe"]').click();
+  if ((await page.locator("#ociRegionMap").getAttribute("viewBox")) !== "462 66 125 95") {
+    throw new Error("Architecture map did not zoom to the selected geography.");
+  }
+  await page.locator('[data-map-view="world"]').click();
+  await page.locator("#clearRegionMap").click();
+  await page.locator('.oci-region-marker[data-region="eu-jovanovac-1"]').click();
+  if (
+    (await page.locator('.oci-region-marker[data-region="us-ashburn-1"]').getAttribute(
+      "aria-disabled",
+    )) !== "true"
+  ) {
+    throw new Error("Architecture map did not disable a cross-realm DR region.");
+  }
+  await page.locator("#drRegion").evaluate((select) => {
+    select.value = "us-ashburn-1";
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  if (
+    (await page.locator("#drRegion").inputValue()) !== ""
+    || !(await page.locator("#regionMapLive").innerText()).includes("same OCI realm")
+  ) {
+    throw new Error("Architecture map allowed an invalid cross-realm DR selection.");
+  }
+  await page.locator("#clearRegionMap").click();
+  await page.locator('.oci-region-marker[data-region="us-ashburn-1"]').click();
+  if ((await page.locator("#primaryRegion").inputValue()) !== "us-ashburn-1") {
+    throw new Error("The first map click did not set the Primary region.");
+  }
+  await page.locator('.oci-region-marker[data-region="us-phoenix-1"]').click();
+  if (
+    !(await page.locator("#enableDr").isChecked())
+    || (await page.locator("#drRegion").inputValue()) !== "us-phoenix-1"
+  ) {
+    throw new Error("The second map click did not enable and set the DR region.");
+  }
+  if (
+    !(await page.locator('.oci-region-marker[data-region="us-ashburn-1"]').evaluate(
+      (marker) => marker.classList.contains("is-primary"),
+    ))
+    || !(await page.locator('.oci-region-marker[data-region="us-phoenix-1"]').evaluate(
+      (marker) => marker.classList.contains("is-dr"),
+    ))
+  ) {
+    throw new Error("Architecture map selection states were not rendered.");
+  }
   if (await page.locator("#splitAcrossADs").isDisabled()) {
     throw new Error("Availability Domain split stayed disabled for a three-AD region.");
   }

@@ -4276,11 +4276,355 @@ td input[type="checkbox"] {
 }
 
 /* ---- Architecture region and DR controls ----------------------------- */
+.region-map-panel {
+  margin-bottom: 14px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  --map-ocean: #ffffff;
+}
+
+:root[data-theme="dark"] .region-map-panel {
+  --map-ocean: #152122;
+}
+
+.region-map-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.region-map-header .page-kicker {
+  margin-bottom: 4px;
+}
+
+.region-map-header h4 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 18px;
+}
+
+.region-map-header p:last-child {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.region-map-clear {
+  flex: 0 0 auto;
+  padding: 8px 11px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.region-map-clear:hover,
+.region-map-clear:focus-visible {
+  color: var(--redwood);
+  outline: none;
+}
+
+.region-selection-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 48px minmax(0, 1fr);
+  align-items: center;
+  max-width: 760px;
+  margin: 16px auto 14px;
+}
+
+.region-selection-slot {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  min-height: 56px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--surface-muted);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.region-selection-slot:hover {
+  border-color: var(--line-strong);
+}
+
+.region-selection-slot.is-active {
+  border-color: var(--redwood);
+  box-shadow: 0 0 0 2px rgba(199, 70, 52, 0.14);
+}
+
+.region-selection-slot.is-complete {
+  background: var(--teal-soft);
+}
+
+.region-selection-number {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.region-selection-slot.is-active .region-selection-number {
+  background: var(--redwood);
+  color: #fff;
+}
+
+.region-selection-slot > span:last-child {
+  min-width: 0;
+}
+
+.region-selection-slot small,
+.region-selection-slot strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.region-selection-slot small {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.region-selection-slot strong {
+  margin-top: 2px;
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.region-selection-connector {
+  height: 1px;
+  background: var(--line-strong);
+}
+
+.region-map-filters {
+  display: flex;
+  gap: 2px;
+  margin-bottom: 8px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--line);
+}
+
+.region-map-filters button {
+  flex: 0 0 auto;
+  padding: 8px 12px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.region-map-filters button:hover,
+.region-map-filters button.is-active {
+  color: var(--ink);
+  border-bottom-color: var(--teal);
+}
+
+.region-map-canvas {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 2 / 1;
+  min-height: 280px;
+  max-height: 520px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--map-ocean);
+}
+
+#ociRegionMap {
+  display: block;
+  width: 100%;
+  height: 100%;
+  transition: background 0.2s;
+}
+
+.region-map-reference {
+  pointer-events: none;
+  opacity: 0.92;
+  mix-blend-mode: multiply;
+}
+
+:root[data-theme="dark"] .region-map-reference {
+  opacity: 0.62;
+  filter: invert(1);
+  mix-blend-mode: screen;
+}
+
+.oci-region-marker {
+  cursor: pointer;
+  outline: none;
+}
+
+.region-marker-hit {
+  fill: transparent;
+}
+
+.region-marker-ring {
+  fill: var(--surface);
+  stroke: var(--teal);
+  stroke-width: 1.8;
+  vector-effect: non-scaling-stroke;
+}
+
+.region-marker-dot {
+  fill: var(--teal);
+}
+
+.oci-region-marker.is-multi-ad .region-marker-ring {
+  stroke-width: 2.8;
+}
+
+.oci-region-marker:hover .region-marker-ring,
+.oci-region-marker:focus-visible .region-marker-ring {
+  stroke: var(--ink);
+  stroke-width: 3;
+}
+
+.oci-region-marker.is-primary .region-marker-ring {
+  fill: var(--redwood);
+  stroke: #fff;
+  stroke-width: 2.5;
+}
+
+.oci-region-marker.is-primary .region-marker-dot {
+  fill: #fff;
+}
+
+.oci-region-marker.is-dr .region-marker-ring {
+  fill: var(--teal);
+  stroke: #fff;
+  stroke-width: 2.5;
+}
+
+.oci-region-marker.is-dr .region-marker-dot {
+  fill: #fff;
+}
+
+.oci-region-marker.is-unavailable {
+  cursor: not-allowed;
+  opacity: 0.24;
+}
+
+.oci-region-marker.is-unavailable .region-marker-ring {
+  stroke: var(--muted);
+}
+
+.region-map-hover {
+  position: absolute;
+  z-index: 5;
+  width: 210px;
+  padding: 8px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+  pointer-events: none;
+}
+
+.region-map-hover strong,
+.region-map-hover span {
+  display: block;
+}
+
+.region-map-hover strong {
+  font-size: 12px;
+}
+
+.region-map-hover span {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 10.5px;
+}
+
+.region-map-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-top: 10px;
+}
+
+#regionMapLive {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+#regionMapLive[data-tone="success"] {
+  color: var(--success);
+}
+
+#regionMapLive[data-tone="error"] {
+  color: var(--danger);
+}
+
+.region-map-legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 10.5px;
+}
+
+.region-map-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.region-map-legend i {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border: 2px solid var(--teal);
+  border-radius: 50%;
+  background: var(--surface);
+}
+
+.region-map-legend i.is-primary {
+  border-color: var(--redwood);
+  background: var(--redwood);
+}
+
+.region-map-legend i.is-dr {
+  border-color: var(--teal);
+  background: var(--teal);
+}
+
+.region-map-legend i.is-multi-ad {
+  width: 11px;
+  height: 11px;
+  border-width: 3px;
+}
+
 .diagram-card {
   padding: 16px;
   border: 1px solid var(--line, #e2ded9);
   border-radius: 8px;
-  background: #fff;
+  background: var(--surface);
   box-shadow: 0 1px 2px rgba(58, 33, 29, 0.04);
 }
 .diagram-card + .diagram-card { margin-top: 14px; }
@@ -4293,7 +4637,7 @@ td input[type="checkbox"] {
 .diagram-field-label { font-size: 12.5px; font-weight: 600; color: var(--ink); }
 .diagram-select {
   width: 100%; height: 40px; padding: 0 12px;
-  border: 1px solid #d3cfca; border-radius: 9px; font-size: 14px; background: #fff;
+  border: 1px solid var(--line-strong); border-radius: 9px; font-size: 14px; background: var(--surface);
   color: var(--ink); cursor: pointer;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
@@ -4304,7 +4648,7 @@ td input[type="checkbox"] {
 .diagram-combo select { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 .diagram-combo-input {
   width: 100%; height: 40px; padding: 0 34px 0 12px;
-  border: 1px solid #d3cfca; border-radius: 9px; font-size: 14px; background: #fff;
+  border: 1px solid var(--line-strong); border-radius: 9px; font-size: 14px; background: var(--surface);
   color: var(--ink); cursor: pointer; text-align: left;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   transition: border-color 0.15s, box-shadow 0.15s;
@@ -4319,7 +4663,7 @@ td input[type="checkbox"] {
 .diagram-combo-panel {
   position: absolute; z-index: 40; top: calc(100% + 6px); left: 0; right: 0;
   max-height: 288px; overflow-y: auto;
-  background: #fff; border: 1px solid var(--line-strong, #c7bfb2); border-radius: 10px;
+  background: var(--surface); border: 1px solid var(--line-strong, #c7bfb2); border-radius: 10px;
   box-shadow: 0 14px 34px rgba(58, 33, 29, 0.16); padding: 5px;
 }
 .diagram-combo:not(.is-open) .diagram-combo-panel { display: none; }
@@ -4329,6 +4673,12 @@ td input[type="checkbox"] {
 }
 .diagram-combo-opt:hover,
 .diagram-combo-opt.is-active { background: var(--teal-soft); }
+.diagram-combo-opt.is-disabled {
+  background: transparent;
+  color: var(--muted);
+  cursor: not-allowed;
+  opacity: 0.42;
+}
 .diagram-combo-opt[aria-selected="true"] { font-weight: 600; }
 .diagram-combo-opt[aria-selected="true"]::after { content: "✓"; color: var(--teal); font-size: 12px; }
 .diagram-combo-badge {
@@ -4377,8 +4727,8 @@ td input[type="checkbox"] {
 .diagram-chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .diagram-chip {
   display: inline-flex; align-items: center; gap: 7px;
-  padding: 7px 12px; border: 1px solid #d3cfca; border-radius: 999px;
-  font-size: 12.5px; color: var(--ink); background: #fff; cursor: pointer;
+  padding: 7px 12px; border: 1px solid var(--line-strong); border-radius: 999px;
+  font-size: 12.5px; color: var(--ink); background: var(--surface); cursor: pointer;
   transition: border-color 0.15s, background 0.15s, color 0.15s;
 }
 .diagram-chip input { accent-color: var(--teal); margin: 0; cursor: pointer; }
@@ -4398,6 +4748,40 @@ td input[type="checkbox"] {
 }
 
 @media (max-width: 820px) {
+  .region-map-panel {
+    padding: 14px;
+  }
+
+  .region-map-header,
+  .region-map-footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .region-map-clear {
+    padding-left: 0;
+  }
+
+  .region-selection-bar {
+    grid-template-columns: 1fr;
+    gap: 6px;
+    width: 100%;
+  }
+
+  .region-selection-connector {
+    width: 1px;
+    height: 12px;
+    margin-left: 25px;
+  }
+
+  .region-map-canvas {
+    min-height: 240px;
+  }
+
+  .region-map-legend {
+    justify-content: flex-start;
+  }
+
   .architecture-section-heading {
     align-items: flex-start;
     flex-direction: column;
