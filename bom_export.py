@@ -310,7 +310,7 @@ def build_bom_sheet(
               f" Compute - {srv_shape['label']} - Memory(Gigabyte Per Hour)    Capacity Type: On - Demand",
               memory, 1, srv_hours, srv_shape["memoryRate"])
 
-        bv = ws.cell(row=bv_row, column=2, value=" Boot Volume (Local Storage Sizes)")
+        bv = ws.cell(row=bv_row, column=2, value=" Block Volume (Local Storage)")
         bv.fill = _fill(BV_PINK)
         bv.font = Font(bold=True)
 

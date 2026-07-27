@@ -360,8 +360,8 @@ function main(workbook: ExcelScript.Workbook) {
     new_bom_sheet.getCell(ramRow, 5).setValue("0.0108");
     new_bom_sheet.getCell(ramRow, 5).getFormat().setHorizontalAlignment(ExcelScript.HorizontalAlignment.center);
     new_bom_sheet.getCell(ramRow, 6).copyFrom(new_bom_sheet.getRange("G17"));
-    // --- Boot Volume Label Row ---
-    new_bom_sheet.getCell(bvRow, 1).setValue(" Boot Volume (Local Storage Sizes)");
+    // --- Block Volume Label Row ---
+    new_bom_sheet.getCell(bvRow, 1).setValue(" Block Volume (Local Storage)");
     new_bom_sheet.getCell(bvRow, 1).getFormat().getFill().setColor(boot_volume_pink);
     new_bom_sheet.getCell(bvRow, 1).getFormat().getFont().setBold(true);
     // --- Disk Storage Row ---

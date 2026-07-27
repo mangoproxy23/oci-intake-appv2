@@ -65,6 +65,14 @@ def main():
     assert bom["I15"].fill.fgColor.rgb == "FF4F5A64"
     assert bom["J15"].fill.fgColor.rgb == "FFF4F6F8"
     assert bom["J16"].fill.fgColor.rgb == "FFF4F6F8"
+    bom_values = [
+        cell.value
+        for row in bom.iter_rows()
+        for cell in row
+        if cell.value is not None
+    ]
+    assert " Block Volume (Local Storage)" in bom_values
+    assert " Boot Volume (Local Storage Sizes)" not in bom_values
     assert overview["A8"].fill.fgColor.rgb == "FF2F3437"
     assert overview["A9"].fill.fgColor.rgb == "FF4F5A64"
     assert overview["B5"].fill.fgColor.rgb == "FFF4F6F8"
