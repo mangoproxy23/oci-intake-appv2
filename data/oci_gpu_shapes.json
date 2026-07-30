@@ -6,7 +6,9 @@
    "per_shape_per_gpu_hour": "see shapes[].pricePerGpuHour"
   },
   "priceNote": "Prices null = not yet provided (OCI price-list cells are JS-rendered). Toggle hides GPU pricing in the app.",
-  "nvaieNote": "NVIDIA AI Enterprise optional software add-on, USD per GPU-hour, added on top of GPU compute price when licensed. null = not offered for that shape."
+  "nvaieNote": "NVIDIA AI Enterprise optional software add-on, USD per GPU-hour, added on top of GPU compute price when licensed. null = not offered for that shape.",
+  "specsVerified": "ocpu / gpuMemGb / cpuMemGb / gpuCount checked line-by-line against Oracle's Compute Shapes doc (docs.oracle.com, updated 2026-05-18) for all 21 shapes - every figure matched, no changes needed.",
+  "windowsNote": "windows = union of the Compute Shapes doc ('Max VNICs Total: Windows' column: a VNIC count means supported, 'Windows images are not supported on this shape' means not) and the Cost Estimator windowsSupported flag. The two disagree on ONE shape: BM.GPU.A10.4, where the doc says not supported and the estimator says supported - it is true here because the union was chosen deliberately. Flip it to false to follow the doc. Windows bills per OCPU-hour on SKU B88318, so a wrong true over-quotes and a wrong false silently drops the licence."
  },
  "shapes": [
   {
@@ -17,7 +19,7 @@
    "gpuMemGb": 16,
    "cpuMemGb": 72,
    "pricePerGpuHour": 1.275,
-   "windows": false,
+   "windows": true,
    "nvaiePerGpuHour": null
   },
   {
@@ -39,7 +41,7 @@
    "gpuMemGb": 16,
    "cpuMemGb": 90,
    "pricePerGpuHour": 2.95,
-   "windows": false,
+   "windows": true,
    "nvaiePerGpuHour": null
   },
   {
@@ -50,7 +52,7 @@
    "gpuMemGb": 32,
    "cpuMemGb": 180,
    "pricePerGpuHour": 2.95,
-   "windows": false,
+   "windows": true,
    "nvaiePerGpuHour": null
   },
   {
@@ -61,7 +63,7 @@
    "gpuMemGb": 64,
    "cpuMemGb": 360,
    "pricePerGpuHour": 2.95,
-   "windows": false,
+   "windows": true,
    "nvaiePerGpuHour": null
   },
   {
@@ -72,7 +74,7 @@
    "gpuMemGb": 128,
    "cpuMemGb": 768,
    "pricePerGpuHour": 2.95,
-   "windows": false,
+   "windows": true,
    "nvaiePerGpuHour": null
   },
   {
@@ -83,7 +85,7 @@
    "gpuMemGb": 24,
    "cpuMemGb": 240,
    "pricePerGpuHour": 2.0,
-   "windows": false,
+   "windows": true,
    "nvaiePerGpuHour": 0.88
   },
   {
@@ -94,7 +96,7 @@
    "gpuMemGb": 48,
    "cpuMemGb": 480,
    "pricePerGpuHour": 2.0,
-   "windows": false,
+   "windows": true,
    "nvaiePerGpuHour": 0.88
   },
   {
@@ -105,7 +107,7 @@
    "gpuMemGb": 96,
    "cpuMemGb": 1024,
    "pricePerGpuHour": 2.0,
-   "windows": false,
+   "windows": true,
    "nvaiePerGpuHour": 0.88
   },
   {
