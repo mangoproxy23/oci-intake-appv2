@@ -274,7 +274,49 @@ def build():
             "skus": skus,
         })
 
+    # GPU shapes: a GPU machine is a fixed box, so its accelerator count is a property of the
+    # shape, not something to type in. Oracle publishes gpuQty/gpuMemoryQty per shape; pair each
+    # shape with the per-GPU-hour SKU whose model token it carries. Shapes whose token matches
+    # no SKU (the legacy BM.GPU2/3/4 families) are left out rather than paired by guesswork.
+    gpu_skus = {}
+    for svc in out:
+        if svc["serviceId"] != 801:
+            continue
+        for meter in svc["skus"]:
+            if "nvidia ai enterprise" in meter["label"].lower():
+                continue
+            # Model token = whatever follows "GPU -" in the SKU label: A100 - v2 -> a100v2,
+            # RTX PRO 6000 -> rtxpro6000.
+            tail = re.split(r"GPU\s*-\s*", meter["label"], maxsplit=1)
+            token = re.sub(r"[^a-z0-9]", "", tail[-1].lower()) if len(tail) > 1 else ""
+            if token:
+                gpu_skus[token] = meter
+    gpu_shapes = []
+    for sh in snap["datasets"]["shapes"]["items"]:
+        qty = sh.get("gpuQty")
+        if not qty:
+            continue
+        found = re.match(r"(?:BM|VM)\.GPU\.([A-Za-z0-9-]+)\.", sh["name"])
+        if not found:
+            continue
+        token = re.sub(r"[^a-z0-9]", "", found.group(1).lower())
+        # Exact model match first; failing that a unique prefix (shape RTXPRO -> SKU RTXPRO6000).
+        # "a10" must not swallow "a100v2", which is why an exact hit always wins.
+        meter = gpu_skus.get(token)
+        if not meter:
+            near = [m for t, m in gpu_skus.items() if t.startswith(token)]
+            meter = near[0] if len(near) == 1 else None
+        if not meter:
+            continue
+        gpu_shapes.append({
+            "name": sh["name"], "gpus": int(qty),
+            "gpuMemoryGb": sh.get("gpuMemoryQty"),
+            "sku": meter["sku"], "rate": meter["rate"], "accelerator": meter["label"],
+        })
+    gpu_shapes.sort(key=lambda g: g["name"])
+
     return {
+        "gpuShapes": gpu_shapes,
         "generatedFrom": snap_path.name,
         "extractedAtUtc": snap.get("extracted_at_utc"),
         "datasetVersion": (snap.get("source") or {}).get("dataset_version"),

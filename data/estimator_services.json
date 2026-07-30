@@ -1,4 +1,118 @@
 {
+ "gpuShapes": [
+  {
+   "name": "BM.GPU.A10.4",
+   "gpus": 4,
+   "gpuMemoryGb": 96,
+   "sku": "B95909",
+   "rate": 2.0,
+   "accelerator": "Compute  - GPU - A10"
+  },
+  {
+   "name": "BM.GPU.A100-v2.8",
+   "gpus": 8,
+   "gpuMemoryGb": 640,
+   "sku": "B95907",
+   "rate": 4.0,
+   "accelerator": "Compute - GPU - A100 - v2"
+  },
+  {
+   "name": "BM.GPU.B200.8",
+   "gpus": 8,
+   "gpuMemoryGb": 1440,
+   "sku": "B110978",
+   "rate": 14.0,
+   "accelerator": "OCI - Compute - GPU - B200"
+  },
+  {
+   "name": "BM.GPU.B300.8",
+   "gpus": 8,
+   "gpuMemoryGb": 2100,
+   "sku": "B112237",
+   "rate": 15.0,
+   "accelerator": "Oracle Cloud Infrastructure - Compute - GPU - B300"
+  },
+  {
+   "name": "BM.GPU.GB200.4 (NVL72)",
+   "gpus": 4,
+   "gpuMemoryGb": 756,
+   "sku": "B110979",
+   "rate": 16.0,
+   "accelerator": "OCI - Compute - GPU - GB200"
+  },
+  {
+   "name": "BM.GPU.GB300.4 (NVL72)",
+   "gpus": 4,
+   "gpuMemoryGb": 278,
+   "sku": "B112140",
+   "rate": 18.0,
+   "accelerator": "OCI - Compute - GPU - GB300"
+  },
+  {
+   "name": "BM.GPU.H100.8",
+   "gpus": 8,
+   "gpuMemoryGb": 640,
+   "sku": "B98415",
+   "rate": 10.0,
+   "accelerator": "Oracle Cloud Infrastructure - Compute - GPU - H100"
+  },
+  {
+   "name": "BM.GPU.H200.8",
+   "gpus": 8,
+   "gpuMemoryGb": 1128,
+   "sku": "B110519",
+   "rate": 10.0,
+   "accelerator": "OCI - Compute - GPU - H200"
+  },
+  {
+   "name": "BM.GPU.L40S.4",
+   "gpus": 4,
+   "gpuMemoryGb": 192,
+   "sku": "B109479",
+   "rate": 3.5,
+   "accelerator": "Compute - GPU - L40S"
+  },
+  {
+   "name": "BM.GPU.MI300X.8",
+   "gpus": 8,
+   "gpuMemoryGb": 1536,
+   "sku": "B109485",
+   "rate": 6.0,
+   "accelerator": "OCI - Compute - GPU - MI300X"
+  },
+  {
+   "name": "BM.GPU.MI355X.8",
+   "gpus": 8,
+   "gpuMemoryGb": 288,
+   "sku": "B111758",
+   "rate": 8.6,
+   "accelerator": "OCI- Compute - GPU - MI355X"
+  },
+  {
+   "name": "BM.GPU.RTXPRO.8",
+   "gpus": 8,
+   "gpuMemoryGb": 768,
+   "sku": "B112613",
+   "rate": 4.5,
+   "accelerator": "OCI - Compute - GPU - RTX PRO 6000"
+  },
+  {
+   "name": "VM.GPU.A10.1",
+   "gpus": 1,
+   "gpuMemoryGb": 24,
+   "sku": "B95909",
+   "rate": 2.0,
+   "accelerator": "Compute  - GPU - A10"
+  },
+  {
+   "name": "VM.GPU.A10.2",
+   "gpus": 2,
+   "gpuMemoryGb": 48,
+   "sku": "B95909",
+   "rate": 2.0,
+   "accelerator": "Compute  - GPU - A10"
+  }
+ ],
  "generatedFrom": "oracle-cost-estimator-catalog-2026-07-30.json",
  "extractedAtUtc": "2026-07-30T03:23:41",
  "datasetVersion": "439",

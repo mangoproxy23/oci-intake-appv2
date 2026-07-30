@@ -209,6 +209,16 @@ def _when_value(value):
     return value
 
 
+def _toggle(key, label, default=False, enabled_when=None):
+    """A checkbox. The estimator uses one for NVIDIA AI Enterprise rather than a dropdown,
+    because it is on-or-off for the shape you already chose. `enabled_when` names a per-shape
+    flag; the client greys the box out on a shape that cannot have it."""
+    f = {"key": key, "label": label, "unit": "", "default": 1 if default else 0, "toggle": True}
+    if enabled_when:
+        f["enabledWhen"] = enabled_when
+    return f
+
+
 def _sel(key, label, options, default, show_when=None, hide_when=None):
     """A dropdown field. `options` is a list of (value, label) pairs; the selected value
     is a string used by the entry's cost function (not multiplied). show_when / hide_when
@@ -1602,6 +1612,39 @@ def _estimator_entries(include_component_types=GENERIC_COMPONENT_TYPES):
 #
 # Rates still come from the snapshot (data/estimator_services.json), so a refresh moves them.
 
+# Windows on a compute shape is a per-OCPU-hour add-on (B88318), so the licence follows the
+# shape's core count - which on a fixed GPU box is a property of the machine, not a choice.
+GPU_SHAPES_FILE = DATA / "oci_gpu_shapes.json"
+WINDOWS_OS_SKU, WINDOWS_OS_RATE = "B88318", 0.092
+
+
+# NVIDIA AI Enterprise part number per GPU shape. Written out rather than matched on the model
+# string: the catalog spells the variants "A100 80" / "A100 40" while oci_gpu_shapes.json says
+# "A100-80G" / "A100-40G", and it lists BM.GPU.GB200.4 with gpuModel "B200" - so every fuzzy rule
+# either billed an A100 shape the cheaper A10 licence or billed GB200 the plain-B200 one.
+# A shape absent from this table has no AI Enterprise licence to buy (all AMD Instinct, and the
+# Pascal/Volta generations that predate it).
+GPU_AIE_SKU_BY_SHAPE = {
+    "VM.GPU.A10.1": "B111826", "VM.GPU.A10.2": "B111826", "BM.GPU.A10.4": "B111826",
+    "BM.GPU4.8": "B111831",            # A100 40 GB
+    "BM.GPU.A100-v2.8": "B111827",     # A100 80 GB
+    "BM.GPU.L40S.4": "B111825",
+    "BM.GPU.H100.8": "B111824",
+    "BM.GPU.H200.8": "B111830",
+    "BM.GPU.B200.8": "B111829",
+    "BM.GPU.GB200.4": "B111828",
+}
+
+
+def _gpu_shape_specs():
+    """Per-shape GPU/OCPU/memory specs, and whether Windows and NVIDIA AI Enterprise apply."""
+    try:
+        rows = json.loads(GPU_SHAPES_FILE.read_text()).get("shapes") or []
+    except (FileNotFoundError, ValueError):
+        return []
+    return rows
+
+
 _COMPUTE_PREFIX = re.compile(r"^(oracle cloud infrastructure|oci)\s*-?\s*", re.I)
 _COMPUTE_COMPONENT = re.compile(r"[\s-]*(ocpu|memory|nvme)\s*$", re.I)
 
@@ -1814,39 +1857,69 @@ def _compute_entries():
              "sku": first.get("sku", ""), "rate": first.get("rate", 0.0)},
         ))
 
-    # ---- GPU: the accelerator, plus the optional NVIDIA AI Enterprise licence ----
-    gsvc = _estimator_service(801)
-    if gsvc:
-        gpus, aie = {}, {}
-        for m in gsvc["skus"]:
-            label = _COMPUTE_PREFIX.sub("", m["label"]).strip()
-            key = re.sub(r"[^a-z0-9]+", "_", label.lower()).strip("_")
-            rec = {"key": key, "label": re.sub(r"^Compute\s*-\s*", "", label).strip(),
-                   "sku": m["sku"], "rate": float(m["rate"])}
-            # "NVIDIA AI Enterprise" rows are a per-GPU software licence layered on top of an
-            # accelerator, not an accelerator you can buy on its own.
-            (aie if "nvidia ai enterprise" in label.lower() else gpus)[key] = rec
-        gpu_opts = sorted(
-            [(k, f"{r['label']} - ${r['rate']:g}/GPU-hr", _gpu_family(r["label"]))
-             for k, r in gpus.items()],
+    # ---- GPU: a fixed box, so the shape sets the accelerator count ----
+    # BM.GPU.L40S.4 is four L40S, always - the count is a property of the machine. The card used
+    # to ask "which accelerator" and "how many", which let you quote 3 H200s, a configuration
+    # Oracle does not sell. NVIDIA AI Enterprise and Windows are per-shape add-ons: AIE is
+    # licensed per GPU and only on NVIDIA silicon, Windows per OCPU and only where supported.
+    specs = _gpu_shape_specs()
+    est_gpu = {g["name"].split(" ")[0]: g for g in (_ESTIMATOR.get("gpuShapes") or [])}
+    # Per-GPU SKUs straight from Oracle's catalog, indexed by rate and by model token, so a
+    # legacy shape the shape file knows but the estimator does not still cites a real part
+    # number instead of borrowing another accelerator's.
+    _gsvc = _estimator_service(801) or {}
+    by_rate = {}
+    for m in _gsvc.get("skus") or []:
+        if "nvidia ai enterprise" not in m["label"].lower():
+            by_rate.setdefault(float(m["rate"]), m["sku"])
+    if specs:
+        shapes = {}
+        for row in specs:
+            name = row["shape"]
+            rate = row.get("pricePerGpuHour")
+            if not rate:
+                continue                      # no published per-GPU rate: nothing to quote
+            key = re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
+            shapes[key] = {
+                "value": key, "name": name,
+                "gpus": int(row.get("gpuCount") or 0),
+                "ocpu": float(row.get("ocpu") or 0),
+                "gpuMemoryGb": row.get("gpuMemGb"),
+                "model": row.get("gpuModel") or "",
+                "rate": float(rate),
+                # SKU from Oracle's own catalog where the shape maps to one.
+                "sku": ((est_gpu.get(name) or {}).get("sku")
+                        or by_rate.get(float(rate)) or ""),
+                "aieRate": row.get("nvaiePerGpuHour"),
+                # The shape NAME is the better key: oci_gpu_shapes.json lists BM.GPU.GB200.4
+                # with gpuModel "B200", which would bill it the plain-B200 licence.
+                "aieSku": GPU_AIE_SKU_BY_SHAPE.get(name, ""),
+                "windows": bool(row.get("windows")),
+            }
+        opts = sorted(
+            [(k, f"{v['name']}  ({v['gpus']} x {v['model']}, {v['gpuMemoryGb']} GB GPU / "
+                 f"{v['ocpu']:g} OCPU) - ${v['rate']:g}/GPU-hr", _gpu_family(v["model"]))
+             for k, v in shapes.items()],
             key=lambda o: (o[2], o[1]))
-        aie_opts = [("none", "None", "")] + sorted(
-            [(k, f"{r['label'].replace('NVIDIA AI Enterprise - ', '')} - ${r['rate']:g}/GPU-hr",
-              _gpu_family(r["label"])) for k, r in aie.items()],
-            key=lambda o: (o[2], o[1]))
+        default = "bm_gpu_l40s_4" if "bm_gpu_l40s_4" in shapes else next(iter(shapes))
+        first = shapes[default]
         out.append(_compute_entry(
             "compute_gpu", 801, "Compute - GPU",
-            "GPU shapes bill per GPU-hour. NVIDIA AI Enterprise is a separate per-GPU-hour "
-            "licence on top of the accelerator - leave it at None for a BYOL or bare stack.",
+            "A GPU shape is a fixed machine: it sets how many accelerators it has, how much GPU "
+            "memory and how many OCPUs, so none of those are typed in. NVIDIA AI Enterprise is "
+            "a per-GPU-hour licence and Windows a per-OCPU-hour one - each toggle is greyed out "
+            "on a shape that cannot take it (there is no AI Enterprise licence for AMD "
+            "Instinct, and most GPU shapes are Linux-only).",
             "gpu",
-            [_sel("gpu", "Accelerator", gpu_opts, next(iter(gpus), "")),
-             _sf("gpus", "GPUs", "GPU", 0, 1, 0),
-             _sel("aie", "NVIDIA AI Enterprise licence", aie_opts, "none"),
-             _sf("aie_gpus", "Licensed GPUs", "GPU", 0, 1, 0, hide_when=("aie", "none"))],
-            {"gpuOptions": gpus, "aieOptions": aie, "unit": "GPU / hour",
-             "sku": next(iter(gpus.values()))["sku"],
-             "rate": next(iter(gpus.values()))["rate"]},
+            [_sel("shape", "Shape", opts, default),
+             _sf("instances", "Instances", "instance", 1, 1, 0),
+             _toggle("aie", "Enable NVIDIA AI Enterprise support", enabled_when="aieRate"),
+             _toggle("windows", "Windows licensing", enabled_when="windows")],
+            {"gpuShapes": shapes, "unit": "GPU / hour",
+             "sku": first["sku"], "rate": first["rate"],
+             "windowsRate": WINDOWS_OS_RATE, "windowsSku": WINDOWS_OS_SKU},
         ))
+
     return out
 
 
@@ -2062,10 +2135,16 @@ def line_cost(entry, values, hours=HOURS_PER_MONTH):
             count = v.get("instances", 1) if "instances" in v else 1
             return round(per_instance * c_hours * max(count, 0), 2)
         if kind == "gpu":
-            gpu = (entry.get("gpuOptions") or {}).get(str(values.get("gpu") or "")) or {}
-            lic = (entry.get("aieOptions") or {}).get(str(values.get("aie") or "")) or {}
-            return round((v.get("gpus", 0) * float(gpu.get("rate") or 0)
-                          + v.get("aie_gpus", 0) * float(lic.get("rate") or 0)) * c_hours, 2)
+            sh = (entry.get("gpuShapes") or {}).get(str(values.get("shape") or "")) or {}
+            count = v.get("instances", 1) if "instances" in v else 1
+            gpus = float(sh.get("gpus") or 0)
+            per_hour = gpus * float(sh.get("rate") or 0)
+            # AI Enterprise bills per GPU, Windows per OCPU - and only where the shape allows.
+            if v.get("aie") and sh.get("aieRate"):
+                per_hour += gpus * float(sh["aieRate"])
+            if v.get("windows") and sh.get("windows"):
+                per_hour += float(sh.get("ocpu") or 0) * WINDOWS_OS_RATE
+            return round(per_hour * c_hours * max(count, 0), 2)
         if kind == "ocvs":
             plan = (entry.get("ocvsPlans") or {}).get(str(values.get("plan") or "")) or {}
             exp = (entry.get("ocvsExpansion") or {}).get(str(values.get("expansion") or "")) or {}
@@ -2439,13 +2518,18 @@ def line_breakdown(entry, values, hours=HOURS_PER_MONTH):
                 li(hcx["sku"], "OCVS - " + hcx["label"], v.get("hcx_ocpu", 0),
                    float(hcx["rate"]), True)
         elif kind == "gpu":
-            gpu = (entry.get("gpuOptions") or {}).get(str(values.get("gpu") or "")) or {}
-            lic = (entry.get("aieOptions") or {}).get(str(values.get("aie") or "")) or {}
-            if gpu and v.get("gpus", 0):
-                li(gpu["sku"], f"Compute - {gpu['label']}", v.get("gpus", 0),
-                   float(gpu["rate"]), True)
-            if lic and v.get("aie_gpus", 0):
-                li(lic["sku"], lic["label"], v.get("aie_gpus", 0), float(lic["rate"]), True)
+            sh = (entry.get("gpuShapes") or {}).get(str(values.get("shape") or "")) or {}
+            count = max(v.get("instances", 1) if "instances" in v else 1, 0)
+            gpus = float(sh.get("gpus") or 0) * count
+            if sh and gpus:
+                li(sh["sku"], f"Compute - GPU - {sh['name']} ({sh['model']})",
+                   gpus, float(sh["rate"]), True)
+            if v.get("aie") and sh.get("aieRate"):
+                li(sh.get("aieSku") or "", f"NVIDIA AI Enterprise - {sh['model']}",
+                   gpus, float(sh["aieRate"]), True)
+            if v.get("windows") and sh.get("windows"):
+                li(WINDOWS_OS_SKU, "Compute - Windows OS licence",
+                   float(sh.get("ocpu") or 0) * count, WINDOWS_OS_RATE, True)
 
     elif entry.get("skuMeters"):
         # One SKU line per filled meter, at the tier-blended effective rate so the paper trail

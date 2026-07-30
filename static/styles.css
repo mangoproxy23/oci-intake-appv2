@@ -5476,3 +5476,11 @@ td input[type="checkbox"] {
 .os-select.is-linux { border-color: #cbd5e1; background: var(--surface); color: var(--muted); }
 .os-select:focus-visible { outline: 2px solid var(--redwood); outline-offset: 1px; }
 :root[data-theme="dark"] .os-select.is-windows { background: #16263f; color: #93c5fd; }
+
+/* Toggle field (NVIDIA AI Enterprise, Windows licensing) - a checkbox reads as on-or-off for
+   the shape already chosen, which is how the estimator asks it. Greyed out when the selected
+   shape cannot take the add-on. */
+.svc-toggle { flex-direction: row !important; align-items: center; gap: 6px; }
+.svc-toggle input { width: auto; margin: 0; }
+.svc-field.is-disabled { opacity: .45; }
+.svc-field.is-disabled input { cursor: not-allowed; }

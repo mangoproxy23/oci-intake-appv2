@@ -6100,6 +6100,15 @@ function serviceCardHtml(e, i) {
         + (f.hideWhen
         ? ` data-hidewhen-field="${escapeHtml(f.hideWhen.field)}" data-hidewhen-value="${escapeHtml(f.hideWhen.value)}"`
         : "");
+      if (f.toggle) {
+        return `<label class="svc-field svc-toggle"${showAttr}>
+                  <input type="checkbox" class="svc-input" data-idx="${i}"
+                         data-key="${escapeHtml(f.key)}"
+                         data-enabledwhen="${escapeHtml(f.enabledWhen || "")}"
+                         ${f.default ? "checked" : ""} />
+                  <span>${escapeHtml(f.label)}</span>
+                </label>`;
+      }
       const control = f.options
         ? `<select class="svc-input" data-idx="${i}" data-key="${escapeHtml(f.key)}">
              ${optionListHtml(f.options, f.default)}
@@ -6198,7 +6207,8 @@ function cardValues(idx) {
     .querySelectorAll(`.svc-input[data-idx="${idx}"]`)
     .forEach((inp) => {
       // Dropdowns carry a string value (e.g. workload/deployment); numeric inputs a number.
-      vals[inp.dataset.key] = inp.tagName === "SELECT" ? inp.value : (Number(inp.value) || 0);
+      if (inp.type === "checkbox") vals[inp.dataset.key] = inp.checked ? 1 : 0;
+      else vals[inp.dataset.key] = inp.tagName === "SELECT" ? inp.value : (Number(inp.value) || 0);
     });
   return vals;
 }
@@ -6234,6 +6244,21 @@ function applyCardFieldVisibility(scope) {
     const ctrl = card && card.querySelector(`.svc-input[data-key="${el.dataset.hidewhenField}"]`);
     const hideOn = String(el.dataset.hidewhenValue || "").split("|");
     el.style.display = ctrl && hideOn.includes(ctrl.value) ? "none" : "";
+  });
+  // A toggle naming a per-shape flag is disabled when the selected shape lacks it - there is no
+  // NVIDIA AI Enterprise licence for AMD Instinct, and most GPU shapes are Linux-only.
+  (scope || els.serviceResults).querySelectorAll("input[data-enabledwhen]").forEach((inp) => {
+    const flag = inp.dataset.enabledwhen;
+    if (!flag) return;
+    const card = inp.closest(".service-card");
+    const idx = Number(inp.dataset.idx);
+    const entry = (state.catalog.results || [])[idx];
+    const sel = card && card.querySelector('.svc-input[data-key="shape"]');
+    const shape = entry && sel ? (entry.gpuShapes || {})[sel.value] : null;
+    const ok = !!(shape && shape[flag]);
+    inp.disabled = !ok;
+    if (!ok) inp.checked = false;
+    inp.closest(".svc-field")?.classList.toggle("is-disabled", !ok);
   });
   (scope || els.serviceResults).querySelectorAll("[data-showwhen-field]").forEach((el) => {
     const card = el.closest(".service-card");
@@ -6287,11 +6312,14 @@ function clientLineCost(entry, v) {
       return Math.round(t * 100) / 100;
     }
     if (entry.computeCard === "gpu") {
-      const g = (entry.gpuOptions || {})[String(v.gpu || "")] || {};
-      const l = (entry.aieOptions || {})[String(v.aie || "")] || {};
-      const t = (Number(v.gpus || 0) * Number(g.rate || 0)
-        + Number(v.aie_gpus || 0) * Number(l.rate || 0)) * ch;
-      return Math.round(t * 100) / 100;
+      const sh = (entry.gpuShapes || {})[String(v.shape || "")] || {};
+      const gpus = Number(sh.gpus || 0);
+      let perHour = gpus * Number(sh.rate || 0);
+      // Add-ons only bill where the shape can actually take them.
+      if (v.aie && sh.aieRate) perHour += gpus * Number(sh.aieRate);
+      if (v.windows && sh.windows) perHour += Number(sh.ocpu || 0) * Number(entry.windowsRate || 0);
+      const count = v.instances === undefined ? 1 : Number(v.instances || 0);
+      return Math.round(perHour * ch * Math.max(count, 0) * 100) / 100;
     }
     const shape = (entry.shapeOptions || {})[String(v.shape || "")] || {};
     const per = Number(v.ocpu || 0) * Number((shape.ocpu || {}).rate || 0)
