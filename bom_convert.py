@@ -139,22 +139,44 @@ def _load_sku_catalog():
 SKU_CATALOG = _load_sku_catalog()
 
 
+# Anything whose text names a database engine is a database line, whatever it bills in.
+_DATABASE_TERMS = (
+    "database", "autonomous", "exadata", "mysql", "heatwave", "postgres", "nosql",
+    "goldengate", "timesten", "berkeley db",
+)
+
+
 def classify_resource(product, unit):
     """Map a line (by its combined description + unit text) to a resource kind + OCI
     service category, used to recover sizing (OCPU/RAM/storage) and to label the row.
-    Order matters: licenses and memory are checked before the generic OCPU rule so a
-    'Windows OS (OCPU Per Hour)' license line isn't miscounted as compute OCPUs."""
+    Order matters: licenses, databases and memory are checked before the generic OCPU rule,
+    so neither a 'Windows OS (OCPU Per Hour)' license line nor an 'Oracle Base Database
+    Compute Infrastructure (ECPU Per Hour)' line is miscounted as re-mappable compute."""
     both = f"{_norm(product)} {_norm(unit)}"
     if "gpu" in both:
         return "gpu", "Compute"
     if ("windows" in both and "os" in both) or "licens" in both:
         return "license", "Licensing"
-    if "ocpu" in both or "ecpu" in both:
-        return "ocpu", "Compute"
+    # A database engine bills per OCPU/ECPU exactly like compute does, so it has to be claimed
+    # before the processor and memory rules - but ONLY there. Leave the storage and networking
+    # rules below alone: a "Database Storage (Gigabyte...)" line is still storage, and stealing
+    # it from blockStorage would drop it out of totals.blockStorageGb and shrink the diagram.
+    #
+    # Getting this wrong is expensive and silent. A DB line typed "ocpu" is merged into a
+    # re-mappable VM by _merge_server_compute, and then re-priced at plain compute rates the
+    # instant a shape is chosen - which threw away the Enterprise Edition licence, 81% of the
+    # line, on a real customer BOM. 115 of the 219 database SKUs in the price list reach here.
+    is_db = any(k in both for k in _DATABASE_TERMS)
+    is_processor = "ocpu" in both or "ecpu" in both
     # Memory: "...- Memory" OR Oracle's per-hour gigabyte metric (RAM), but NOT the
     # per-month gigabyte STORAGE metric.
-    if ("memory" in both or "ram" in both
-            or ("gigabyte" in both and "per hour" in both and "storage" not in both)):
+    is_memory = ("memory" in both or "ram" in both
+                 or ("gigabyte" in both and "per hour" in both and "storage" not in both))
+    if is_db and (is_processor or is_memory):
+        return "database", "Database"
+    if is_processor:
+        return "ocpu", "Compute"
+    if is_memory:
         return "memory", "Compute"
     if "performance unit" in both or "vpu" in both:
         return "perf", "Storage"
@@ -164,14 +186,15 @@ def classify_resource(product, unit):
         return "fileStorage", "Storage"
     if "object storage" in both or "archive storage" in both:
         return "objectStorage", "Storage"
-    if "ocpu" in both or "ecpu" in both:
-        return "ocpu", "Compute"
     if "storage" in both and ("gigabyte" in both or "terabyte" in both):
         return "blockStorage", "Storage"
     if any(k in both for k in ["data transfer", "outbound", "fastconnect", "load balancer",
                                "vpn", "dns", "nat gateway", "networking"]):
         return "network", "Networking"
-    if any(k in both for k in ["database", "autonomous", "exadata", "mysql", "postgres"]):
+    # Backstop for database lines that are neither processor, memory, storage nor network -
+    # infrastructure and per-instance charges, mostly. Same list as the diversion above, so a
+    # service is labelled Database consistently whichever meter it happens to bill on.
+    if is_db:
         return "database", "Database"
     return "other", "Other Services"
 
@@ -806,9 +829,17 @@ def _merge_server_compute(rows, hours):
 
     def flush():
         nonlocal comp
-        if comp and (comp["ocpu"] > 0 or comp["mem"] > 0):
+        if not comp:
+            return
+        # A re-mappable flex VM is an OCPU line AND a memory line. Anything else is not a
+        # machine we can re-shape: applyShapeToVm() re-prices as ocpu*rate + memoryGb*rate,
+        # so merging an OCPU-only section fabricates a "0 GB" VM whose memory half silently
+        # prices at $0 the moment a shape is picked. Leave those rows exactly as they came in.
+        if comp["ocpu"] > 0 and comp["mem"] > 0:
             shape = _detect_shape_for_rates(comp["ocpu_rate"], comp["mem_rate"])
             out.append(_make_compute_vm(comp, shape, hours))
+        else:
+            out.extend(comp["rows"])
         comp = None
 
     for r in rows:
@@ -819,7 +850,7 @@ def _merge_server_compute(rows, hours):
         if r.get("_kind") in ("ocpu", "memory"):
             if comp is None:
                 comp = {"section": sec, "ocpu": 0.0, "mem": 0.0, "ocpu_rate": 0.0,
-                        "mem_rate": 0.0, "items": [], "monthly": 0.0,
+                        "mem_rate": 0.0, "items": [], "monthly": 0.0, "rows": [],
                         "sourceRow": r.get("sourceRow", 0)}
             li = dict(r["lineItems"][0])
             if r["_kind"] == "ocpu":
@@ -829,6 +860,7 @@ def _merge_server_compute(rows, hours):
                 comp["mem"] += _to_float(r["specs"].get("memoryGb"))
                 comp["mem_rate"] = _to_float(li.get("rate")) or comp["mem_rate"]
             comp["items"].append(li)
+            comp["rows"].append(r)          # kept so flush() can put them back unmerged
             comp["monthly"] += _to_float(r.get("monthly"))
         else:
             out.append(r)
