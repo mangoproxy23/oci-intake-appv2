@@ -2158,7 +2158,7 @@ td input[type="checkbox"] {
 .load-workflow-status[hidden] { display: none; }
 
 /* Other OCI Bill: which sheet in the workbook, and what didn't reconcile. */
-.foreign-bom-sheets {
+.other-bill-sheets {
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -2171,17 +2171,17 @@ td input[type="checkbox"] {
   max-width: 520px;
 }
 
-.foreign-bom-sheets[hidden] { display: none; }
-.foreign-bom-sheets select {
+.other-bill-sheets[hidden] { display: none; }
+.other-bill-sheets select {
   padding: 6px 8px;
   border: 1px solid var(--line, #d8dee6);
   border-radius: 6px;
   background: #fff;
   font: inherit;
 }
-.foreign-bom-sheets small { color: #6b7682; }
+.other-bill-sheets small { color: #6b7682; }
 
-.foreign-bom-warnings {
+.other-bill-warnings {
   margin-top: 8px;
   padding: 8px 12px;
   border: 1px solid #f0d9a8;
@@ -2193,9 +2193,9 @@ td input[type="checkbox"] {
   max-width: 720px;
 }
 
-.foreign-bom-warnings[hidden] { display: none; }
-.foreign-bom-warnings p { margin: 0 0 6px; }
-.foreign-bom-warnings p:last-child { margin-bottom: 0; }
+.other-bill-warnings[hidden] { display: none; }
+.other-bill-warnings p { margin: 0 0 6px; }
+.other-bill-warnings p:last-child { margin-bottom: 0; }
 .load-workflow-status .lws-name { font-weight: 600; }
 .load-workflow-status .lws-state { color: #6b7682; }
 .load-workflow-status.lws-ok { background: #e6f4ec; border-color: #bfe3cd; }

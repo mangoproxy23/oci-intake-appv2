@@ -117,7 +117,7 @@
                 <strong>Cloud Bill</strong>
                 <span>AWS, Azure, or GCP bill exports mapped to OCI-equivalent services.</span>
               </button>
-              <button id="modeForeignBom" class="mode-card" type="button" data-mode="foreign_bom">
+              <button id="modeOtherOciBill" class="mode-card" type="button" data-mode="other_oci_bill">
                 <strong>Other OCI Bill</strong>
                 <span>Upload an existing BOM from the cost estimator tool, or other formats.</span>
               </button>
@@ -152,12 +152,12 @@
             <span class="lws-name"></span>
             <span class="lws-state"></span>
           </div>
-          <div id="foreignBomSheets" class="foreign-bom-sheets" hidden>
-            <label for="foreignBomSheetSelect"><strong>Which BOM in this workbook?</strong></label>
-            <select id="foreignBomSheetSelect"></select>
+          <div id="otherBillSheets" class="other-bill-sheets" hidden>
+            <label for="otherBillSheetSelect"><strong>Which BOM in this workbook?</strong></label>
+            <select id="otherBillSheetSelect"></select>
             <small>This file holds more than one proposal. Pick the one to convert.</small>
           </div>
-          <div id="foreignBomWarnings" class="foreign-bom-warnings" hidden role="status"></div>
+          <div id="otherBillWarnings" class="other-bill-warnings" hidden role="status"></div>
           <div id="selectedDocTile" class="selected-doc-tile" hidden>
             <span class="selected-doc-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24"><path d="M6 2h8l4 4v16H6z"/><path d="M14 2v4h4"/></svg>

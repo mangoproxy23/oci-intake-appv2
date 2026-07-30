@@ -187,7 +187,7 @@ const els = {
   dropZone: document.querySelector("#dropZone"),
   modeOnPrem: document.querySelector("#modeOnPrem"),
   modeCloudBill: document.querySelector("#modeCloudBill"),
-  modeForeignBom: document.querySelector("#modeForeignBom"),
+  modeOtherOciBill: document.querySelector("#modeOtherOciBill"),
   modeEyebrow: document.querySelector("#modeEyebrow"),
   uploadHeading: document.querySelector("#uploadHeading"),
   uploadDescription: document.querySelector("#uploadDescription"),
@@ -242,9 +242,9 @@ const els = {
   convertBomBtn: document.querySelector("#convertBomBtn"),
   convertBomFile: document.querySelector("#convertBomFile"),
   convertBomStatus: document.querySelector("#convertBomStatus"),
-  foreignBomSheets: document.querySelector("#foreignBomSheets"),
-  foreignBomSheetSelect: document.querySelector("#foreignBomSheetSelect"),
-  foreignBomWarnings: document.querySelector("#foreignBomWarnings"),
+  otherBillSheets: document.querySelector("#otherBillSheets"),
+  otherBillSheetSelect: document.querySelector("#otherBillSheetSelect"),
+  otherBillWarnings: document.querySelector("#otherBillWarnings"),
   bomName: document.querySelector("#bomName"),
   ociDiscount: document.querySelector("#ociDiscount"),
   sizingSwitch: document.querySelector(".sizing-switch"),
@@ -1146,13 +1146,22 @@ function isCloudBillMode() {
   return state.intakeMode === "cloud_bill";
 }
 
-// Foreign BOM: a finished OCI BOM from somewhere else (Oracle's cost estimator, a partner, an
+// Other OCI Bill: a finished OCI BOM from somewhere else (Oracle's cost estimator, a partner, an
 // older export of this app). It skips inventory parsing entirely - the file already carries OCI
 // SKUs, quantities and prices, so it goes straight to the converter and lands on the Shape page.
-// The UI calls this mode "Other OCI Bill"; the state key stays "foreign_bom" so workflows
-// saved by earlier builds still reload.
-function isForeignBomMode() {
-  return state.intakeMode === "foreign_bom";
+//
+// Workbooks exported before this mode was renamed carry intakeMode "foreign_bom" in their hidden
+// workflow sheet. New files write "other_oci_bill"; the legacy value is migrated on the way in,
+// so a BOM saved by any build still reloads into the right mode.
+const LEGACY_INTAKE_MODES = { foreign_bom: "other_oci_bill" };
+
+function normalizeIntakeMode(mode) {
+  const m = LEGACY_INTAKE_MODES[mode] || mode;
+  return m === "cloud_bill" || m === "other_oci_bill" ? m : "on_prem";
+}
+
+function isOtherOciBillMode() {
+  return state.intakeMode === "other_oci_bill";
 }
 
 function providerLabel(value = state.providerHint) {
@@ -1385,12 +1394,12 @@ function previewFields() {
 
 function syncModeUi() {
   const cloudBill = isCloudBillMode();
-  const foreign = isForeignBomMode();
+  const otherBill = isOtherOciBillMode();
   if (typeof syncExistingInfraUi === "function") syncExistingInfraUi();
   state.fullServiceBeta = cloudBill;
-  els.modeOnPrem?.classList.toggle("is-selected", !cloudBill && !foreign);
+  els.modeOnPrem?.classList.toggle("is-selected", !cloudBill && !otherBill);
   els.modeCloudBill?.classList.toggle("is-selected", cloudBill);
-  els.modeForeignBom?.classList.toggle("is-selected", foreign);
+  els.modeOtherOciBill?.classList.toggle("is-selected", otherBill);
   els.providerControl?.classList.toggle("is-hidden", !cloudBill);
   // OIC message packs only apply in cloud-bill mode (SQS/SNS/Transfer Family mapping).
   els.oicMessagePacksControl?.classList.toggle("is-hidden", !cloudBill);
@@ -1399,30 +1408,30 @@ function syncModeUi() {
   }
   // Cloud bill accepts several formats; Chrome can grey out CSV/TSV even when listed,
   // so don't filter at all here - the backend validates the file type on upload.
-  els.fileInput.accept = cloudBill ? "" : foreign ? ".xlsx,.xls,.csv,.tsv,.json" : ".xlsx,.xls";
-  els.modeEyebrow.textContent = cloudBill ? "Cloud Bill" : foreign ? "Other OCI Bill" : "On-Prem Inventory";
+  els.fileInput.accept = cloudBill ? "" : otherBill ? ".xlsx,.xls,.csv,.tsv,.json" : ".xlsx,.xls";
+  els.modeEyebrow.textContent = cloudBill ? "Cloud Bill" : otherBill ? "Other OCI Bill" : "On-Prem Inventory";
   els.uploadHeading.textContent = cloudBill
     ? "Upload Cloud Bill"
-    : foreign ? "Import Other OCI Bill" : "Upload Inventory";
+    : otherBill ? "Import Other OCI Bill" : "Upload Inventory";
   els.uploadDescription.textContent = cloudBill
     ? "Upload an AWS, Azure, or GCP bill export. PDF invoices and CSV, TSV, or Excel exports are mapped to OCI-equivalent services and meters."
-    : foreign
+    : otherBill
     ? "Upload an existing BOM from the cost estimator tool, or other formats. Every OCI SKU and line item is recognized against the app's catalog, re-priced, and loaded live into your results - a BOM this app exported is restored in full instead."
     : state.openaiApiConnected
     ? "Drop an Excel workbook here. OpenAI can inspect the workbook, choose the inventory table, and normalize server/application fields for review."
     : "Drop an Excel workbook here. The local parser will choose the inventory table and normalize CPU, RAM, storage, environment, and application fields for review.";
   els.dropZone.querySelector("strong").textContent = cloudBill
     ? "Choose Bill Export"
-    : foreign ? "Choose BOM" : "Choose Spreadsheet";
+    : otherBill ? "Choose BOM" : "Choose Spreadsheet";
   els.dropZoneHint.textContent = cloudBill
     ? "or drag a PDF, CSV, TSV, or Excel bill export onto this upload area"
-    : foreign
+    : otherBill
     ? "Cost estimator proposal, a partner BOM, or an export from this app (.xlsx / .csv)"
     : "or drag the workbook onto this upload area";
 }
 
 function setIntakeMode(mode) {
-  state.intakeMode = mode === "cloud_bill" || mode === "foreign_bom" ? mode : "on_prem";
+  state.intakeMode = normalizeIntakeMode(mode);
   state.providerHint = state.intakeMode === "cloud_bill" ? state.providerHint : "auto";
   clearIntakeStatuses();   // switching intake path - drop stale load/convert banners
   syncModeUi();
@@ -2212,7 +2221,7 @@ async function uploadFile(file) {
   // Other OCI Bill mode: the file is already a priced OCI BOM, not a raw inventory or bill,
   // so the inventory parser would make nonsense of it. Route the whole drop zone (and the file
   // picker, which shares this entry point) to the converter instead.
-  if (isForeignBomMode()) return convertBomFromFile(file);
+  if (isOtherOciBillMode()) return convertBomFromFile(file);
   clearIntakeStatuses();   // starting a fresh upload - drop any load/convert banners
   resetWorkflowProgress();
   state.lastUploadFile = file;
@@ -2820,6 +2829,7 @@ async function applyWorkflowState(wf) {
     "approvedFlags", "hiddenSources", "selectedRows", "columnPrefs", "resultSort",
   ];
   assign.forEach((k) => { if (wf[k] !== undefined) state[k] = wf[k]; });
+  state.intakeMode = normalizeIntakeMode(state.intakeMode);
   const savedDiagramOptions =
     wf.diagramOptions && typeof wf.diagramOptions === "object" ? wf.diagramOptions : {};
   state.diagramOptions = {
@@ -2958,8 +2968,8 @@ function clearIntakeStatuses() {
   // success/error doesn't linger when the user switches to a different intake path.
   if (els.loadWorkflowStatus) els.loadWorkflowStatus.hidden = true;
   if (els.convertBomStatus) els.convertBomStatus.hidden = true;
-  if (els.foreignBomSheets) els.foreignBomSheets.hidden = true;
-  if (els.foreignBomWarnings) els.foreignBomWarnings.hidden = true;
+  if (els.otherBillSheets) els.otherBillSheets.hidden = true;
+  if (els.otherBillWarnings) els.otherBillWarnings.hidden = true;
 }
 
 function setWorkflowStatus(name, message, state) {
@@ -3017,7 +3027,7 @@ async function tryRestoreOwnExport(file) {
     const fd = new FormData();
     fd.append("file", file);
     const resp = await fetch("/api/load-workflow", { method: "POST", body: fd });
-    if (!resp.ok) return false;               // no embedded state - it's a genuinely foreign BOM
+    if (!resp.ok) return false;               // no embedded state - the BOM came from elsewhere
     const payload = await resp.json();
     if (!payload || !payload.workflow) return false;
     await applyWorkflowState(payload.workflow);
@@ -5054,7 +5064,7 @@ els.dropZone.addEventListener("drop", (event) => {
   const [file] = event.dataTransfer.files;
   // A dropped .json is normally a saved workflow - but in Other OCI Bill mode it's the cost
   // estimator's own JSON export, which the converter reads directly.
-  if (file && /\.json$/i.test(file.name) && !isForeignBomMode()) {
+  if (file && /\.json$/i.test(file.name) && !isOtherOciBillMode()) {
     loadWorkflowFromFile(file);
     return;
   }
@@ -5441,11 +5451,11 @@ function setConvertStatus(name, message, phase) {
   el.querySelector(".lws-name").textContent = name || "";
   el.querySelector(".lws-state").textContent = message || "";
 }
-// A foreign BOM can disagree with itself (a hand-added adjustment column, a non-USD currency,
+// An imported BOM can disagree with itself (a hand-added adjustment column, a non-USD currency,
 // SKUs the catalog has never seen). The converter reports those rather than papering over them,
 // so show them - a silently wrong total is far worse than a visible caveat.
-function renderForeignBomWarnings(payload) {
-  const box = els.foreignBomWarnings;
+function renderOtherBillWarnings(payload) {
+  const box = els.otherBillWarnings;
   if (!box) return;
   const list = (payload && payload.conversionWarnings) || [];
   box.hidden = list.length === 0;
@@ -5453,9 +5463,9 @@ function renderForeignBomWarnings(payload) {
 }
 
 // Workbooks with several proposals get a picker instead of a silent pick of one.
-function renderForeignBomSheets(payload, file) {
-  const wrap = els.foreignBomSheets;
-  const sel = els.foreignBomSheetSelect;
+function renderOtherBillSheets(payload, file) {
+  const wrap = els.otherBillSheets;
+  const sel = els.otherBillSheetSelect;
   if (!wrap || !sel) return;
   const opts = (payload && payload.sheetOptions) || [];
   if (opts.length < 2) {
@@ -5510,13 +5520,13 @@ async function convertBomFromFile(file, sheet = "") {
     const resp = await fetch("/api/convert-bom", { method: "POST", body: fd });
     const payload = await resp.json();
     if (!resp.ok) throw new Error(payload.error || "Could not convert this BOM.");
-    renderForeignBomSheets(payload, file);
-    renderForeignBomWarnings(payload);
+    renderOtherBillSheets(payload, file);
+    renderOtherBillWarnings(payload);
     // Load the converted pricing live into the app and jump to results (page 4).
     // Keep the Other OCI Bill card selected when that's the path the user chose - the backend
     // reports the converted result as on-prem (that's how it prices and exports), but flipping
     // state.intakeMode here would silently deselect the card the user is looking at.
-    state.intakeMode = isForeignBomMode() ? "foreign_bom" : (payload.intakeMode || "on_prem");
+    state.intakeMode = isOtherOciBillMode() ? "other_oci_bill" : (payload.intakeMode || "on_prem");
     state.fullServiceBeta = payload.fullServiceBeta !== false;
     state.fields = [];
     state.rows = payload.rows || [];
@@ -5774,7 +5784,7 @@ els.steps.forEach((step) => {
 });
 els.modeOnPrem?.addEventListener("click", () => setIntakeMode("on_prem"));
 els.modeCloudBill?.addEventListener("click", () => setIntakeMode("cloud_bill"));
-els.modeForeignBom?.addEventListener("click", () => setIntakeMode("foreign_bom"));
+els.modeOtherOciBill?.addEventListener("click", () => setIntakeMode("other_oci_bill"));
 els.providerHint?.addEventListener("change", () => {
   state.providerHint = els.providerHint.value || "auto";
   syncModeUi();
