@@ -2157,7 +2157,7 @@ td input[type="checkbox"] {
 
 .load-workflow-status[hidden] { display: none; }
 
-/* Foreign OCI BOM: which sheet in the workbook, and what didn't reconcile. */
+/* Other OCI Bill: which sheet in the workbook, and what didn't reconcile. */
 .foreign-bom-sheets {
   display: flex;
   flex-direction: column;

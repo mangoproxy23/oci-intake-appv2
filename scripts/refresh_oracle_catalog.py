@@ -11,7 +11,7 @@ the ?ver= number, because it changes whenever Oracle publishes.
 
 What this adds over the bundled refresh-oracle-cost-estimator.sh: no jq/shasum dependency (that
 script needs both, which is a poor bet on a sales laptop), and it finishes the job by merging the
-snapshot into data/oci_price_list.json so the Foreign OCI BOM converter actually recognizes the
+snapshot into data/oci_price_list.json so the Other OCI Bill converter actually recognizes the
 new SKUs. The shell script only produces the snapshot file.
 
 Usage:

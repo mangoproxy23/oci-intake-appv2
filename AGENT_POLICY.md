@@ -71,7 +71,7 @@ Prices and part numbers come from Oracle's Cost Estimator catalog, mirrored into
 `data/oci_price_list.json`. The app checks the catalog's age at startup and refreshes in the
 background when it is more than 7 days old (`bootstrap.refresh_catalog_if_stale`). A stale
 catalog does not break pricing — it just misses SKUs Oracle published since the last pull, which
-shows up as unrecognized lines on a Foreign OCI BOM import rather than as a wrong number.
+shows up as unrecognized lines on an Other OCI Bill import rather than as a wrong number.
 
 **Agents must not hand-edit `data/oci_price_list.json`.** It is a mirror, and an edit is
 overwritten by the next refresh. To change a rate, fix the source:
