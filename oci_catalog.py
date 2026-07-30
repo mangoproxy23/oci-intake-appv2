@@ -319,6 +319,14 @@ BASEDB_ARM_EDITIONS = [
     ("developer", "Developer - Ampere A1 (fixed 1 OCPU / 50 GB)", 0.022, "OCPU / hour", "B109635"),
 ]
 BASEDB_ARM_BY_KEY = {k: r for k, _l, r, _u, _s in BASEDB_ARM_EDITIONS}
+# SKU and label per edition, for each of the three licence tables. line_breakdown needs these
+# to name the part it is charging; without them it fell back to the card's headline SKU.
+BASEDB_ECPU_SKU_BY_KEY = {k: sku for k, _l, _r, _u, sku in BASEDB_EDITIONS}
+BASEDB_ECPU_LABEL_BY_KEY = {k: l for k, l, _r, _u, _s in BASEDB_EDITIONS}
+BASEDB_OCPU_SKU_BY_KEY = {k: sku for k, _l, _r, _u, sku in BASEDB_OCPU_EDITIONS}
+BASEDB_OCPU_LABEL_BY_KEY = {k: l for k, l, _r, _u, _s in BASEDB_OCPU_EDITIONS}
+BASEDB_ARM_SKU_BY_KEY = {k: sku for k, _l, _r, _u, sku in BASEDB_ARM_EDITIONS}
+BASEDB_ARM_LABEL_BY_KEY = {k: l for k, l, _r, _u, _s in BASEDB_ARM_EDITIONS}
 # Arm offers a SHORTER storage list than x86 - the estimator's dropdown stops at 8,192 GB usable
 # (x86 runs to 40,960) - and only one shape, VM.Standard.A1.Flex, so there is no shape choice to
 # make. Quoting an Arm database above this cap would describe a configuration you can't order.
@@ -513,12 +521,37 @@ def basedb_usable_tiers(processor, shape=None):
     cap = BASEDB_MAX_USABLE_GB.get(str(processor or "intel").lower(), 81920)
     if (BASEDB_SHAPES.get(str(shape or "")) or {}).get("ocpu"):
         cap = min(cap, BASEDB_FIXED_SHAPE_MAX_USABLE_GB)
-    return [(u, t) for u, t in BASEDB_STORAGE_TIERS if u <= cap]
+    # t == 0 means no provisioned-capacity mapping is known for that tier, so it would price
+    # storage at $0. Offering it is worse than not offering it.
+    return [(u, t) for u, t in BASEDB_STORAGE_TIERS if u <= cap and t]
 
 
 def basedb_shapes_for(processor):
     """Shapes the estimator offers for a processor."""
     return BASEDB_SHAPES_BY_PROCESSOR.get(str(processor or "intel").lower(), [])
+
+
+def basedb_shape_label(shape):
+    """Dropdown label for a Base Database shape - fixed shapes state their locked OCPU/RAM."""
+    spec = BASEDB_SHAPES.get(shape) or {}
+    if spec.get("ocpu") is None:
+        return shape
+    return f"{shape}  ({spec['ocpu']} OCPU / {spec['memory_gb']} GB, fixed)"
+
+
+def basedb_resolve_shape(processor, shape):
+    """The shape to price with, given the chosen processor.
+
+    Processor and Shape are two dropdowns describing one machine, so they can contradict each
+    other - the card let you pick AMD and then VM.Standard.A1.Flex (Ampere). The processor is
+    the broader choice, so it wins and an incompatible shape falls back to that family's first
+    shape. Without this the Arm 8,192 GB storage cap could be applied to an AMD Flex shape, or
+    dodged entirely.
+    """
+    allowed = basedb_shapes_for(processor)
+    if not allowed:
+        return shape
+    return shape if shape in allowed else allowed[0]
 
 
 def basedb_provisioned_formula(usable):
@@ -1085,15 +1118,17 @@ def _curated():
                ("intel", "Intel (Standard2.x + Standard3.Flex)"),
                ("arm", "Ampere Arm (A1.Flex, storage capped at 8,192 GB)")], "amd",
               show_when=("metric", "ocpu")),
-         _sel("shape", "Shape", [(k, k if BASEDB_SHAPES[k]["ocpu"] is None
-                                  else f"{k}  ({BASEDB_SHAPES[k]['ocpu']} OCPU / "
-                                       f"{BASEDB_SHAPES[k]['memory_gb']} GB, fixed)")
-                                 for k in BASEDB_SHAPES], "VM.Standard.E4.Flex",
-              show_when=("metric", "ocpu")),
+         # Only the selected processor's shapes are offered; the client repopulates this list
+         # when Processor changes (see refreshBasedbShapes).
+         _sel("shape", "Shape",
+              [(k, basedb_shape_label(k)) for k in basedb_shapes_for("amd")],
+              "VM.Standard.E4.Flex", show_when=("metric", "ocpu")),
          _sf("ecpu", "ECPU / OCPU", "CPU", 0, 1, 0),
+         # Capped by processor (Arm stops at 8,192 GB) and by shape (a fixed shape stops at
+         # 40,960 even on x86); the client repopulates it alongside Shape.
          _sel("storagegb", "Total Available Storage [GB]",
               [(str(u), f"{u:,} usable  ->  {t:,} GB provisioned")
-               for u, t in BASEDB_STORAGE_TIERS], "256"),
+               for u, t in basedb_usable_tiers("amd")], "256"),
          _sf("vpus", "Block Volume VPU/GB", "VPU", 20, 10, 0,
              show_when=("metric", "ocpu"))],
         "Bills the edition licence and the shared compute infrastructure "
@@ -1102,7 +1137,31 @@ def _curated():
         "comes in fixed tiers and is billed on the TOTAL provisioned capacity, which carries "
         "Oracle's redo/reco overhead - 256 GB usable provisions 717 GB.")
     C[-1].update({"editionRates": _bdb_rates, "editionSkus": _bdb_skus,
-                  "editionLabels": _bdb_labels, "editionUnits": _bdb_units})
+                  "editionLabels": _bdb_labels, "editionUnits": _bdb_units,
+                  # Processor -> its shapes, and (processor, fixed-shape?) -> its storage tiers.
+                  # Two dropdowns describing one machine have to agree: the card let you choose
+                  # AMD and then an Ampere shape, and offered Arm's capped tiers to x86.
+                  "basedbShapesByProcessor": {
+                      proc: [{"value": k, "label": basedb_shape_label(k),
+                              # A fixed shape dictates its OCPU count; a Flex shape has a
+                              # ceiling that can differ per edition on the same shape.
+                              "fixed": bool((BASEDB_SHAPES.get(k) or {}).get("ocpu")),
+                              "ocpu": (BASEDB_SHAPES.get(k) or {}).get("ocpu"),
+                              "maxOcpu": (BASEDB_SHAPES.get(k) or {}).get("max_ocpu"),
+                              "maxOcpuByEdition": (BASEDB_SHAPES.get(k) or {}).get(
+                                  "max_ocpu_by_edition") or {}}
+                             for k in basedb_shapes_for(proc)]
+                      for proc in ("amd", "intel", "arm")},
+                  "basedbStorageByProcessor": {
+                      proc: {
+                          "flex": [{"value": str(u),
+                                    "label": f"{u:,} usable  ->  {t:,} GB provisioned"}
+                                   for u, t in basedb_usable_tiers(proc)],
+                          "fixed": [{"value": str(u),
+                                     "label": f"{u:,} usable  ->  {t:,} GB provisioned"}
+                                    for u, t in basedb_usable_tiers(proc, "VM.Standard2.1")],
+                      }
+                      for proc in ("amd", "intel", "arm")}})
 
     # ---- AI & Machine Learning: tier-priced services ----
     # Layout follows Oracle's own estimator service flags (datasets.services in the catalog
@@ -1861,7 +1920,9 @@ def line_cost(entry, values, hours=HOURS_PER_MONTH):
             # block volume - capacity plus performance units at the chosen VPU level.
             ed = str(values.get("edition_ocpu") or ed)
             # A fixed Intel shape sets the OCPU count; Flex shapes use the entered value.
-            v["ecpu"] = basedb_effective_ocpu(values.get("shape"), v.get("ecpu", 0), ed)
+            v["ecpu"] = basedb_effective_ocpu(
+                basedb_resolve_shape(values.get("processor"), values.get("shape")),
+                v.get("ecpu", 0), ed)
             if str(values.get("processor") or "x86").lower() == "arm":
                 rate = float(BASEDB_ARM_BY_KEY.get(ed, BASEDB_ARM_BY_KEY["enterprise"]))
                 if ed == "developer":
@@ -1879,7 +1940,9 @@ def line_cost(entry, values, hours=HOURS_PER_MONTH):
                                  + f["provisioned_gb"] * 0.0255
                                  + f["provisioned_gb"] * f["vpus"] * 0.0017, 2)
                 rate = float(BASEDB_OCPU_BY_KEY.get(ed, BASEDB_OCPU_BY_KEY["enterprise"]))
-            gb = basedb_provisioned_gb(values.get("shape"), values.get("storagegb"))
+            gb = basedb_provisioned_gb(
+                basedb_resolve_shape(values.get("processor"), values.get("shape")),
+                values.get("storagegb"))
             vpus = v.get("vpus", 20)
             return round(v.get("ecpu", 0) * rate * hours
                          + gb * 0.0255 + gb * vpus * 0.0017, 2)
@@ -2213,6 +2276,47 @@ def line_breakdown(entry, values, hours=HOURS_PER_MONTH):
         li("B91961", "Block Volume - Storage", v.get("gb", 0), _svc_rate("OCI Block Volumes", fallback=0.0255))
         li("B91962", "Block Volume - Performance Units", v.get("gb", 0) * v.get("vpus", 10),
            _SVC.get("OCI Block Volumes", {}).get("perfUnitsRate") or 0.0017)
+    elif cid == "basedb":
+        # Base Database had NO breakdown branch, so it fell through to the generic
+        # single-field path: one line, at the headline SKU, carrying the raw ECPU box. On a
+        # fixed 24-OCPU shape the total charged 24 while the paper trail printed 1, and the
+        # infrastructure and storage SKUs never appeared at all. Mirror of the basedb branch
+        # in line_cost - same rates, same order.
+        ed = str(values.get("edition") or "enterprise")
+        shape = basedb_resolve_shape(values.get("processor"), values.get("shape"))
+        if str(values.get("metric") or "ecpu").lower() == "ocpu":
+            ed = str(values.get("edition_ocpu") or ed)
+            arm = str(values.get("processor") or "x86").lower() == "arm"
+            ocpu = basedb_effective_ocpu(shape, v.get("ecpu", 0), ed)
+            gb = basedb_provisioned_gb(shape, values.get("storagegb"))
+            vpus = v.get("vpus", 20)
+            if ed == "developer":                    # Arm-only fixed configuration
+                f = BASEDB_DEVELOPER_FIXED
+                ocpu, gb, vpus = f["ocpu"], f["provisioned_gb"], f["vpus"]
+                rate = BASEDB_ARM_BY_KEY["developer"]
+            elif arm:
+                rate = float(BASEDB_ARM_BY_KEY.get(ed, BASEDB_ARM_BY_KEY["enterprise"]))
+            else:
+                rate = float(BASEDB_OCPU_BY_KEY.get(ed, BASEDB_OCPU_BY_KEY["enterprise"]))
+            sku = (BASEDB_ARM_SKU_BY_KEY if arm or ed == "developer"
+                   else BASEDB_OCPU_SKU_BY_KEY).get(ed) or entry["sku"]
+            label = (BASEDB_ARM_LABEL_BY_KEY if arm or ed == "developer"
+                     else BASEDB_OCPU_LABEL_BY_KEY).get(ed) or ed
+            li(sku, f"Base Database - {label} ({shape}) - OCPU", ocpu, rate, True)
+            # OCPU flavour bills storage as a block volume: capacity + performance units.
+            li("B91961", "Base Database - Block Volume storage", gb, 0.0255)
+            li("B91962", "Base Database - Block Volume performance units", gb * vpus, 0.0017)
+        else:
+            ed_rate = float(BASEDB_EDITIONS_BY_KEY.get(ed, BASEDB_EDITIONS_BY_KEY["enterprise"]))
+            ecpu = v.get("ecpu", 0)
+            li(BASEDB_ECPU_SKU_BY_KEY.get(ed) or entry["sku"],
+               f"Base Database - {BASEDB_ECPU_LABEL_BY_KEY.get(ed) or ed} - ECPU",
+               ecpu, ed_rate, True)
+            li(BASEDB_INFRA_SKU, "Base Database - shared compute infrastructure",
+               ecpu, BASEDB_INFRA_RATE, True)
+            li(BASEDB_STORAGE_SKU, "Base Database - database storage (total provisioned)",
+               basedb_total_capacity(values.get("storagegb")), BASEDB_STORAGE_RATE)
+
     elif entry.get("lbMeters"):
         for meter in entry["lbMeters"].values():
             qty = v.get(meter["field"], 0) * hours

@@ -5953,6 +5953,65 @@ function genaiAgentsHtml(e, i) {
 }
 // Repopulate the Model dropdown for the selected provider, and refresh the "in tokens/characters"
 // length labels for the selected model. Called when a genai card's provider/model select changes.
+// Base Database: Processor, Shape, OCPU count and Storage describe ONE machine, so they have
+// to agree. Left ungated the card let you pick AMD and then an Ampere shape, offered Arm's
+// capped storage tiers to x86, and accepted "1 OCPU" on a fixed 24-OCPU shape while quietly
+// pricing 24. Processor is the broadest choice, so it drives the rest.
+function refreshBasedbDependents(card, entry) {
+  const shapes = entry.basedbShapesByProcessor || {};
+  const storage = entry.basedbStorageByProcessor || {};
+  const procSel = card.querySelector('.svc-input[data-key="processor"]');
+  const shapeSel = card.querySelector('.svc-input[data-key="shape"]');
+  const storeSel = card.querySelector('.svc-input[data-key="storagegb"]');
+  const ocpuInput = card.querySelector('.svc-input[data-key="ecpu"]');
+  const edSel = card.querySelector('.svc-input[data-key="edition_ocpu"]');
+  if (!procSel || !shapeSel) return;
+  const proc = procSel.value || "amd";
+
+  // Shape list follows the processor; keep the selection if it survives the switch.
+  const opts = shapes[proc] || [];
+  const curShape = shapeSel.value;
+  shapeSel.innerHTML = opts
+    .map((o) => `<option value="${escapeHtml(o.value)}">${escapeHtml(o.label)}</option>`)
+    .join("");
+  shapeSel.value = opts.some((o) => o.value === curShape) ? curShape : (opts[0]?.value || "");
+  const shape = opts.find((o) => o.value === shapeSel.value) || {};
+
+  // Storage tiers follow the processor, and drop again when the shape is a fixed one.
+  if (storeSel && storage[proc]) {
+    const tiers = (shape.fixed ? storage[proc].fixed : storage[proc].flex) || [];
+    const curTier = storeSel.value;
+    storeSel.innerHTML = tiers
+      .map((o) => `<option value="${escapeHtml(o.value)}">${escapeHtml(o.label)}</option>`)
+      .join("");
+    storeSel.value = tiers.some((o) => o.value === curTier)
+      ? curTier
+      : (tiers[tiers.length - 1]?.value || "");
+  }
+
+  // OCPU count: a fixed shape dictates it, so show the real number and lock the box rather
+  // than accepting one figure and billing another. A Flex shape caps by edition.
+  if (ocpuInput) {
+    if (shape.fixed) {
+      ocpuInput.value = shape.ocpu;
+      ocpuInput.readOnly = true;
+      ocpuInput.title = `${shapeSel.value} is a fixed shape - it always runs ${shape.ocpu} OCPU.`;
+      ocpuInput.removeAttribute("max");
+    } else {
+      const cap = Number((shape.maxOcpuByEdition || {})[edSel?.value] || shape.maxOcpu || 0);
+      ocpuInput.readOnly = false;
+      if (cap > 0) {
+        ocpuInput.max = cap;
+        ocpuInput.title = `${shapeSel.value} supports up to ${cap} OCPU on this edition.`;
+        if (Number(ocpuInput.value) > cap) ocpuInput.value = cap;
+      } else {
+        ocpuInput.removeAttribute("max");
+        ocpuInput.title = "";
+      }
+    }
+  }
+}
+
 function refreshGenaiModelOptions(card, entry) {
   const provSel = card.querySelector('.svc-input[data-key="provider"]');
   const modelSel = card.querySelector('.svc-input[data-key="model"]');
@@ -6092,7 +6151,12 @@ function renderServiceResults() {
     .join("");
 
   els.serviceResults.querySelectorAll(".service-card").forEach((card) => {
-    updateCardCost(Number(card.dataset.idx));
+    const idx = Number(card.dataset.idx);
+    // Gate the dependent dropdowns on first paint too, not only on change - otherwise a card
+    // opens showing options its own defaults do not allow.
+    const entry = (state.catalog.results || [])[idx];
+    if (entry && entry.basedbShapesByProcessor) refreshBasedbDependents(card, entry);
+    updateCardCost(idx);
   });
   applyCardFieldVisibility();
 }
@@ -6580,6 +6644,10 @@ if (els.serviceResults) {
       const idx = Number(e.target.dataset.idx);
       const entry = state.catalog.results?.[idx];
       if (entry && entry.id === "genai" && e.target.tagName === "SELECT") {
+        if (entry.basedbShapesByProcessor
+            && ["processor", "shape", "edition_ocpu", "metric"].includes(e.target.dataset.key)) {
+          refreshBasedbDependents(card, entry);
+        }
         if (e.target.dataset.key === "provider") refreshGenaiModelOptions(card, entry);
         if (e.target.dataset.key === "provider" || e.target.dataset.key === "model") refreshGenaiLenLabels(card, entry);
       }
