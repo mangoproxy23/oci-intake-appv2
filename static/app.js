@@ -187,6 +187,7 @@ const els = {
   dropZone: document.querySelector("#dropZone"),
   modeOnPrem: document.querySelector("#modeOnPrem"),
   modeCloudBill: document.querySelector("#modeCloudBill"),
+  modeForeignBom: document.querySelector("#modeForeignBom"),
   modeEyebrow: document.querySelector("#modeEyebrow"),
   uploadHeading: document.querySelector("#uploadHeading"),
   uploadDescription: document.querySelector("#uploadDescription"),
@@ -221,6 +222,9 @@ const els = {
   missingOnlySummary: document.querySelector("#missingOnlySummary"),
   priceButton: document.querySelector("#priceButton"),
   priceShapeButton: document.querySelector("#priceShapeButton"),
+  existingInfraCost: document.querySelector("#existingInfraCost"),
+  existingInfraControl: document.querySelector("#existingInfraControl"),
+  existingInfraHint: document.querySelector("#existingInfraHint"),
   hideGpuToggle: document.querySelector("#hideGpuToggle"),
   hideWindowsToggle: document.querySelector("#hideWindowsToggle"),
   hideSqlToggle: document.querySelector("#hideSqlToggle"),
@@ -238,6 +242,9 @@ const els = {
   convertBomBtn: document.querySelector("#convertBomBtn"),
   convertBomFile: document.querySelector("#convertBomFile"),
   convertBomStatus: document.querySelector("#convertBomStatus"),
+  foreignBomSheets: document.querySelector("#foreignBomSheets"),
+  foreignBomSheetSelect: document.querySelector("#foreignBomSheetSelect"),
+  foreignBomWarnings: document.querySelector("#foreignBomWarnings"),
   bomName: document.querySelector("#bomName"),
   ociDiscount: document.querySelector("#ociDiscount"),
   sizingSwitch: document.querySelector(".sizing-switch"),
@@ -1139,6 +1146,13 @@ function isCloudBillMode() {
   return state.intakeMode === "cloud_bill";
 }
 
+// Foreign BOM: a finished OCI BOM from somewhere else (Oracle's cost estimator, a partner, an
+// older export of this app). It skips inventory parsing entirely - the file already carries OCI
+// SKUs, quantities and prices, so it goes straight to the converter and lands on the Shape page.
+function isForeignBomMode() {
+  return state.intakeMode === "foreign_bom";
+}
+
 function providerLabel(value = state.providerHint) {
   const labels = {
     auto: "Auto-Detect",
@@ -1369,9 +1383,12 @@ function previewFields() {
 
 function syncModeUi() {
   const cloudBill = isCloudBillMode();
+  const foreign = isForeignBomMode();
+  if (typeof syncExistingInfraUi === "function") syncExistingInfraUi();
   state.fullServiceBeta = cloudBill;
-  els.modeOnPrem?.classList.toggle("is-selected", !cloudBill);
+  els.modeOnPrem?.classList.toggle("is-selected", !cloudBill && !foreign);
   els.modeCloudBill?.classList.toggle("is-selected", cloudBill);
+  els.modeForeignBom?.classList.toggle("is-selected", foreign);
   els.providerControl?.classList.toggle("is-hidden", !cloudBill);
   // OIC message packs only apply in cloud-bill mode (SQS/SNS/Transfer Family mapping).
   els.oicMessagePacksControl?.classList.toggle("is-hidden", !cloudBill);
@@ -1380,22 +1397,30 @@ function syncModeUi() {
   }
   // Cloud bill accepts several formats; Chrome can grey out CSV/TSV even when listed,
   // so don't filter at all here - the backend validates the file type on upload.
-  els.fileInput.accept = cloudBill ? "" : ".xlsx,.xls";
-  els.modeEyebrow.textContent = cloudBill ? "Cloud Bill" : "On-Prem Inventory";
-  els.uploadHeading.textContent = cloudBill ? "Upload Cloud Bill" : "Upload Inventory";
+  els.fileInput.accept = cloudBill ? "" : foreign ? ".xlsx,.xls,.csv,.tsv,.json" : ".xlsx,.xls";
+  els.modeEyebrow.textContent = cloudBill ? "Cloud Bill" : foreign ? "Foreign OCI BOM" : "On-Prem Inventory";
+  els.uploadHeading.textContent = cloudBill
+    ? "Upload Cloud Bill"
+    : foreign ? "Import Foreign OCI BOM" : "Upload Inventory";
   els.uploadDescription.textContent = cloudBill
     ? "Upload an AWS, Azure, or GCP bill export. PDF invoices and CSV, TSV, or Excel exports are mapped to OCI-equivalent services and meters."
+    : foreign
+    ? "Upload an existing BOM from the cost estimator tool, or other formats. Every OCI SKU and line item is recognized against the app's catalog, re-priced, and loaded live into your results - a BOM this app exported is restored in full instead."
     : state.openaiApiConnected
     ? "Drop an Excel workbook here. OpenAI can inspect the workbook, choose the inventory table, and normalize server/application fields for review."
     : "Drop an Excel workbook here. The local parser will choose the inventory table and normalize CPU, RAM, storage, environment, and application fields for review.";
-  els.dropZone.querySelector("strong").textContent = cloudBill ? "Choose Bill Export" : "Choose Spreadsheet";
+  els.dropZone.querySelector("strong").textContent = cloudBill
+    ? "Choose Bill Export"
+    : foreign ? "Choose BOM" : "Choose Spreadsheet";
   els.dropZoneHint.textContent = cloudBill
     ? "or drag a PDF, CSV, TSV, or Excel bill export onto this upload area"
+    : foreign
+    ? "Cost estimator proposal, a partner BOM, or an export from this app (.xlsx / .csv)"
     : "or drag the workbook onto this upload area";
 }
 
 function setIntakeMode(mode) {
-  state.intakeMode = mode === "cloud_bill" ? "cloud_bill" : "on_prem";
+  state.intakeMode = mode === "cloud_bill" || mode === "foreign_bom" ? mode : "on_prem";
   state.providerHint = state.intakeMode === "cloud_bill" ? state.providerHint : "auto";
   clearIntakeStatuses();   // switching intake path - drop stale load/convert banners
   syncModeUi();
@@ -2182,6 +2207,10 @@ function showSelectedDoc(name, sub) {
 
 async function uploadFile(file) {
   if (!file) return;
+  // Foreign OCI BOM mode: the file is already a priced OCI BOM, not a raw inventory or bill,
+  // so the inventory parser would make nonsense of it. Route the whole drop zone (and the file
+  // picker, which shares this entry point) to the converter instead.
+  if (isForeignBomMode()) return convertBomFromFile(file);
   clearIntakeStatuses();   // starting a fresh upload - drop any load/convert banners
   resetWorkflowProgress();
   state.lastUploadFile = file;
@@ -2868,6 +2897,7 @@ async function applyWorkflowState(wf) {
   // Reflect restored simple inputs back into their controls if present.
   if (els.bomName) els.bomName.value = state.bomName || "";
   if (els.ociDiscount) els.ociDiscount.value = String(Number(state.ociDiscount || 0));
+  if (typeof syncExistingInfraUi === "function") syncExistingInfraUi();
   if (typeof syncSizingModeUi === "function") syncSizingModeUi();
   if (typeof syncOptChips === "function") syncOptChips();
   if (els.oicMessagePacks) els.oicMessagePacks.value = state.oicMessagePacks || 1;
@@ -2926,6 +2956,8 @@ function clearIntakeStatuses() {
   // success/error doesn't linger when the user switches to a different intake path.
   if (els.loadWorkflowStatus) els.loadWorkflowStatus.hidden = true;
   if (els.convertBomStatus) els.convertBomStatus.hidden = true;
+  if (els.foreignBomSheets) els.foreignBomSheets.hidden = true;
+  if (els.foreignBomWarnings) els.foreignBomWarnings.hidden = true;
 }
 
 function setWorkflowStatus(name, message, state) {
@@ -2970,6 +3002,27 @@ async function loadWorkflowFromFile(file) {
     setWorkflowStatus(nm, `✕ Not accepted - ${error.message}`, "error");
   } finally {
     if (els.priceSpinner) els.priceSpinner.querySelector(".price-spinner-text").textContent = "Updating…";
+  }
+}
+
+// "Foreign" BOMs include this app's OWN exports - people re-upload the workbook they just
+// downloaded. Every export embeds its full app state on a hidden _workflow sheet, so restoring
+// that reproduces the estimate exactly (ramp, discount, added services, diagram options)
+// instead of re-deriving an approximation from the numbers printed on the sheets.
+// Returns true when the file carried state and the workflow was restored.
+async function tryRestoreOwnExport(file) {
+  try {
+    const fd = new FormData();
+    fd.append("file", file);
+    const resp = await fetch("/api/load-workflow", { method: "POST", body: fd });
+    if (!resp.ok) return false;               // no embedded state - it's a genuinely foreign BOM
+    const payload = await resp.json();
+    if (!payload || !payload.workflow) return false;
+    await applyWorkflowState(payload.workflow);
+    setConvertStatus(file.name || "bom", "✓ this app's own export - BOM restored in full", "ok");
+    return true;
+  } catch (err) {
+    return false;                             // fall through to SKU conversion
   }
 }
 
@@ -3782,6 +3835,9 @@ function renderConsumptionRamp() {
   if (els.rampContractNote) {
     els.rampContractNote.textContent = Array.from({ length: years }, (_, i) => `Year ${i + 1}`).join(" + ");
   }
+  // The on-prem baseline readout compares against the OCI monthly total, which the discount
+  // and licensing toggles move, so refresh it whenever the ramp block re-renders.
+  if (typeof renderExistingInfraHint === "function") renderExistingInfraHint();
 
   const handleMarkup = sortedRampPoints(false)
     .map((point) => {
@@ -4994,8 +5050,9 @@ els.switchToOnPrem?.addEventListener("click", () => {
 
 els.dropZone.addEventListener("drop", (event) => {
   const [file] = event.dataTransfer.files;
-  // A dropped .json is a saved workflow, not a bill - route it to the loader.
-  if (file && /\.json$/i.test(file.name)) {
+  // A dropped .json is normally a saved workflow - but in Foreign OCI BOM mode it's the cost
+  // estimator's own JSON export, which the converter reads directly.
+  if (file && /\.json$/i.test(file.name) && !isForeignBomMode()) {
     loadWorkflowFromFile(file);
     return;
   }
@@ -5118,6 +5175,56 @@ if (els.sizingSwitch) {
     syncSizingModeUi();
     // Sizing changes the OCPU/RAM behind every line, so the existing estimate is stale.
     repriceIfEstimated();
+  });
+}
+
+// Current on-prem spend: the baseline the BOM's Pricing Overview compares OCI against, the
+// on-prem counterpart of the uploaded bill in cloud mode. Only shown on-prem - a cloud bill
+// already carries its own cost - and it stays editable in the exported workbook, so a blank
+// here is a cell the customer can fill in later rather than a dead end.
+// Show what the entered baseline actually does, so the figure isn't a write-only box the user
+// has to export a workbook to see the effect of. This is the same arithmetic the BOM's Pricing
+// Overview "Current On-Prem Spend vs. OCI Estimate" block performs. Kept separate from
+// syncExistingInfraUi so it can run on every keystroke WITHOUT rewriting the input's value -
+// round-tripping the value through Number() mid-typing would eat a half-entered decimal.
+function renderExistingInfraHint() {
+  if (!els.existingInfraHint) return;
+  const baseline = Number(state.existingInfraCost || 0);
+  const oci = state.pricing ? ociMonthlyTotal(state.pricing) : 0;
+  if (!baseline) {
+    els.existingInfraHint.textContent =
+      "Monthly. Baseline for the BOM comparison - editable in the workbook too";
+    return;
+  }
+  if (!oci) {
+    els.existingInfraHint.textContent = "Monthly. Price the estimate to see the savings";
+    return;
+  }
+  const delta = baseline - oci;
+  const pct = (delta / baseline) * 100;
+  els.existingInfraHint.textContent = delta >= 0
+    ? `Saves ${formatCurrency(delta)}/mo vs OCI (${pct.toFixed(1)}%)`
+    : `${formatCurrency(-delta)}/mo above the OCI estimate`;
+}
+
+function syncExistingInfraUi() {
+  if (els.existingInfraControl) els.existingInfraControl.hidden = isCloudBillMode();
+  if (els.existingInfraCost) els.existingInfraCost.value = String(Number(state.existingInfraCost || 0));
+  renderExistingInfraHint();
+}
+if (els.existingInfraCost) {
+  const commitExistingInfra = () => {
+    const next = Math.max(0, Number(els.existingInfraCost.value) || 0);
+    if (next === Number(state.existingInfraCost || 0)) return;
+    state.existingInfraCost = next;
+    // The baseline is a comparison input, not a rate, so nothing needs re-pricing - only the
+    // savings readout beside the field and the exported Pricing Overview cell change.
+    renderExistingInfraHint();
+  };
+  els.existingInfraCost.addEventListener("change", commitExistingInfra);
+  els.existingInfraCost.addEventListener("input", commitExistingInfra);
+  els.existingInfraCost.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") { e.preventDefault(); els.existingInfraCost.blur(); }
   });
 }
 
@@ -5332,13 +5439,64 @@ function setConvertStatus(name, message, phase) {
   el.querySelector(".lws-name").textContent = name || "";
   el.querySelector(".lws-state").textContent = message || "";
 }
-async function convertBomFromFile(file) {
+// A foreign BOM can disagree with itself (a hand-added adjustment column, a non-USD currency,
+// SKUs the catalog has never seen). The converter reports those rather than papering over them,
+// so show them - a silently wrong total is far worse than a visible caveat.
+function renderForeignBomWarnings(payload) {
+  const box = els.foreignBomWarnings;
+  if (!box) return;
+  const list = (payload && payload.conversionWarnings) || [];
+  box.hidden = list.length === 0;
+  box.innerHTML = list.map((w) => `<p>⚠ ${escapeHtml(String(w))}</p>`).join("");
+}
+
+// Workbooks with several proposals get a picker instead of a silent pick of one.
+function renderForeignBomSheets(payload, file) {
+  const wrap = els.foreignBomSheets;
+  const sel = els.foreignBomSheetSelect;
+  if (!wrap || !sel) return;
+  const opts = (payload && payload.sheetOptions) || [];
+  if (opts.length < 2) {
+    wrap.hidden = true;
+    return;
+  }
+  // The estimator splits one estimate across a sheet per service type (IAAS/PAAS/SAAS), so
+  // "all combined" has to be offered - otherwise picking a sheet quietly halves the deal.
+  const combinedTotal = opts.reduce((t, o) => t + Number(o.statedMonthly || 0), 0);
+  const isCombined = Array.isArray(payload.combinedSheets);
+  sel.innerHTML =
+    `<option value="__all__"${isCombined ? " selected" : ""}>All ${opts.length} sheets combined${combinedTotal ? ` - ${formatCurrency(combinedTotal)}/mo` : ""}</option>` +
+    opts
+      .map((o) => {
+        const money = o.statedMonthly ? ` - ${formatCurrency(o.statedMonthly)}/mo` : "";
+        const label = o.label && o.label !== o.sheet ? ` (${o.label})` : "";
+        const selected = !isCombined && o.sheet === payload.sheetName ? " selected" : "";
+        return `<option value="${escapeHtml(o.sheet)}"${selected}>${escapeHtml(o.sheet)}${escapeHtml(label)}${escapeHtml(money)}</option>`;
+      })
+      .join("");
+  wrap.hidden = false;
+  sel.onchange = () => {
+    if (file) convertBomFromFile(file, sel.value);
+  };
+}
+
+async function convertBomFromFile(file, sheet = "") {
   if (!file) return;
   clearIntakeStatuses();   // switching to convert - clear the load banner
   const nm = file.name || "bom";
-  const okExt = /\.(xlsx|xls|csv|tsv)$/i.test(nm);
-  setConvertStatus(nm, okExt ? "converting…" : "not an .xlsx / .csv file", okExt ? "loading" : "error");
-  if (!okExt) return;
+  state.lastUploadFile = file;
+  if (els.fileInput) els.fileInput.value = "";   // so re-picking the same file fires change again
+  const okExt = /\.(xlsx|xls|csv|tsv|json)$/i.test(nm);
+  setConvertStatus(nm, okExt ? "converting…" : "not an .xlsx / .csv / .json file", okExt ? "loading" : "error");
+  if (!okExt) {
+    showSelectedDoc(nm, "Not an .xlsx / .csv / .json file");
+    return;
+  }
+  showSelectedDoc(nm, "Reading OCI BOM…");
+  // An .xlsx this app exported carries its full state on a hidden _workflow sheet. Restoring
+  // that is strictly better than re-deriving a BOM from its own printed numbers, so try it
+  // first and only fall through to SKU conversion when there's no embedded state.
+  if (/\.xlsx?$/i.test(nm) && (await tryRestoreOwnExport(file))) return;
   if (els.priceSpinner) {
     els.priceSpinner.querySelector(".price-spinner-text").textContent = "Converting OCI BOM…";
     els.priceSpinner.hidden = false;
@@ -5346,11 +5504,17 @@ async function convertBomFromFile(file) {
   try {
     const fd = new FormData();
     fd.append("file", file);
+    if (sheet) fd.append("sheet", sheet);
     const resp = await fetch("/api/convert-bom", { method: "POST", body: fd });
     const payload = await resp.json();
     if (!resp.ok) throw new Error(payload.error || "Could not convert this BOM.");
+    renderForeignBomSheets(payload, file);
+    renderForeignBomWarnings(payload);
     // Load the converted pricing live into the app and jump to results (page 4).
-    state.intakeMode = payload.intakeMode || "on_prem";
+    // Keep the Foreign OCI BOM card selected when that's the path the user chose - the backend
+    // reports the converted result as on-prem (that's how it prices and exports), but flipping
+    // state.intakeMode here would silently deselect the card the user is looking at.
+    state.intakeMode = isForeignBomMode() ? "foreign_bom" : (payload.intakeMode || "on_prem");
     state.fullServiceBeta = payload.fullServiceBeta !== false;
     state.fields = [];
     state.rows = payload.rows || [];
@@ -5369,9 +5533,11 @@ async function convertBomFromFile(file) {
     showShapePage();
     const rec = payload.recognizedSkus || 0;
     const rev = payload.unrecognizedSkus || 0;
+    const sheetBit = payload.sheetName ? `"${payload.sheetName}" - ` : "";
+    const aiBit = payload.aiAssist?.applied ? `, ${payload.aiAssist.applied} classified by AI` : "";
     const status = payload.comparisonSummary
       ? `imported comparison summary - ${payload.rows.length} service lines. Choose a shape →`
-      : `converted - ${payload.rows.length} line items, ${rec} SKUs recognized${rev ? `, ${rev} for review` : ""}. Choose a shape →`;
+      : `converted ${sheetBit}${payload.rows.length} line items, ${rec} SKUs recognized${rev ? `, ${rev} for review` : ""}${aiBit}. Choose a shape →`;
     setConvertStatus(nm, status, "ok");
   } catch (error) {
     setConvertStatus(nm, error.message || "conversion failed", "error");
@@ -5606,6 +5772,7 @@ els.steps.forEach((step) => {
 });
 els.modeOnPrem?.addEventListener("click", () => setIntakeMode("on_prem"));
 els.modeCloudBill?.addEventListener("click", () => setIntakeMode("cloud_bill"));
+els.modeForeignBom?.addEventListener("click", () => setIntakeMode("foreign_bom"));
 els.providerHint?.addEventListener("change", () => {
   state.providerHint = els.providerHint.value || "auto";
   syncModeUi();
@@ -5702,12 +5869,147 @@ function renderServiceChips() {
     .join("");
 }
 
+// --- Combined "OCI Generative AI" card (Models + Search & Retrieval sections) --------------
+function genaiSelectHtml(i, key, label, options, def, condAttr = "") {
+  const opts = options
+    .map((o) => `<option value="${escapeHtml(o.value)}"${o.value === def ? " selected" : ""}>${escapeHtml(o.label)}</option>`)
+    .join("");
+  return `<label class="svc-field"${condAttr}><span>${escapeHtml(label)}</span>
+    <select class="svc-input" data-idx="${i}" data-key="${escapeHtml(key)}">${opts}</select></label>`;
+}
+function genaiNumHtml(i, key, label, def = 0, condAttr = "", unit = "", spanAttr = "") {
+  return `<label class="svc-field"${condAttr}><span${spanAttr}>${escapeHtml(label)}</span>
+    <input type="number" class="svc-input" data-idx="${i}" data-key="${escapeHtml(key)}" value="${def}" min="0" step="1" />${unit ? `<em>${escapeHtml(unit)}</em>` : ""}</label>`;
+}
+function genaiModelsHtml(e, i) {
+  const providers = e.genaiProviders || [];
+  const defProv = providers[0] || "";
+  const modelOpts = (e.genaiModelOptions || {})[defProv] || [];
+  const defModel = modelOpts[0]?.value || "";
+  const lenUnit = ((e.genaiModelInfo || {})[defModel] || {}).lengthUnit || "characters";
+  const dedOpts = Object.entries((e.genaiDedicated || {}).labels || {}).map(([v, l]) => ({ value: v, label: l }));
+  const hide = ` data-hidewhen-field="metric" data-hidewhen-value="dedicated"`;
+  const show = ` data-showwhen-field="metric" data-showwhen-value="dedicated"`;
+  return `
+    <div class="genai-section">
+      <div class="genai-section-title">OCI Generative AI - Models</div>
+      <div class="genai-row">
+        ${genaiSelectHtml(i, "metric", "Service Metric", [{ value: "on_demand", label: "On Demand" }, { value: "dedicated", label: "Dedicated" }], "on_demand")}
+        ${genaiSelectHtml(i, "provider", "Model Provider", providers.map((p) => ({ value: p, label: p })), defProv, hide)}
+        ${genaiSelectHtml(i, "model", "Model", modelOpts, defModel, hide)}
+        ${genaiSelectHtml(i, "ded_cluster", "Cluster type", dedOpts, dedOpts[0]?.value || "", show)}
+        ${genaiNumHtml(i, "ded_units", "AI units", 1, show, "unit")}
+      </div>
+      <div class="genai-row"${hide}>
+        ${genaiNumHtml(i, "requests", "Expected number of requests per month", 0, "", "")}
+        ${genaiNumHtml(i, "prompt_len", `Prompt length (in ${lenUnit})`, 0, "", "", ` data-genai-lenlabel="prompt"`)}
+        ${genaiNumHtml(i, "response_len", `Model Response length (in ${lenUnit})`, 0, "", "", ` data-genai-lenlabel="response"`)}
+      </div>
+    </div>`;
+}
+function genaiRetrievalHtml(e, i) {
+  const meters = e.genaiRetrieval || [];
+  const order = [];
+  const bySec = {};
+  meters.forEach((m) => { if (!bySec[m.section]) { bySec[m.section] = []; order.push(m.section); } bySec[m.section].push(m); });
+  const groups = order.map((sec) => `
+      <div class="genai-subgroup">
+        <div class="genai-subhead">${escapeHtml(sec)}</div>
+        <div class="genai-row">${bySec[sec].map((m) => genaiNumHtml(i, m.key, m.label, 0, "", "")).join("")}</div>
+      </div>`).join("");
+  const hrs = Number(e.retrievalHoursDefault ?? 744) || 744;
+  return `
+    <div class="genai-section">
+      <div class="genai-section-head">
+        <div class="genai-section-title">OCI Generative AI - Search and Retrieval</div>
+        <label class="svc-field genai-hours"><span>Utilization (hrs/mo)</span>
+          <input type="number" class="svc-input" data-idx="${i}" data-key="__hours" value="${hrs}" min="1" step="1" /><em>hrs</em></label>
+      </div>
+      ${groups}
+    </div>`;
+}
+function genaiAgentsHtml(e, i) {
+  const hrs = Number(e.retrievalHoursDefault ?? 744) || 744;
+  return `
+    <div class="genai-section">
+      <div class="genai-section-title">Retrieval-Augmented Generation (RAG)</div>
+      <div class="genai-row">
+        ${genaiNumHtml(i, "rag_requests", "Requests per month", 0, "", "requests")}
+        ${genaiNumHtml(i, "rag_chars", "Average characters processed per request", 0, "", "chars")}
+      </div>
+    </div>
+    <div class="genai-section">
+      <div class="genai-section-head">
+        <div class="genai-section-title">Managed Knowledge Base (optional)</div>
+        <label class="svc-field genai-hours"><span>Utilization (hrs/mo)</span>
+          <input type="number" class="svc-input" data-idx="${i}" data-key="__hours" value="${hrs}" min="1" step="1" /><em>hrs</em></label>
+      </div>
+      <div class="genai-row">
+        ${genaiNumHtml(i, "kb_storage", "Storage capacity", 0, "", "GB")}
+        ${genaiNumHtml(i, "kb_jobs", "Data ingestion jobs per month", 0, "", "jobs")}
+        ${genaiNumHtml(i, "kb_chars", "Average characters processed per job", 0, "", "chars")}
+      </div>
+    </div>`;
+}
+// Repopulate the Model dropdown for the selected provider, and refresh the "in tokens/characters"
+// length labels for the selected model. Called when a genai card's provider/model select changes.
+function refreshGenaiModelOptions(card, entry) {
+  const provSel = card.querySelector('.svc-input[data-key="provider"]');
+  const modelSel = card.querySelector('.svc-input[data-key="model"]');
+  if (!provSel || !modelSel) return;
+  const opts = (entry.genaiModelOptions || {})[provSel.value] || [];
+  const cur = modelSel.value;
+  modelSel.innerHTML = opts
+    .map((o) => `<option value="${escapeHtml(o.value)}"${o.value === cur ? " selected" : ""}>${escapeHtml(o.label)}</option>`)
+    .join("");
+  if (!opts.some((o) => o.value === cur)) modelSel.value = opts[0]?.value || "";
+}
+function refreshGenaiLenLabels(card, entry) {
+  const modelSel = card.querySelector('.svc-input[data-key="model"]');
+  const mi = (entry.genaiModelInfo || {})[modelSel?.value] || {};
+  const lu = mi.lengthUnit || "characters";
+  card.querySelectorAll("[data-genai-lenlabel]").forEach((el) => {
+    el.textContent = el.getAttribute("data-genai-lenlabel") === "prompt"
+      ? `Prompt length (in ${lu})` : `Model Response length (in ${lu})`;
+  });
+}
+
+function genaiServiceCardShell(e, i, innerHtml) {
+  return `
+    <div class="service-card genai-card" data-idx="${i}">
+      <div class="service-card-head">
+        <div>
+          <strong>${escapeHtml(e.name)}</strong>
+          <span class="service-card-meta" data-service-meta="${i}">${escapeHtml(e.group)} · like Oracle Cost Estimator</span>
+        </div>
+        <span class="service-card-cost" data-cost="${i}">$0.00/mo</span>
+      </div>
+      ${e.note ? `<p class="service-card-note">${escapeHtml(e.note)}</p>` : ""}
+      <div class="service-card-fields genai-fields">${innerHtml}</div>
+      <div class="service-card-actions">
+        <button type="button" class="ghost-button svc-add" data-idx="${i}">Add to BOM</button>
+      </div>
+    </div>`;
+}
+
 function serviceCardHtml(e, i) {
+  if (e.id === "genai") {
+    return genaiServiceCardShell(e, i, genaiModelsHtml(e, i) + genaiRetrievalHtml(e, i));
+  }
+  if (e.id === "genai_agents") {
+    return genaiServiceCardShell(e, i, genaiAgentsHtml(e, i));
+  }
   let fields = (e.fields || [])
     .map((f) => {
-      const showAttr = f.showWhen
+      // hideWhen is the mirror of showWhen. The catalog has always emitted both, but only
+      // showWhen was ever rendered, so a hideWhen field stayed permanently visible - which is
+      // why Base Database showed its ECPU and OCPU edition pickers at the same time.
+      const showAttr = (f.showWhen
         ? ` data-showwhen-field="${escapeHtml(f.showWhen.field)}" data-showwhen-value="${escapeHtml(f.showWhen.value)}"`
-        : "";
+        : "")
+        + (f.hideWhen
+        ? ` data-hidewhen-field="${escapeHtml(f.hideWhen.field)}" data-hidewhen-value="${escapeHtml(f.hideWhen.value)}"`
+        : "");
       const control = f.options
         ? `<select class="svc-input" data-idx="${i}" data-key="${escapeHtml(f.key)}">
              ${f.options.map((o) => `<option value="${escapeHtml(o.value)}"${o.value === f.default ? " selected" : ""}>${escapeHtml(o.label)}</option>`).join("")}
@@ -5718,12 +6020,15 @@ function serviceCardHtml(e, i) {
                 ${control}${f.unit ? `<em>${escapeHtml(f.unit)}</em>` : ""}</label>`;
     })
     .join("");
-  // Per-hour services get an editable Hours/month input (defaults to 730).
+  // Per-hour services get an editable Hours/month input. Curated cards default to the app's
+  // 730; estimator-generated cards default to that service's own utilisation in Oracle's
+  // estimator (31 days x 24 hrs = 744), so the card opens on the same number Oracle shows.
   if (e.basis === "hour") {
+    const defHours = Number(e.estimatorHoursDefault) > 0 ? Number(e.estimatorHoursDefault) : 730;
     fields +=
       `<label class="svc-field"><span>Hours / month</span>
          <input type="number" class="svc-input" data-idx="${i}" data-key="__hours"
-                value="730" min="1" step="1" />
+                value="${defHours}" min="1" step="1" />
          <em>hrs</em></label>`;
   }
   const rateTxt = `$${Number(e.rate).toLocaleString(undefined, { maximumFractionDigits: 4 })} / ${escapeHtml(e.unit)}`;
@@ -5829,10 +6134,17 @@ function fastConnectSelection(entry, values = {}) {
 
 // Show/hide conditional fields (data-showwhen-*) based on the current dropdown selection.
 function applyCardFieldVisibility(scope) {
+  (scope || els.serviceResults).querySelectorAll("[data-hidewhen-field]").forEach((el) => {
+    const card = el.closest(".service-card");
+    const ctrl = card && card.querySelector(`.svc-input[data-key="${el.dataset.hidewhenField}"]`);
+    const hideOn = String(el.dataset.hidewhenValue || "").split("|");
+    el.style.display = ctrl && hideOn.includes(ctrl.value) ? "none" : "";
+  });
   (scope || els.serviceResults).querySelectorAll("[data-showwhen-field]").forEach((el) => {
     const card = el.closest(".service-card");
     const ctrl = card && card.querySelector(`.svc-input[data-key="${el.dataset.showwhenField}"]`);
-    el.style.display = ctrl && ctrl.value === el.dataset.showwhenValue ? "" : "none";
+    const showOn = String(el.dataset.showwhenValue || "").split("|");
+    el.style.display = ctrl && showOn.includes(ctrl.value) ? "" : "none";
   });
 }
 
@@ -5844,6 +6156,80 @@ function clientLineCost(entry, v) {
   // Add-ins default to 730 hours/month, editable per SKU via the "__hours" input.
   const hours = Number(v.__hours) > 0 ? Number(v.__hours) : 730;
   const cid = entry.id || entry.catalogId;
+  // Flexible Load Balancer: both meters tier on quantity x HOURS (744 LB-hours, 7,440
+  // Mbps-hours), so the free allowance is monthly. Mirror of the lbMeters branch in
+  // oci_catalog.line_cost.
+  if (entry.lbMeters) {
+    const lh = Number(v.__hours) > 0 ? Number(v.__hours) : hours;
+    let total = 0;
+    Object.values(entry.lbMeters).forEach((m) => {
+      let qty = Number(v[m.field] || 0) * lh;
+      if (m.field === "mbps") qty *= Number(v.count || 1);
+      (m.tiers || []).forEach((t) => {
+        const lo = Number(t.min || 0);
+        if (qty <= lo) return;
+        const hi = t.max === null || t.max === undefined ? null : Number(t.max);
+        const span = hi === null ? qty - lo : Math.min(qty, hi) - lo;
+        if (span > 0) total += span * Number(t.rate || 0);
+      });
+    });
+    return Math.round(total * 100) / 100;
+  }
+  // Compute cards: the shape selection picks the SKUs, quantities follow it. Mirror of the
+  // computeCard branch in oci_catalog.line_cost.
+  if (entry.computeCard) {
+    const ch = Number(v.__hours) > 0
+      ? Number(v.__hours)
+      : (Number(entry.estimatorHoursDefault) > 0 ? Number(entry.estimatorHoursDefault) : hours);
+    if (entry.computeCard === "ocvs") {
+      const plan = (entry.ocvsPlans || {})[String(v.plan || "")] || {};
+      const exp = (entry.ocvsExpansion || {})[String(v.expansion || "")] || {};
+      const hcx = entry.ocvsHcx || {};
+      const qty = plan.node ? Number(v.nodes || 0) : Number(v.ocpu || 0);
+      const t = (qty * Number(plan.rate || 0)
+        + Number(v.expansion_ocpu || 0) * Number(exp.rate || 0)
+        + Number(v.hcx_ocpu || 0) * Number(hcx.rate || 0)) * ch;
+      return Math.round(t * 100) / 100;
+    }
+    if (entry.computeCard === "gpu") {
+      const g = (entry.gpuOptions || {})[String(v.gpu || "")] || {};
+      const l = (entry.aieOptions || {})[String(v.aie || "")] || {};
+      const t = (Number(v.gpus || 0) * Number(g.rate || 0)
+        + Number(v.aie_gpus || 0) * Number(l.rate || 0)) * ch;
+      return Math.round(t * 100) / 100;
+    }
+    const shape = (entry.shapeOptions || {})[String(v.shape || "")] || {};
+    const per = Number(v.ocpu || 0) * Number((shape.ocpu || {}).rate || 0)
+      + Number(v.memory || 0) * Number((shape.memory || {}).rate || 0)
+      + Number(v.nvme || 0) * Number((shape.nvme || {}).rate || 0);
+    // Instances defaults to 1 so an untouched card prices one machine, not zero.
+    const count = v.instances === undefined ? 1 : Number(v.instances || 0);
+    return Math.round(per * ch * Math.max(count, 0) * 100) / 100;
+  }
+  // Estimator-generated card: graduated tiers per SKU. Mirror of the skuMeters branch in
+  // oci_catalog.line_cost - the server re-prices authoritatively on export, this is the live
+  // figure while the card is being filled in.
+  if (entry.skuMeters) {
+    const estHours = Number(v.__hours) > 0
+      ? Number(v.__hours)
+      : (Number(entry.estimatorHoursDefault) > 0 ? Number(entry.estimatorHoursDefault) : hours);
+    const total = entry.skuMeters.reduce((sum, m) => {
+      const qty = Number(v[m.key] || 0);
+      if (!(qty > 0)) return sum;
+      // Graduated: only the units above a tier's floor pay that tier's rate, so an OCI free
+      // allowance (first 500M datapoints, first 10 GB) really is free.
+      let cost = 0;
+      (m.tiers || []).forEach((t) => {
+        const lo = Number(t.min || 0);
+        if (qty <= lo) return;
+        const hi = t.max === null || t.max === undefined ? null : Number(t.max);
+        const span = hi === null ? qty - lo : Math.min(qty, hi) - lo;
+        if (span > 0) cost += span * Number(t.rate || 0);
+      });
+      return sum + (m.hourly ? cost * estHours : cost);
+    }, 0);
+    return Math.round(total * 100) / 100;
+  }
   if (cid === "block") {
     const gb = Number(v.gb || 0), vpus = Number(v.vpus || 10);
     return Math.round((gb * 0.0255 + gb * vpus * 0.0017) * 100) / 100;
@@ -5854,6 +6240,61 @@ function clientLineCost(entry, v) {
     const ecpu = Number(v.p_db_ecpu || 0) + Number(v.s_db_ecpu || 0);
     const oic = Number(v.p_oic || 0) + Number(v.s_oic || 0);
     return Math.round((ocpu * 0.0128 + ecpu * 0.0032 + oic * 0.192) * hours * 100) / 100;
+  }
+  // Base Database Service: mirror of the "basedb" branch in oci_catalog.line_cost - the
+  // edition licence and the shared compute infrastructure ($0.0251/ECPU-hr) both bill per
+  // ECPU-hour, plus database storage at $0.12/GB-month.
+  if (cid === "basedb") {
+    const rates = entry.editionRates || { standard: 0.0538, enterprise: 0.1075, high_perf: 0.2218, byol: 0.0484 };
+    const ed = Number(rates[String(v.edition || "enterprise")] ?? 0.1075);
+    return Math.round((Number(v.ecpu || 0) * (ed + 0.0251) * hours
+      + Number(v.storagegb || 0) * 0.12) * 100) / 100;
+  }
+  // Combined "OCI Generative AI" card: mirror of the genaiCombined branch in
+  // oci_catalog.line_cost - Models (per-request math) + Search & Retrieval (six meters).
+  if (entry.genaiCombined || cid === "genai") {
+    const gh = Number(v.__hours) || 744;
+    let total = 0;
+    if (String(v.metric || "on_demand") === "dedicated") {
+      const dk = String(v.ded_cluster || "");
+      total += Number(v.ded_units || 0) * Number((entry.genaiDedicated?.rates || {})[dk] || 0) * gh;
+    } else {
+      const mi = (entry.genaiModelInfo || {})[String(v.model || "")];
+      if (mi) {
+        const div = Number(mi.divisor || 1) || 1;
+        total += Number(v.requests || 0)
+          * (Number(v.prompt_len || 0) / div * Number(mi.inRate || 0)
+             + Number(v.response_len || 0) / div * Number(mi.outRate || 0));
+      }
+    }
+    (entry.genaiRetrieval || []).forEach((r) => {
+      const q = Number(v[r.key] || 0);
+      total += r.hourly ? q * Number(r.rate) * gh : q / Number(r.divisor || 1) * Number(r.rate);
+    });
+    return Math.round(total * 100) / 100;
+  }
+  // OCI Generative AI Agents (separate card): RAG transactions + optional Managed KB.
+  if (entry.genaiAgents || cid === "genai_agents") {
+    const gh = Number(v.__hours) || 744;
+    const m = entry.genaiAgentMeters || {};
+    const txn = m.txn || {}, kb = m.kb || {}, ing = m.ingest || {};
+    const total = Number(v.rag_requests || 0) * Number(v.rag_chars || 0) / Number(txn.divisor || 1) * Number(txn.rate || 0)
+      + Number(v.kb_storage || 0) * Number(kb.rate || 0) * gh
+      + Number(v.kb_jobs || 0) * Number(v.kb_chars || 0) / Number(ing.divisor || 1) * Number(ing.rate || 0);
+    return Math.round(total * 100) / 100;
+  }
+  // Variant-priced entries (Generative AI): mirror of the variantRates branch in
+  // oci_catalog.line_cost. The server re-prices authoritatively on export; this is the live
+  // figure shown while the user is filling the card in.
+  if (entry.variantRates) {
+    const key = String(v[entry.variantKey] || "");
+    const rate = Number(entry.variantRates[key] ?? entry.rate ?? 0);
+    // Mirror of the variantFree subtraction in oci_catalog.line_cost - a tier-priced meter's
+    // free allowance comes off the quantity before the rate applies.
+    const qty = Math.max(0, Number(v[entry.variantField || "units"] || 0)
+      - Number((entry.variantFree || {})[key] || 0));
+    const hourly = Boolean((entry.variantHourly || {})[key]);
+    return Math.round(qty * rate * (hourly ? hours : 1) * 100) / 100;
   }
   if (cid === "fastconnect") {
     const selected = fastConnectSelection(entry, v);
@@ -6065,19 +6506,36 @@ function addServiceFromCard(idx) {
   const values = cardValues(idx);
   const monthly = clientLineCost(entry, values);
   const fastConnect = entry.id === "fastconnect" ? fastConnectSelection(entry, values) : null;
+  // Variant cards (Generative AI) carry the chosen meter's name, SKU, rate and unit onto the
+  // cart line, so the deliverable reads "Generative AI - Meta Llama 4 Scout", not the card name.
+  const vKey = entry.variantRates ? String(values[entry.variantKey] || "") : "";
+  const variant = vKey && entry.variantRates[vKey] !== undefined
+    ? { label: entry.variantLabels[vKey], sku: entry.variantSkus[vKey] || "",
+        rate: entry.variantRates[vKey], unit: entry.variantUnits[vKey] || entry.unit }
+    : null;
   state.extraServices.push({
     catalogId: entry.id,
-    name: fastConnect ? `FastConnect port (${fastConnect.label})` : entry.name,
+    name: fastConnect
+      ? `FastConnect port (${fastConnect.label})`
+      : variant ? `${entry.name.split(" - ")[0]} - ${variant.label}` : entry.name,
     group: entry.group,
-    sku: fastConnect?.sku || entry.sku,
-    unit: entry.unit,
+    sku: fastConnect?.sku || variant?.sku || entry.sku,
+    unit: variant?.unit || entry.unit,
     basis: entry.basis,
-    rate: fastConnect?.rate ?? entry.rate,
+    rate: fastConnect?.rate ?? variant?.rate ?? entry.rate,
     free: entry.free || {},
     fields: entry.fields,
     speedRates: entry.speedRates,
     speedSkus: entry.speedSkus,
     speedLabels: entry.speedLabels,
+    variantKey: entry.variantKey,
+    variantField: entry.variantField,
+    variantRates: entry.variantRates,
+    variantSkus: entry.variantSkus,
+    variantLabels: entry.variantLabels,
+    variantUnits: entry.variantUnits,
+    variantHourly: entry.variantHourly,
+    variantFree: entry.variantFree,
     thirdParty: !!entry.thirdParty || entry.group === "Licensing",
     values,
     monthly,
@@ -6115,9 +6573,17 @@ if (els.serviceSearch) {
 if (els.serviceResults) {
   els.serviceResults.addEventListener("input", (e) => {
     if (e.target.classList.contains("svc-input")) {
+      const card = e.target.closest(".service-card");
       // A dropdown change can show/hide dependent fields (e.g. Serverless vs Dedicated).
-      if (e.target.tagName === "SELECT") applyCardFieldVisibility(e.target.closest(".service-card"));
-      updateCardCost(Number(e.target.dataset.idx));
+      if (e.target.tagName === "SELECT") applyCardFieldVisibility(card);
+      // GenAI Models: provider drives the Model list; provider/model drive the length-unit labels.
+      const idx = Number(e.target.dataset.idx);
+      const entry = state.catalog.results?.[idx];
+      if (entry && entry.id === "genai" && e.target.tagName === "SELECT") {
+        if (e.target.dataset.key === "provider") refreshGenaiModelOptions(card, entry);
+        if (e.target.dataset.key === "provider" || e.target.dataset.key === "model") refreshGenaiLenLabels(card, entry);
+      }
+      updateCardCost(idx);
     }
   });
   els.serviceResults.addEventListener("click", (e) => {

@@ -244,7 +244,12 @@ def collect_services(pricing):
         ):
             continue
         grp = _row_group(r, group_of)
-        if not grp or grp in {"Compute", "Database"}:
+        # Compute and Database bill rows are drawn by their own tiers (the VM tier is built
+        # from the inventory, databases from the data tier), so they are skipped here. An
+        # ADD-IN is different: an added GPU fleet, bare metal server or OKE cluster is not an
+        # inventory VM, so nothing else would draw it and it would vanish from the diagram.
+        is_addin = bool(r.get("__addinGroup"))
+        if not grp or grp == "Database" or (grp == "Compute" and not is_addin):
             continue
         name = _clean(r.get("ociProduct") or r.get("sourceService")) or grp
         skus = _row_skus(r)

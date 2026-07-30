@@ -20,10 +20,12 @@ class ArchitectureIconTests(unittest.TestCase):
         catalog = integration.boeing_renderer.SnippetCatalog(integration.ROOT)
         pillow_catalog = bom_diagram._PillowOciIconRenderer().lib
 
-        self.assertEqual(
-            set(oci_catalog.ARCHITECTURE_ICON_BY_ID),
-            {entry["id"] for entry in oci_catalog.CURATED},
-        )
+        # Hand-written cards declare their icon explicitly; estimator-generated cards resolve
+        # theirs through architecture_mapping(). Both must end up with a renderable icon, but
+        # only the hand-written ones belong in the map - and the map must not carry ids that
+        # no longer exist (it kept genai_dedicated/genai_rag after the GenAI rework).
+        hand_written = {e["id"] for e in oci_catalog.CURATED if e.get("source") == "curated"}
+        self.assertEqual(set(oci_catalog.ARCHITECTURE_ICON_BY_ID), hand_written)
         for entry in oci_catalog.CURATED:
             self.assertTrue(entry["sku"], entry["id"])
             icon_title = entry["architectureIcon"]
