@@ -6063,6 +6063,25 @@ function genaiServiceCardShell(e, i, innerHtml) {
     </div>`;
 }
 
+// Options carrying a `group` are clustered under an <optgroup>, so a 20-shape compute list
+// reads by processor family the way Oracle's estimator does instead of as one flat run.
+// Ungrouped options render exactly as before.
+function optionListHtml(options, selected) {
+  const opt = (o) =>
+    `<option value="${escapeHtml(o.value)}"${o.value === selected ? " selected" : ""}>${escapeHtml(o.label)}</option>`;
+  if (!options.some((o) => o.group)) return options.map(opt).join("");
+  const order = [];
+  const byGroup = new Map();
+  options.forEach((o) => {
+    const g = o.group || "Other";
+    if (!byGroup.has(g)) { byGroup.set(g, []); order.push(g); }
+    byGroup.get(g).push(o);
+  });
+  return order
+    .map((g) => `<optgroup label="${escapeHtml(g)}">${byGroup.get(g).map(opt).join("")}</optgroup>`)
+    .join("");
+}
+
 function serviceCardHtml(e, i) {
   if (e.id === "genai") {
     return genaiServiceCardShell(e, i, genaiModelsHtml(e, i) + genaiRetrievalHtml(e, i));
@@ -6083,7 +6102,7 @@ function serviceCardHtml(e, i) {
         : "");
       const control = f.options
         ? `<select class="svc-input" data-idx="${i}" data-key="${escapeHtml(f.key)}">
-             ${f.options.map((o) => `<option value="${escapeHtml(o.value)}"${o.value === f.default ? " selected" : ""}>${escapeHtml(o.label)}</option>`).join("")}
+             ${optionListHtml(f.options, f.default)}
            </select>`
         : `<input type="number" class="svc-input" data-idx="${i}" data-key="${escapeHtml(f.key)}"
                   value="${f.default ?? 0}" min="${f.min ?? 0}" step="${f.step ?? 1}" />`;

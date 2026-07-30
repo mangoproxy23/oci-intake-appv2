@@ -79,7 +79,7 @@ INTAKE_MODE_CLOUD_BILL = "cloud_bill"
 PROVIDER_AUTO = "auto"
 DEFAULT_OPENAI_MODEL = "gpt-5-mini"
 OPENAI_DISABLED_MESSAGE = "OpenAI API calls are temporarily disabled."
-OPENAI_ACTIVE_FEATURES = ("inventory_scrub", "cloud_bill_mapping", "architecture", "foreign_bom")
+OPENAI_ACTIVE_FEATURES = ("inventory_scrub", "cloud_bill_mapping", "architecture", "other_oci_bill")
 MAX_DECOMPRESSED_UPLOAD_BYTES = 128 * 1024 * 1024
 
 
@@ -117,7 +117,7 @@ def openai_api_configured():
 AGENT_AUTHORITY = {
     "inventory_scrub": "advisory",     # parsing an uploaded inventory
     "cloud_bill_mapping": "advisory",  # AWS/Azure/GCP bill line -> OCI service
-    "foreign_bom_mapping": "advisory", # a foreign OCI BOM line the SKU catalog didn't recognize
+    "other_oci_bill_mapping": "advisory",  # an Other OCI Bill line the SKU catalog didn't recognise
     "pricing": "advisory",             # rates, sizing, OCPU/RAM/storage math
     "shape_selection": "advisory",     # which OCI shape a workload lands on
     "bom_export": "advisory",          # workbook contents and totals
@@ -1331,6 +1331,21 @@ def load_local_env():
 
 
 load_local_env()
+
+
+def _env_first(names):
+    """First environment variable that is actually set, from one name or a list of them.
+
+    Lets a variable be renamed without breaking a .env that still uses the old name: pass
+    ("NEW_NAME", "OLD_NAME") and the new one wins when both are set.
+    """
+    if not names:
+        return ""
+    for name in ((names,) if isinstance(names, str) else names):
+        value = os.environ.get(name)
+        if value:
+            return value
+    return ""
 
 
 def clean_text(value):
@@ -9934,8 +9949,8 @@ def call_openai_json(
     if not api_key:
         return None, "OPENAI_API_KEY is not set."
 
-    model = os.environ.get(model_env) or os.environ.get("OPENAI_MODEL", DEFAULT_OPENAI_MODEL)
-    reasoning_effort = clean_text(os.environ.get(reasoning_effort_env)) if reasoning_effort_env else ""
+    model = _env_first(model_env) or os.environ.get("OPENAI_MODEL", DEFAULT_OPENAI_MODEL)
+    reasoning_effort = clean_text(_env_first(reasoning_effort_env)) if reasoning_effort_env else ""
     reasoning_effort = reasoning_effort or clean_text(default_reasoning_effort)
     body = {
         "model": model,
@@ -10599,21 +10614,21 @@ def call_llm_mapping(pricing):
     return payload, None
 
 
-FOREIGN_BOM_KINDS = ("ocpu", "memory", "blockStorage", "fileStorage", "objectStorage",
+OTHER_OCI_BILL_KINDS = ("ocpu", "memory", "blockStorage", "fileStorage", "objectStorage",
                       "perf", "network", "database", "license", "gpu", "other")
-FOREIGN_BOM_CATEGORIES = ("Compute", "Storage", "Networking", "Database", "Licensing",
+OTHER_OCI_BILL_CATEGORIES = ("Compute", "Storage", "Networking", "Database", "Licensing",
                           "Security", "Disaster Recovery", "Other Services")
 
 
-def foreign_bom_assist(result, min_unrecognized=3, min_share=0.2):
-    """Advisory pass over the lines a foreign OCI BOM left unrecognized.
+def other_oci_bill_assist(result, min_unrecognized=3, min_share=0.2):
+    """Advisory pass over the lines an Other OCI Bill import left unrecognised.
 
     A BOM from outside this app can use SKUs the catalog has never seen (older parts, services
     the app doesn't price, a partner's private part numbers). The deterministic converter still
     carries those lines at the cost the BOM itself states - nothing is dropped - but it can't say
     WHAT they are, so their service category and their OCPU / RAM / storage sizing stay blank.
 
-    That blank is precisely what AGENT_POLICY.md lets an agent fill: `foreign_bom_mapping` is
+    That blank is precisely what AGENT_POLICY.md lets an agent fill: `other_oci_bill_mapping` is
     advisory, so this may only classify a line the engine couldn't. Specifically it may return a
     service category and a resource kind, and nothing else.
 
@@ -10662,8 +10677,8 @@ def foreign_bom_assist(result, min_unrecognized=3, min_share=0.2):
         "For each line, decide what kind of OCI resource it is from its description, unit and part number. "
         "Return compact JSON only: {\"lines\":[{\"rowId\":string,\"category\":string,\"kind\":string,"
         "\"ociProduct\":string,\"confidence\":number,\"note\":string}],\"warnings\":[string]}. "
-        "category must be one of: " + ", ".join(FOREIGN_BOM_CATEGORIES) + ". "
-        "kind must be one of: " + ", ".join(FOREIGN_BOM_KINDS) + ". "
+        "category must be one of: " + ", ".join(OTHER_OCI_BILL_CATEGORIES) + ". "
+        "kind must be one of: " + ", ".join(OTHER_OCI_BILL_KINDS) + ". "
         "ociProduct is the official Oracle product name you believe the line refers to. "
         "NEVER return a price, a rate, a cost or a quantity - those come from the BOM itself and "
         "are not yours to set. Omit any line you cannot classify with reasonable confidence "
@@ -10674,8 +10689,10 @@ def foreign_bom_assist(result, min_unrecognized=3, min_share=0.2):
         {"lines": pending[:120], "bomSheet": clean_text(result.get("sheetName"))},
         max_output_tokens=2000,
         timeout=60,
-        model_env="OPENAI_FOREIGN_BOM_MODEL",
-        reasoning_effort_env="OPENAI_FOREIGN_BOM_REASONING_EFFORT",
+        # Renamed with the mode; the old names still work so an existing .env keeps running.
+        model_env=("OPENAI_OTHER_OCI_BILL_MODEL", "OPENAI_FOREIGN_BOM_MODEL"),
+        reasoning_effort_env=("OPENAI_OTHER_OCI_BILL_REASONING_EFFORT",
+                              "OPENAI_FOREIGN_BOM_REASONING_EFFORT"),
         default_reasoning_effort="low",
     )
     if warning or not isinstance(payload, dict):
@@ -10695,7 +10712,7 @@ def foreign_bom_assist(result, min_unrecognized=3, min_share=0.2):
         kind = clean_text(suggestion.get("kind"))
         # Reject anything outside the closed vocabulary - a model returning a category the app
         # doesn't have must not create one.
-        if category not in FOREIGN_BOM_CATEGORIES or kind not in FOREIGN_BOM_KINDS:
+        if category not in OTHER_OCI_BILL_CATEGORIES or kind not in OTHER_OCI_BILL_KINDS:
             continue
         mapping = row.setdefault("fullServiceMapping", {})
         # Advisory: only fill what the engine left blank. "Other Services" IS the converter's
@@ -11090,9 +11107,9 @@ class IntakeHandler(BaseHTTPRequestHandler):
             import bom_convert
             result = bom_convert.convert_oci_bom(saved_path, sheet=requested_sheet or None)
             # Advisory AI pass over whatever the SKU catalog could not identify. It never touches
-            # a cost, a quantity or a rate - see foreign_bom_assist and AGENT_POLICY.md.
+            # a cost, a quantity or a rate - see other_oci_bill_assist and AGENT_POLICY.md.
             try:
-                _assist_applied, _assist_status = foreign_bom_assist(result)
+                _assist_applied, _assist_status = other_oci_bill_assist(result)
                 result["aiAssist"] = _assist_status
                 if _assist_status.get("ran") and _assist_status.get("note"):
                     result.setdefault("conversionWarnings", []).append(_assist_status["note"])

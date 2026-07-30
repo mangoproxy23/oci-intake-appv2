@@ -214,8 +214,12 @@ def _sel(key, label, options, default, show_when=None, hide_when=None):
     is a string used by the entry's cost function (not multiplied). show_when / hide_when
     work exactly as they do on _sf, so one card can swap whole sets of controls - the Base
     Database card shows a different edition list per billing metric."""
+    # An option may be (value, label) or (value, label, group). A group clusters the option
+    # under an <optgroup>, the way the estimator separates compute shapes by processor family -
+    # a flat list of 20 shapes is unscannable.
     f = {"key": key, "label": label, "unit": "", "default": default,
-         "options": [{"value": v, "label": l} for v, l in options]}
+         "options": [({"value": o[0], "label": o[1], "group": o[2]} if len(o) > 2
+                      else {"value": o[0], "label": o[1]}) for o in options]}
     if show_when:
         f["showWhen"] = {"field": show_when[0], "value": _when_value(show_when[1])}
     if hide_when:
@@ -735,12 +739,24 @@ def _tier_variant_maps(rows):
             {r[0]: r[5] for r in rows})
 
 
-def _tier_options(rows):
+def _meter_family(label):
+    """Cluster an AI service's meters the way the estimator does: what you call, what you
+    trained yourself, and what runs on capacity you reserve."""
+    low = label.lower()
+    if "dedicated" in low:
+        return "Dedicated capacity"
+    if "custom" in low:
+        return "Custom models"
+    return "Pre-trained"
+
+
+def _tier_options(rows, grouped=False):
     """Dropdown labels that state the allowance, so the free tier is visible before you buy."""
     out = []
     for key, label, rate, unit, _sku, free in rows:
         allowance = f", first {free:,g} free" if free else ""
-        out.append((key, f"{label} - ${rate:g}/{unit}{allowance}"))
+        text = f"{label} - ${rate:g}/{unit}{allowance}"
+        out.append((key, text, _meter_family(label)) if grouped else (key, text))
     return out
 
 
@@ -914,10 +930,21 @@ GENAI_MODEL_OPTIONS_BY_PROVIDER = {
 }
 
 
-def _variant_options(rows):
+def _variant_options(rows, group_of=None):
     """(value, label) pairs for a variant dropdown, labelled with the rate so the choice is
-    self-explanatory in the picker."""
+    self-explanatory in the picker. `group_of` clusters them under <optgroup> headings."""
+    if group_of:
+        return [(r[0], f"{r[1]} - ${r[2]:g}/{r[3]}", group_of(r[1])) for r in rows]
     return [(r[0], f"{r[1]} - ${r[2]:g}/{r[3]}") for r in rows]
+
+
+def _genai_cluster_family(label):
+    """Dedicated GenAI clusters belong to a model provider - nine flat entries hid that."""
+    low = label.lower()
+    for provider in ("cohere", "meta", "openai", "xai", "google"):
+        if provider in low:
+            return provider.capitalize() if provider != "openai" else "OpenAI"
+    return "Custom models"
 
 
 def _variant_maps(rows):
@@ -1195,7 +1222,8 @@ def _curated():
         _r, _sk, _lb, _un, _fr = _tier_variant_maps(_meters)
         add(_cid, "AI & Machine Learning" if _cid != "queue" else "Integration", _name,
             _meters[0][4], _meters[0][2], "per meter", _basis,
-            [_sel("meter", "Meter", _tier_options(_meters), _meters[0][0]),
+            [_sel("meter", "Meter", _tier_options(_meters, grouped=len(_meters) >= 4),
+                  _meters[0][0]),
              _sf("units", "Quantity", "units", 0, 1, 0)],
             _note)
         C[-1].update({"variantKey": "meter", "variantField": "units", "variantRates": _r,
@@ -1231,7 +1259,7 @@ def _curated():
              hide_when=("metric", "dedicated")),
          _sf("prompt_len", "Prompt length", "", 0, 1, 0, hide_when=("metric", "dedicated")),
          _sf("response_len", "Model Response length", "", 0, 1, 0, hide_when=("metric", "dedicated")),
-         _sel("ded_cluster", "Cluster type", _variant_options(GENAI_DEDICATED), "cohere_large",
+         _sel("ded_cluster", "Cluster type", _variant_options(GENAI_DEDICATED, _genai_cluster_family), "cohere_large",
               show_when=("metric", "dedicated")),
          _sf("ded_units", "AI units", "unit", 0, 1, 0, show_when=("metric", "dedicated"))]
         + [_sf(k, l, u, 0, 1, 0) for k, l, _sec, _r, u, _s, _h, _d in GENAI_RETRIEVAL],
@@ -1609,6 +1637,38 @@ def _compute_families(service_id):
     return [families[k] for k in order]
 
 
+# Processor family for a compute shape, from its generation token: E=AMD EPYC, X/B=Intel Xeon,
+# A=Ampere Arm. Oracle's estimator asks for the processor first and then filters the shape list;
+# grouping the one list the same way gets the same scannability without a second control.
+_COMPUTE_FAMILIES = {"E": "AMD EPYC", "X": "Intel Xeon", "B": "Intel Xeon", "A": "Ampere (Arm)"}
+
+
+def _compute_family(label):
+    found = re.search(r"\b([AEXB])(\d+)\b", label)
+    return _COMPUTE_FAMILIES.get(found.group(1), "Other") if found else "Other"
+
+
+# GPU accelerators group by architecture, which is what people actually shop by.
+_GPU_FAMILIES = (
+    ("GB300", "NVIDIA Blackwell"), ("GB200", "NVIDIA Blackwell"),
+    ("B300", "NVIDIA Blackwell"), ("B200", "NVIDIA Blackwell"),
+    ("RTX PRO 6000", "NVIDIA Blackwell"),
+    ("H200", "NVIDIA Hopper"), ("H100", "NVIDIA Hopper"),
+    ("L40S", "NVIDIA Ada Lovelace"),
+    ("A100", "NVIDIA Ampere"), ("A10", "NVIDIA Ampere"),
+    ("MI355X", "AMD Instinct"), ("MI300X", "AMD Instinct"),
+    ("V2", "NVIDIA Volta"),
+)
+
+
+def _gpu_family(label):
+    upper = label.upper()
+    for token, family in _GPU_FAMILIES:
+        if token.upper() in upper:
+            return family
+    return "Earlier generations"
+
+
 def _compute_entry(entry_id, service_id, name, note, card, fields, extra):
     """Shared shell for the hand-tuned compute cards."""
     svc = _estimator_service(service_id) or {}
@@ -1657,7 +1717,9 @@ def _compute_entries():
             bits = [f"${f['ocpu']['rate']:g}/OCPU-hr"]
             if "memory" in f:
                 bits.append(f"${f['memory']['rate']:g}/GB-hr")
-            options.append((f["key"], f"{f['label']} - " + ", ".join(bits)))
+            options.append((f["key"], f"{f['label']} - " + ", ".join(bits),
+                            _compute_family(f["label"])))
+        options.sort(key=lambda o: (o[2], o[1]))
         out.append(_compute_entry(
             "compute_vm", 822, "Compute - Virtual Machine",
             "Flexible shapes bill OCPU-hours and GB-hours as two separate SKUs at different "
@@ -1679,7 +1741,10 @@ def _compute_entries():
     bm = _compute_families(829)
     if bm:
         shapes = {f["key"]: f for f in bm}
-        options = [(f["key"], f"{f['label']} - ${f['ocpu']['rate']:g}/OCPU-hr") for f in bm]
+        options = sorted(
+            [(f["key"], f"{f['label']} - ${f['ocpu']['rate']:g}/OCPU-hr",
+              _compute_family(f["label"])) for f in bm],
+            key=lambda o: (o[2], o[1]))
         out.append(_compute_entry(
             "compute_bm", 829, "Compute - Bare Metal",
             "A bare metal server is billed per OCPU-hour on all of its cores - there is no "
@@ -1718,8 +1783,11 @@ def _compute_entries():
                 expansion[key] = dict(rec, label=f"Expansion - {term}")
         by_node = [k for k, r in plans.items() if r["node"]]
         by_ocpu = [k for k, r in plans.items() if not r["node"]]
-        plan_opts = [(k, f"{r['label']} - ${r['rate']:g}/{'node' if r['node'] else 'OCPU'}-hr")
-                     for k, r in plans.items()]
+        _TERM_ORDER = {"Hourly": 0, "Monthly": 1, "1 Year": 2, "3 Year": 3}
+        plan_opts = sorted(
+            [(k, f"{r['term']} - ${r['rate']:g}/{'node' if r['node'] else 'OCPU'}-hr",
+              r["shape"]) for k, r in plans.items()],
+            key=lambda o: (o[2], _TERM_ORDER.get(o[1].split(" - ")[0], 9)))
         exp_opts = [("none", "None")] + [
             (k, f"{r['term']} - ${r['rate']:g}/OCPU-hr") for k, r in expansion.items()]
         hcx_rec = hcx.get("Monthly") or (next(iter(hcx.values())) if hcx else None)
@@ -1758,10 +1826,14 @@ def _compute_entries():
             # "NVIDIA AI Enterprise" rows are a per-GPU software licence layered on top of an
             # accelerator, not an accelerator you can buy on its own.
             (aie if "nvidia ai enterprise" in label.lower() else gpus)[key] = rec
-        gpu_opts = [(k, f"{r['label']} - ${r['rate']:g}/GPU-hr") for k, r in gpus.items()]
-        aie_opts = [("none", "None")] + [
-            (k, f"{r['label'].replace('NVIDIA AI Enterprise - ', '')} - ${r['rate']:g}/GPU-hr")
-            for k, r in aie.items()]
+        gpu_opts = sorted(
+            [(k, f"{r['label']} - ${r['rate']:g}/GPU-hr", _gpu_family(r["label"]))
+             for k, r in gpus.items()],
+            key=lambda o: (o[2], o[1]))
+        aie_opts = [("none", "None", "")] + sorted(
+            [(k, f"{r['label'].replace('NVIDIA AI Enterprise - ', '')} - ${r['rate']:g}/GPU-hr",
+              _gpu_family(r["label"])) for k, r in aie.items()],
+            key=lambda o: (o[2], o[1]))
         out.append(_compute_entry(
             "compute_gpu", 801, "Compute - GPU",
             "GPU shapes bill per GPU-hour. NVIDIA AI Enterprise is a separate per-GPU-hour "
