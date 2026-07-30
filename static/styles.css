@@ -4682,8 +4682,12 @@ td input[type="checkbox"] {
 /* Combined "OCI Generative AI" card: Models + Search & Retrieval sections, laid out like the
    Oracle Cost Estimator (each meter is its own labelled box, all visible at once). */
 .genai-fields { display: block; margin: 10px 0; }
-.genai-section { border: 1px solid var(--line); border-radius: 9px; padding: 12px 14px; margin-bottom: 12px; }
-.genai-section:last-child { margin-bottom: 0; }
+/* One service, one tile. These sections used to be bordered boxes, which made a single card
+   read as two separate tiles; they are now headed bands divided by a hairline. */
+.genai-section { border: 0; border-radius: 0; padding: 0; margin: 0; }
+.genai-section + .genai-section {
+  border-top: 1px solid var(--line); margin-top: 14px; padding-top: 14px;
+}
 .genai-section-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
 .genai-section-title { font-size: 13px; font-weight: 700; color: var(--text, #2c2a27); margin-bottom: 10px; }
 .genai-row { display: flex; flex-wrap: wrap; gap: 12px; }
@@ -4834,7 +4838,12 @@ td input[type="checkbox"] {
 .service-group.is-open .service-group-caret { transform:rotate(90deg); }
 .service-group-title { font-weight:600; color:#3d3a35; flex:1; }
 .service-group-count { background:#e4f0e2; color:#2f5d24; font-size:11px; font-weight:600; border-radius:999px; padding:1px 8px; }
-.service-group-body { display:flex; flex-direction:column; gap:9px; padding:10px; }
+.service-group-body {
+  display:flex; flex-direction:column; gap:9px; padding:10px;
+  /* Same tint as .service-group-head: white cards need a darker ground to read as
+     separate rows. On white they ran together. */
+  background:#f4f1ed;
+}
 /* A collapsed group must fully hide - the display:flex above otherwise overrides the
    browser's default [hidden] rule, so collapsed categories were leaking their cards. */
 .service-group-body[hidden] { display: none !important; }
