@@ -224,7 +224,8 @@ def _sel(key, label, options, default, show_when=None, hide_when=None):
 
 
 # --- curated, fillable services -------------------------------------------------------------
-# group order mirrors data/service_comp_list.json so the chips read like Oracle's console.
+# Canonical category list. This is membership, not display order: the chips and the browse list
+# are sorted alphabetically (see groups_with_counts / search).
 GROUPS = ["Compute", "Storage", "Networking", "Database", "Integration", "Security",
           "Observability", "Analytics", "AI & Machine Learning", "Licensing", "Other Services"]
 
@@ -2362,7 +2363,10 @@ def search(query="", group=""):
     q, g = _norm(query), (group or "").strip()
     pool = [e for e in CURATED if not g or e["group"] == g]
     if not q:
-        return list(pool)
+        # Browsing: alphabetical by category, then by service, so the collapsed sections and the
+        # cards inside them are scannable. A text query keeps relevance order instead - sorting
+        # those alphabetically would throw away the ranking.
+        return sorted(pool, key=lambda e: (e["group"].lower(), e["name"].lower()))
     terms = _expand(q)
     scored = []
     for e in pool:
@@ -2506,7 +2510,9 @@ GROUP_TO_OVERVIEW_ROW = {
 
 
 def groups_with_counts():
+    """Category chips, alphabetical. With eleven categories the old console-ish order made you
+    read the whole row to find one; alphabetical means you can jump straight to it."""
     counts = {}
     for e in CURATED:
         counts[e["group"]] = counts.get(e["group"], 0) + 1
-    return [{"group": g, "count": counts.get(g, 0)} for g in GROUPS if counts.get(g)]
+    return [{"group": g, "count": counts[g]} for g in sorted(counts, key=str.lower)]
