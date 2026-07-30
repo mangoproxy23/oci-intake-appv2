@@ -2624,10 +2624,12 @@ async function exportToExcel(triggerButton = null) {
       existingInfraCost: state.existingInfraCost || 0,
       workflowState: collectWorkflowState(),
       // A converted OCI BOM is already priced; export it in the AWS cloud-compare
-      // workbook format straight from the converted pricing (no re-pricing).
+      // workbook format straight from the converted pricing (no re-pricing). Keep the
+      // cross-cloud result too: trimming this to rows/totals made the imported-BOM
+      // comparison disappear from exported/reopened workbooks.
       converted: !!(state.pricing && state.pricing.converted),
       convertedPricing: (state.pricing && state.pricing.converted)
-        ? { rows: state.pricing.rows, totals: state.pricing.totals }
+        ? state.pricing
         : null,
       // Services added from the "Add OCI services" panel - priced server-side and folded
       // into the export totals and the matching Pricing Overview lines.
@@ -2752,6 +2754,10 @@ function collectWorkflowState() {
     diagramOptions: state.diagramOptions || {},
     fields: state.fields,
     rows: state.rows,
+    // Converted BOMs cannot be reconstructed through /api/price because they have no
+    // source inventory field map. Save their already-priced result, including crossCloud,
+    // so reopening an exported BOM restores the comparison instead of trying to re-price it.
+    convertedPricing: state.pricing?.converted ? state.pricing : null,
     shapeOverrides: state.shapeOverrides,
     costOverrides: state.costOverrides,
     approvedFlags: state.approvedFlags,
@@ -2805,6 +2811,7 @@ async function applyWorkflowState(wf) {
     diagramOptions: defaultDiagramOptions,
     fields: [],
     rows: [],
+    pricing: null,
     shapeOverrides: {},
     costOverrides: {},
     approvedFlags: {},
@@ -2850,6 +2857,20 @@ async function applyWorkflowState(wf) {
   };
   state.extraServices = Array.isArray(state.extraServices) ? state.extraServices : [];
   state.fields = Array.isArray(state.fields) ? state.fields : [];
+  const restoredConvertedPricing =
+    wf.convertedPricing &&
+    typeof wf.convertedPricing === "object" &&
+    wf.convertedPricing.converted
+      ? wf.convertedPricing
+      : null;
+  if (restoredConvertedPricing) {
+    state.pricing = restoredConvertedPricing;
+    // Keep the review/result data and converted pricing rows as one shared array, just
+    // as they are immediately after import, so later shape edits update both views.
+    state.rows = Array.isArray(restoredConvertedPricing.rows)
+      ? restoredConvertedPricing.rows
+      : state.rows;
+  }
   ensureIdentityReviewFields();
   ensureHoursRunningReviewField();
   state.lastShapeByVendor =
@@ -2952,7 +2973,12 @@ async function applyWorkflowState(wf) {
     const drSub = document.querySelector("#drSubOptions"); if (drSub) drSub.hidden = !d.enableDr;
   }
   if (typeof renderTable === "function") renderTable();
-  await priceRows();
+  if (state.pricing?.converted) {
+    renderPricing(state.pricing);
+    renderResults(state.pricing);
+  } else {
+    await priceRows();
+  }
   // priceRows() doesn't touch the "Add OCI services" panel, so re-render the cart and fold the
   // restored add-in services back into the results totals - otherwise a reloaded BOM shows an
   // empty cart and drops the extras the user selected last time.
@@ -3381,6 +3407,7 @@ function openPriceStep() {
 
 async function openOtherCloudsStep() {
   if (state.pricing) {
+    await refreshConvertedCrossCloud();
     showOtherCloudsPage();
     return;
   }
@@ -3393,6 +3420,32 @@ async function openOtherCloudsStep() {
   showUploadPage();
   els.uploadStatus.textContent = "Upload inventory before estimating other clouds.";
   els.uploadStatus.style.color = "var(--danger)";
+}
+
+async function refreshConvertedCrossCloud() {
+  const pricing = state.pricing;
+  if (!pricing?.converted || pricing.comparisonSummary) return;
+  const hasCompute = (pricing.rows || []).some((row) => {
+    const specs = row.specs || {};
+    return Number(specs.ocpus || 0) > 0 || Number(specs.memoryGb || 0) > 0;
+  });
+  if (!hasCompute) return;
+  try {
+    const requestOptions = await jsonRequestOptions({
+      rows: pricing.rows,
+      hideWindowsPricing: state.hideWindowsPricing,
+      convertedBom: true,
+    });
+    const { response, payload } = await fetchJson(
+      "/api/cross-cloud",
+      requestOptions,
+      70000,
+    );
+    if (!response.ok) throw new Error(payload.error || "Cloud comparison failed.");
+    pricing.crossCloud = payload.crossCloud;
+  } catch (error) {
+    console.error("converted BOM cloud comparison failed", error);
+  }
 }
 
 async function openDeliverablesStep() {
@@ -5702,6 +5755,10 @@ function renderCrossCloud() {
     ? (tier
         ? `Top-of-the-line (what-if): every cloud - including your ${srcName} bill - is re-estimated on that cloud's newest-generation equivalent shape, so you can see what the same workloads would cost re-shaped. Non-compute services (storage, data transfer, managed services) stay at their actual billed cost. For directional comparison only - not a quote.`
         : `Best match: your ${srcName} total is your actual billed cost - no estimate. The other cloud estimates compute line items against an equivalent shape and carries non-compute services at their billed cost. Switch to Top of the line to re-estimate your bill on newest-generation shapes. For directional comparison only - not a quote.`)
+    : raw.convertedBom
+    ? (tier
+        ? "Imported-BOM comparison: recovered CPU, memory, processor family, and generation are matched to each cloud's newest-generation shape; recognized service usage is re-priced on the target cloud. For directional comparison only - not a quote."
+        : "Imported-BOM comparison: recovered CPU, memory, processor family, and generation are matched to the closest AWS and Azure shapes; recognized service usage is re-priced on the target cloud. For directional comparison only - not a quote.")
     : tier
     ? "Top-of-the-line mode prices every workload against each cloud's newest-generation equivalent shape (Linux baseline, plus attached block storage, Windows, and SQL Server licensing where detected). For directional comparison only - not a quote."
     : "Best-match mode uses your actual source-cloud shape prices where known, otherwise the closest equivalent shape on each cloud (Linux baseline, plus attached block storage, Windows, and SQL Server licensing where detected). For directional comparison only - not a quote.";

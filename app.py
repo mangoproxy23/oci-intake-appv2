@@ -4117,7 +4117,12 @@ def _cross_cloud_one_mode(priced_rows, hide_windows, top_of_line, cloud_bill_mod
             if (row.get("costAction") or "") == "remove":
                 continue
             sce = row.get("sourceCloudEstimate") or {}
-            vendor = (row.get("shapeUsed") or {}).get("vendor")
+            shape_used = row.get("shapeUsed") or {}
+            # /api/price stores the normalized key as "vendor"; imported BOMs carry the
+            # public shape payload, where the same value is named "processorVendor".
+            # Accept both so an imported Intel/AMD/Arm choice stays in that processor
+            # family when matching AWS and Azure generations.
+            vendor = shape_used.get("vendor") or shape_used.get("processorVendor")
             specs = row.get("specs") or {}
             # Size the cross-cloud estimate against the INPUT footprint - never OCI's
             # rightsized (trimmed) OCPU/RAM. So the other clouds reflect the original bill's
@@ -4322,6 +4327,26 @@ def cross_cloud_estimate(priced_rows, hide_windows=False, cloud_bill_mode=False,
         "sourceCloud": source_cloud,
         "cloudBillMode": cloud_bill_mode,
     }
+
+
+def converted_bom_cross_cloud(priced_rows, hide_windows=False):
+    """Compare a converted OCI BOM with AWS/Azure using the existing full-bill logic.
+
+    The cloud-bill branch already re-prices non-compute OCI mappings (storage, database,
+    networking, and other recognized services) on the target cloud instead of silently
+    dropping them. There is no source cloud whose cost should be held at an actual billed
+    total here, so source_cloud remains None and the result is marked as a converted BOM
+    for accurate UI wording.
+    """
+    comparison = cross_cloud_estimate(
+        priced_rows,
+        hide_windows,
+        cloud_bill_mode=True,
+        source_cloud=None,
+    )
+    comparison["cloudBillMode"] = False
+    comparison["convertedBom"] = True
+    return comparison
 
 
 # Source services that are BILLING CONSTRUCTS or support, not workloads: a Savings Plan /
@@ -11056,6 +11081,9 @@ class IntakeHandler(BaseHTTPRequestHandler):
         if parsed.path == "/api/price":
             self.handle_price()
             return
+        if parsed.path == "/api/cross-cloud":
+            self.handle_cross_cloud()
+            return
         if parsed.path == "/api/edit-table":
             self.handle_table_edit()
             return
@@ -11072,6 +11100,45 @@ class IntakeHandler(BaseHTTPRequestHandler):
             self.handle_convert_bom()
             return
         self.send_error_json(404, "Not found.")
+
+    def handle_cross_cloud(self):
+        """Rebuild the existing AWS/Azure comparison for already-priced rows.
+
+        Imported OCI BOMs are priced by the converter instead of /api/price, but their
+        recovered compute rows use the same shape/spec schema as normal pricing rows.
+        Keeping this as a small separate endpoint lets the client refresh the comparison
+        after a converted VM is remapped to another OCI processor family or shape.
+        """
+        try:
+            payload = self.read_json_body()
+            if payload is None:
+                return
+            rows = payload.get("rows")
+            if not isinstance(rows, list) or not rows:
+                self.send_error_json(400, "Cloud comparison requires priced rows.")
+                return
+            is_converted_bom = bool(payload.get("convertedBom"))
+            if is_converted_bom:
+                comparison = converted_bom_cross_cloud(
+                    rows,
+                    bool(payload.get("hideWindowsPricing")),
+                )
+            else:
+                source_cloud = normalize_provider_hint(payload.get("sourceCloud"))
+                if source_cloud not in ("aws", "azure", "gcp"):
+                    source_cloud = None
+                comparison = cross_cloud_estimate(
+                    rows,
+                    bool(payload.get("hideWindowsPricing")),
+                    bool(payload.get("cloudBillMode")),
+                    source_cloud,
+                )
+            self.send_json(
+                200,
+                {"crossCloud": comparison},
+            )
+        except Exception as exc:
+            self.send_error_json(500, f"Could not build cloud comparison: {exc}")
 
     def handle_convert_bom(self):
         """Accept an uploaded alternate OCI BOM (xlsx/csv), recognize its SKUs/line
@@ -11116,6 +11183,18 @@ class IntakeHandler(BaseHTTPRequestHandler):
             except Exception as assist_exc:
                 result["aiAssist"] = {"ran": False, "applied": 0,
                                       "note": f"AI assist unavailable: {assist_exc}"}
+            # A converted BOM bypasses calculate_pricing(), which is where crossCloud is
+            # normally attached. Reuse that exact comparison engine when the converter
+            # recovered workload CPU/RAM; finished comparison workbooks already supply
+            # their own recorded source-cloud totals and must not be overwritten.
+            has_compute = any(
+                to_number((row.get("specs") or {}).get("ocpus"), 0) > 0
+                or to_number((row.get("specs") or {}).get("memoryGb"), 0) > 0
+                for row in (result.get("rows") or [])
+                if isinstance(row, dict)
+            )
+            if has_compute and not result.get("crossCloud"):
+                result["crossCloud"] = converted_bom_cross_cloud(result.get("rows") or [])
             result["fileName"] = filename
             result["selectedShape"] = shape_payload(DEFAULT_SHAPE_KEY)
             result["rateCard"] = build_rate_card(DEFAULT_SHAPE_KEY, True)
