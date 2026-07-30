@@ -1,0 +1,7457 @@
+{
+ "generatedFrom": "oracle-cost-estimator-catalog-2026-07-30.json",
+ "extractedAtUtc": "2026-07-30T03:23:41",
+ "datasetVersion": "439",
+ "currency": "USD",
+ "counts": {
+  "services": 48,
+  "skus": 316
+ },
+ "services": [
+  {
+   "id": "est861",
+   "serviceId": 861,
+   "label": "APEX Application Development",
+   "name": "APEX Application Development",
+   "group": "Integration",
+   "componentType": "apex",
+   "docUrl": "https://docs.oracle.com/en/cloud/paas/apex/",
+   "productUrl": "https://www.oracle.com/application-development/apex/",
+   "form": {
+    "days": 31,
+    "hoursPerDay": 24,
+    "fixedUtilization": false,
+    "showHours": true,
+    "showInstances": true
+   },
+   "note": "",
+   "skus": [
+    {
+     "key": "m1",
+     "sku": "B99709",
+     "label": "Oracle APEX Application Development - ECPU",
+     "metric": "ECPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.0807
+      }
+     ],
+     "rate": 0.0807
+    }
+   ]
+  },
+  {
+   "id": "est1921",
+   "serviceId": 1921,
+   "label": "Access Governance",
+   "name": "Access Governance",
+   "group": "Security",
+   "componentType": "accgov",
+   "docUrl": "",
+   "productUrl": "",
+   "form": {
+    "days": 31,
+    "hoursPerDay": 24,
+    "fixedUtilization": false,
+    "showHours": false,
+    "showInstances": false
+   },
+   "note": "For the purposes of Oracle Access Governance, Workforce/Consumer Users marked as Active will be billed. Any users not marked as Active or marked as Inactive will not be billed.",
+   "skus": [
+    {
+     "key": "m0",
+     "sku": "B97172",
+     "label": "Oracle Access Governance for OCI - Workforce User",
+     "metric": "Workforce User Per Month",
+     "billing": "MONTH",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": 100000.0,
+       "rate": 0.1
+      },
+      {
+       "min": 100000.0,
+       "max": null,
+       "rate": 0.005
+      }
+     ],
+     "rate": 0.1
+    },
+    {
+     "key": "m1",
+     "sku": "B97173",
+     "label": "Oracle Access Governance for Oracle Workloads - Workforce User",
+     "metric": "Workforce User Per Month",
+     "billing": "MONTH",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": 10000.0,
+       "rate": 2.0
+      },
+      {
+       "min": 10000.0,
+       "max": 30000.0,
+       "rate": 0.75
+      },
+      {
+       "min": 30000.0,
+       "max": null,
+       "rate": 0.1
+      }
+     ],
+     "rate": 2.0
+    },
+    {
+     "key": "m2",
+     "sku": "B97179",
+     "label": "Oracle Access Governance Premium - Consumer User",
+     "metric": "Consumer User Per Month",
+     "billing": "MONTH",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.016
+      }
+     ],
+     "rate": 0.016
+    },
+    {
+     "key": "m3",
+     "sku": "B97180",
+     "label": "Oracle Access Governance for Oracle Workloads - Consumer User",
+     "metric": "Consumer User Per Month",
+     "billing": "MONTH",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.016
+      }
+     ],
+     "rate": 0.016
+    },
+    {
+     "key": "m4",
+     "sku": "B97181",
+     "label": "Oracle Access Governance Premium - Workforce User",
+     "metric": "Workforce User Per Month",
+     "billing": "MONTH",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": 10000.0,
+       "rate": 3.0
+      },
+      {
+       "min": 10000.0,
+       "max": 30000.0,
+       "rate": 1.13
+      },
+      {
+       "min": 30000.0,
+       "max": null,
+       "rate": 0.15
+      }
+     ],
+     "rate": 3.0
+    }
+   ]
+  },
+  {
+   "id": "est189",
+   "serviceId": 189,
+   "label": "Analytics - Analytics Cloud",
+   "name": "Analytics Cloud",
+   "group": "Analytics",
+   "componentType": null,
+   "docUrl": "https://docs.oracle.com/en-us/iaas/analytics-cloud/index.html",
+   "productUrl": "https://www.oracle.com/business-analytics/analytics-cloud.html",
+   "form": {
+    "days": 31,
+    "hoursPerDay": 24,
+    "fixedUtilization": false,
+    "showHours": true,
+    "showInstances": true
+   },
+   "note": "",
+   "skus": [
+    {
+     "key": "m0",
+     "sku": "B89630",
+     "label": "Oracle Analytics Cloud - Professional - OCPU",
+     "metric": "OCPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 1.0753
+      }
+     ],
+     "rate": 1.0753
+    },
+    {
+     "key": "m1",
+     "sku": "B89631",
+     "label": "Oracle Analytics Cloud - Enterprise - OCPU",
+     "metric": "OCPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 2.1506
+      }
+     ],
+     "rate": 2.1506
+    },
+    {
+     "key": "m2",
+     "sku": "B89636",
+     "label": "Oracle Analytics Cloud - Professional - BYOL - OCPU",
+     "metric": "OCPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.3226
+      }
+     ],
+     "rate": 0.3226
+    },
+    {
+     "key": "m3",
+     "sku": "B89637",
+     "label": "Oracle Analytics Cloud - Enterprise - BYOL - OCPU",
+     "metric": "OCPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.3226
+      }
+     ],
+     "rate": 0.3226
+    },
+    {
+     "key": "m4",
+     "sku": "B92682",
+     "label": "Oracle Analytics Cloud - Professional - Users",
+     "metric": "User Per Month",
+     "billing": "MONTH",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 16.0
+      }
+     ],
+     "rate": 16.0
+    },
+    {
+     "key": "m5",
+     "sku": "B92683",
+     "label": "Oracle Analytics Cloud - Enterprise - Users",
+     "metric": "User Per Month",
+     "billing": "MONTH",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 80.0
+      }
+     ],
+     "rate": 80.0
+    }
+   ]
+  },
+  {
+   "id": "est1201",
+   "serviceId": 1201,
+   "label": "Application Development - API Management",
+   "name": "Application Development - API Management",
+   "group": "Integration",
+   "componentType": null,
+   "docUrl": "https://docs.oracle.com/en-us/iaas/Content/APIGateway/home.htm",
+   "productUrl": "https://www.oracle.com/cloud-native/api-management/",
+   "form": {
+    "days": 31,
+    "hoursPerDay": 24,
+    "fixedUtilization": false,
+    "showHours": false,
+    "showInstances": false
+   },
+   "note": "",
+   "skus": [
+    {
+     "key": "m0",
+     "sku": "B92072",
+     "label": "API Gateway  - 1,000,000 API Calls",
+     "metric": "1,000,000 API Calls Per Month",
+     "billing": "MONTH",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 3.0
+      }
+     ],
+     "rate": 3.0
+    }
+   ]
+  },
+  {
+   "id": "est1161",
+   "serviceId": 1161,
+   "label": "Application Development - Serverless",
+   "name": "Application Development - Serverless",
+   "group": "Integration",
+   "componentType": "functions",
+   "docUrl": "https://docs.oracle.com/en-us/iaas/Content/Functions/Concepts/functionsoverview.htm",
+   "productUrl": "https://www.oracle.com/cloud-native/functions/",
+   "form": {
+    "days": 31,
+    "hoursPerDay": 24,
+    "fixedUtilization": false,
+    "showHours": false,
+    "showInstances": false
+   },
+   "note": "",
+   "skus": [
+    {
+     "key": "m0",
+     "sku": "B90617",
+     "label": "Oracle Functions - Execution Time",
+     "metric": "10,000 GB Memory-Seconds",
+     "billing": "MONTH",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": 40.0,
+       "rate": 0.0
+      },
+      {
+       "min": 40.0,
+       "max": 999999999.0,
+       "rate": 0.1417
+      }
+     ],
+     "rate": 0.1417
+    },
+    {
+     "key": "m1",
+     "sku": "B90618",
+     "label": "Oracle Functions - Invocations",
+     "metric": "1MIL Function Invocations",
+     "billing": "MONTH",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": 2.0,
+       "rate": 0.0
+      },
+      {
+       "min": 2.0,
+       "max": 999999999.0,
+       "rate": 0.2
+      }
+     ],
+     "rate": 0.2
+    }
+   ]
+  },
+  {
+   "id": "est1422",
+   "serviceId": 1422,
+   "label": "Big Data Service",
+   "name": "Big Data Service",
+   "group": "Analytics",
+   "componentType": "bigdata",
+   "docUrl": "https://docs.oracle.com/en-us/iaas/Content/bigdata/home.htm",
+   "productUrl": "https://www.oracle.com/big-data/big-data-service/",
+   "form": {
+    "days": 31,
+    "hoursPerDay": 24,
+    "fixedUtilization": false,
+    "showHours": true,
+    "showInstances": true
+   },
+   "note": "The minimum big data service cluster configuration requires 5 nodes - one Master, one Utility, and 3 worker nodes. These nodes will be charged separately. You have the ability to start or stop a cluster. During the stop state, you will be billed only 25% of the service fees rate",
+   "skus": [
+    {
+     "key": "m0",
+     "sku": "B93555",
+     "label": "Oracle Big Data Service",
+     "metric": "OCPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.015
+      }
+     ],
+     "rate": 0.015
+    }
+   ]
+  },
+  {
+   "id": "est2601",
+   "serviceId": 2601,
+   "label": "Cache with Redis",
+   "name": "Cache with Redis",
+   "group": "Database",
+   "componentType": "redis",
+   "docUrl": "",
+   "productUrl": "",
+   "form": {
+    "days": 31,
+    "hoursPerDay": 24,
+    "fixedUtilization": false,
+    "showHours": true,
+    "showInstances": false
+   },
+   "note": "",
+   "skus": [
+    {
+     "key": "m0",
+     "sku": "B98217",
+     "label": "Oracle Cloud Infrastructure Cache with Redis - Low Memory (up to 10 GB per node)",
+     "metric": "Redis Memory Gigabyte per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.0194
+      }
+     ],
+     "rate": 0.0194
+    },
+    {
+     "key": "m1",
+     "sku": "B99591",
+     "label": "Oracle Cloud Infrastructure Cache with Redis - High Memory (over 10 GB per node)",
+     "metric": "Redis Memory Gigabyte per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.0136
+      }
+     ],
+     "rate": 0.0136
+    }
+   ]
+  },
+  {
+   "id": "est2781",
+   "serviceId": 2781,
+   "label": "Cloud Guard \u2013 Security",
+   "name": "Cloud Guard \u2013 Security",
+   "group": "Security",
+   "componentType": "cloudguardsecurity",
+   "docUrl": "",
+   "productUrl": "",
+   "form": {
+    "days": 31,
+    "hoursPerDay": 24,
+    "fixedUtilization": false,
+    "showHours": true,
+    "showInstances": false
+   },
+   "note": "",
+   "skus": [
+    {
+     "key": "m0",
+     "sku": "B108188",
+     "label": "Oracle Cloud Guard Instance Security Enterprise",
+     "metric": "Node Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.0069
+      }
+     ],
+     "rate": 0.0069
+    },
+    {
+     "key": "m2",
+     "sku": "B108190",
+     "label": "Oracle Cloud Guard Instance Security Adhoc Queries Enterprise",
+     "metric": "Request",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": 950000.0,
+       "rate": 0.0
+      },
+      {
+       "min": 950000.0,
+       "max": null,
+       "rate": 0.001
+      }
+     ],
+     "rate": 0.001
+    }
+   ]
+  },
+  {
+   "id": "est2301",
+   "serviceId": 2301,
+   "label": "Cloud Infrastructure Kubernetes Engine (OKE)",
+   "name": "Cloud Infrastructure Kubernetes Engine (OKE)",
+   "group": "Compute",
+   "componentType": "oke",
+   "docUrl": "",
+   "productUrl": "",
+   "form": {
+    "days": 31,
+    "hoursPerDay": 24,
+    "fixedUtilization": false,
+    "showHours": true,
+    "showInstances": true
+   },
+   "note": "",
+   "skus": [
+    {
+     "key": "m0",
+     "sku": "B96109",
+     "label": "OCI Kubernetes Engine - Virtual Node",
+     "metric": "Virtual Node Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.015
+      }
+     ],
+     "rate": 0.015
+    },
+    {
+     "key": "m1",
+     "sku": "B96545",
+     "label": "OCI Kubernetes Engine - Enhanced Cluster",
+     "metric": "Cluster Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.1
+      }
+     ],
+     "rate": 0.1
+    }
+   ]
+  },
+  {
+   "id": "est3181",
+   "serviceId": 3181,
+   "label": "Cloud Success Assurance Service",
+   "name": "Cloud Success Assurance Service",
+   "group": "Other Services",
+   "componentType": "cssassurance",
+   "docUrl": "",
+   "productUrl": "",
+   "form": {
+    "days": 31,
+    "hoursPerDay": 24,
+    "fixedUtilization": false,
+    "showHours": false,
+    "showInstances": false
+   },
+   "note": "",
+   "skus": [
+    {
+     "key": "m0",
+     "sku": "B110993",
+     "label": "Oracle Cloud Success Assurance Service - Universal Credits Consumption (% applied to consumption, with minimum)",
+     "metric": "Universal Credits Consumption",
+     "billing": "MONTH",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.05
+      }
+     ],
+     "rate": 0.05
+    }
+   ]
+  },
+  {
+   "id": "est3141",
+   "serviceId": 3141,
+   "label": "Cloud Success Protection Service",
+   "name": "Cloud Success Protection Service",
+   "group": "Other Services",
+   "componentType": "css",
+   "docUrl": "",
+   "productUrl": "",
+   "form": {
+    "days": 31,
+    "hoursPerDay": 24,
+    "fixedUtilization": false,
+    "showHours": false,
+    "showInstances": false
+   },
+   "note": "",
+   "skus": [
+    {
+     "key": "m0",
+     "sku": "B110464",
+     "label": "Oracle Cloud Success Protection Service - Universal Credits Consumption (% applied to consumption, with minimum)",
+     "metric": "Universal Credits Consumption",
+     "billing": "MONTH",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.1
+      }
+     ],
+     "rate": 0.1
+    }
+   ]
+  },
+  {
+   "id": "est3643",
+   "serviceId": 3643,
+   "label": "Cloudflare@OCI",
+   "name": "Cloudflare@OCI",
+   "group": "Networking",
+   "componentType": "cloudflare",
+   "docUrl": "",
+   "productUrl": "",
+   "form": {
+    "days": 31,
+    "hoursPerDay": 24,
+    "fixedUtilization": false,
+    "showHours": true,
+    "showInstances": true
+   },
+   "note": "",
+   "skus": [
+    {
+     "key": "m0",
+     "sku": "B112540",
+     "label": "OCI - Cloudflare Business Services",
+     "metric": "Instance Per Month",
+     "billing": "MONTH",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 300.0
+      }
+     ],
+     "rate": 300.0
+    },
+    {
+     "key": "m1",
+     "sku": "B112541",
+     "label": "OCI - Cloudflare Enterprise Entry Services",
+     "metric": "Instance Per Month",
+     "billing": "MONTH",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 2675.0
+      }
+     ],
+     "rate": 2675.0
+    },
+    {
+     "key": "m2",
+     "sku": "B112542",
+     "label": "OCI - Cloudflare Enterprise Essential Services",
+     "metric": "Instance Per Month",
+     "billing": "MONTH",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 8325.0
+      }
+     ],
+     "rate": 8325.0
+    },
+    {
+     "key": "m3",
+     "sku": "B112543",
+     "label": "OCI - Cloudflare Enterprise Advanced Services",
+     "metric": "Instance Per Month",
+     "billing": "MONTH",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 28000.0
+      }
+     ],
+     "rate": 28000.0
+    },
+    {
+     "key": "m4",
+     "sku": "B112544",
+     "label": "OCI - Cloudflare Domain",
+     "metric": "Domain Per Month",
+     "billing": "MONTH",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 300.0
+      }
+     ],
+     "rate": 300.0
+    },
+    {
+     "key": "m5",
+     "sku": "B112545",
+     "label": "OCI - Cloudflare Certificate",
+     "metric": "Certificate Per Month",
+     "billing": "MONTH",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 10.0
+      }
+     ],
+     "rate": 10.0
+    },
+    {
+     "key": "m6",
+     "sku": "B112546",
+     "label": "OCI - Cloudflare Workers",
+     "metric": "1,000,000 Requests Per Month",
+     "billing": "MONTH",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.32
+      }
+     ],
+     "rate": 0.32
+    },
+    {
+     "key": "m7",
+     "sku": "B112547",
+     "label": "OCI - Cloudflare Workers CPU Time",
+     "metric": "1,000,000 Milliseconds Per Month",
+     "billing": "MONTH",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.0222
+      }
+     ],
+     "rate": 0.0222
+    },
+    {
+     "key": "m8",
+     "sku": "B112548",
+     "label": "OCI - Cloudflare Business Services Traffic",
+     "metric": "Terabyte Per Month",
+     "billing": "MONTH",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 250.0
+      }
+     ],
+     "rate": 250.0
+    },
+    {
+     "key": "m9",
+     "sku": "B112549",
+     "label": "OCI - Cloudflare Business Services Request",
+     "metric": "1,000,000 Requests Per Month",
+     "billing": "MONTH",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 2.0
+      }
+     ],
+     "rate": 2.0
+    },
+    {
+     "key": "m10",
+     "sku": "B112550",
+     "label": "OCI - Cloudflare Enterprise Entry Services Traffic",
+     "metric": "Terabyte Per Month",
+     "billing": "MONTH",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 542.0
+      }
+     ],
+     "rate": 542.0
+    },
+    {
+     "key": "m11",
+     "sku": "B112551",
+     "label": "OCI - Cloudflare Enterprise Entry Services Request",
+     "metric": "1,000,000 Requests Per Month",
+     "billing": "MONTH",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 2.5
+      }
+     ],
+     "rate": 2.5
+    },
+    {
+     "key": "m12",
+     "sku": "B112552",
+     "label": "OCI - Cloudflare Enterprise Essentials Services Traffic",
+     "metric": "Terabyte Per Month",
+     "billing": "MONTH",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 1038.0
+      }
+     ],
+     "rate": 1038.0
+    },
+    {
+     "key": "m13",
+     "sku": "B112553",
+     "label": "OCI - Cloudflare Enterprise Essentials Services Request",
+     "metric": "1,000,000 Requests Per Month",
+     "billing": "MONTH",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 11.37
+      }
+     ],
+     "rate": 11.37
+    },
+    {
+     "key": "m14",
+     "sku": "B112554",
+     "label": "OCI - Cloudflare Enterprise Advanced Services Traffic",
+     "metric": "Terabyte Per Month",
+     "billing": "MONTH",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 1825.0
+      }
+     ],
+     "rate": 1825.0
+    },
+    {
+     "key": "m15",
+     "sku": "B112555",
+     "label": "OCI - Cloudflare Enterprise Advanced Services Request",
+     "metric": "1,000,000 Requests Per Month",
+     "billing": "MONTH",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 18.0
+      }
+     ],
+     "rate": 18.0
+    }
+   ]
+  },
+  {
+   "id": "est829",
+   "serviceId": 829,
+   "label": "Compute - Bare Metal",
+   "name": "Bare Metal",
+   "group": "Compute",
+   "componentType": "compute",
+   "docUrl": "https://docs.oracle.com/en-us/iaas/Content/Compute/home.htm",
+   "productUrl": "https://www.oracle.com/cloud/compute/bare-metal.html",
+   "form": {
+    "days": 31,
+    "hoursPerDay": 24,
+    "fixedUtilization": false,
+    "showHours": true,
+    "showInstances": true
+   },
+   "note": "",
+   "skus": [
+    {
+     "key": "m0",
+     "sku": "B88315",
+     "label": "Compute - Bare Metal Standard - X5",
+     "metric": "OCPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.0638
+      }
+     ],
+     "rate": 0.0638
+    },
+    {
+     "key": "m1",
+     "sku": "B88513",
+     "label": "Compute - Bare Metal Standard - X7",
+     "metric": "OCPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.0638
+      }
+     ],
+     "rate": 0.0638
+    },
+    {
+     "key": "m2",
+     "sku": "B88515",
+     "label": "Compute - Bare Metal Dense I/O - X7",
+     "metric": "OCPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.1275
+      }
+     ],
+     "rate": 0.1275
+    },
+    {
+     "key": "m3",
+     "sku": "B90398",
+     "label": "Compute - Bare Metal Standard - HPC - X7",
+     "metric": "OCPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.075
+      }
+     ],
+     "rate": 0.075
+    },
+    {
+     "key": "m4",
+     "sku": "B91119",
+     "label": "Compute - Bare Metal Standard - B1",
+     "metric": "OCPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.0638
+      }
+     ],
+     "rate": 0.0638
+    },
+    {
+     "key": "m5",
+     "sku": "B96531",
+     "label": "OCI - Compute - HPC - E5",
+     "metric": "OCPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.044
+      }
+     ],
+     "rate": 0.044
+    }
+   ]
+  },
+  {
+   "id": "est801",
+   "serviceId": 801,
+   "label": "Compute - GPU",
+   "name": "GPU",
+   "group": "Compute",
+   "componentType": "compute",
+   "docUrl": "https://docs.oracle.com/en-us/iaas/Content/Compute/home.htm",
+   "productUrl": "https://www.oracle.com/cloud/compute/gpu.html",
+   "form": {
+    "days": 31,
+    "hoursPerDay": 24,
+    "fixedUtilization": false,
+    "showHours": true,
+    "showInstances": true
+   },
+   "note": "",
+   "skus": [
+    {
+     "key": "m0",
+     "sku": "B109479",
+     "label": "Compute - GPU - L40S",
+     "metric": "GPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 3.5
+      }
+     ],
+     "rate": 3.5
+    },
+    {
+     "key": "m1",
+     "sku": "B109485",
+     "label": "OCI - Compute - GPU - MI300X",
+     "metric": "GPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 6.0
+      }
+     ],
+     "rate": 6.0
+    },
+    {
+     "key": "m2",
+     "sku": "B110519",
+     "label": "OCI - Compute - GPU - H200",
+     "metric": "GPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 10.0
+      }
+     ],
+     "rate": 10.0
+    },
+    {
+     "key": "m3",
+     "sku": "B110978",
+     "label": "OCI - Compute - GPU - B200",
+     "metric": "GPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 14.0
+      }
+     ],
+     "rate": 14.0
+    },
+    {
+     "key": "m4",
+     "sku": "B110979",
+     "label": "OCI - Compute - GPU - GB200",
+     "metric": "GPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 16.0
+      }
+     ],
+     "rate": 16.0
+    },
+    {
+     "key": "m5",
+     "sku": "B111758",
+     "label": "OCI- Compute - GPU - MI355X",
+     "metric": "GPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 8.6
+      }
+     ],
+     "rate": 8.6
+    },
+    {
+     "key": "m6",
+     "sku": "B111824",
+     "label": "OCI - NVIDIA AI Enterprise - H100",
+     "metric": "GPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 2.5
+      }
+     ],
+     "rate": 2.5
+    },
+    {
+     "key": "m7",
+     "sku": "B111825",
+     "label": "OCI - NVIDIA AI Enterprise - L40S",
+     "metric": "GPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.88
+      }
+     ],
+     "rate": 0.88
+    },
+    {
+     "key": "m8",
+     "sku": "B111826",
+     "label": "OCI - NVIDIA AI Enterprise - A10",
+     "metric": "GPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.88
+      }
+     ],
+     "rate": 0.88
+    },
+    {
+     "key": "m9",
+     "sku": "B111827",
+     "label": "OCI - NVIDIA AI Enterprise - A100 80",
+     "metric": "GPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 1.0
+      }
+     ],
+     "rate": 1.0
+    },
+    {
+     "key": "m10",
+     "sku": "B111828",
+     "label": "OCI - NVIDIA AI Enterprise - GB200",
+     "metric": "GPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 4.0
+      }
+     ],
+     "rate": 4.0
+    },
+    {
+     "key": "m11",
+     "sku": "B111829",
+     "label": "OCI - NVIDIA AI Enterprise - B200",
+     "metric": "GPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 3.5
+      }
+     ],
+     "rate": 3.5
+    },
+    {
+     "key": "m12",
+     "sku": "B111830",
+     "label": "OCI - NVIDIA AI Enterprise - H200",
+     "metric": "GPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 2.5
+      }
+     ],
+     "rate": 2.5
+    },
+    {
+     "key": "m13",
+     "sku": "B111831",
+     "label": "OCI - NVIDIA AI Enterprise - A100 40",
+     "metric": "GPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.76
+      }
+     ],
+     "rate": 0.76
+    },
+    {
+     "key": "m14",
+     "sku": "B112140",
+     "label": "OCI - Compute - GPU - GB300",
+     "metric": "GPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 18.0
+      }
+     ],
+     "rate": 18.0
+    },
+    {
+     "key": "m15",
+     "sku": "B112237",
+     "label": "Oracle Cloud Infrastructure - Compute - GPU - B300",
+     "metric": "GPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 15.0
+      }
+     ],
+     "rate": 15.0
+    },
+    {
+     "key": "m16",
+     "sku": "B112613",
+     "label": "OCI - Compute - GPU - RTX PRO 6000",
+     "metric": "GPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 4.5
+      }
+     ],
+     "rate": 4.5
+    },
+    {
+     "key": "m17",
+     "sku": "B88517",
+     "label": "Compute - Bare Metal GPU Standard - X7",
+     "metric": "GPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 1.275
+      }
+     ],
+     "rate": 1.275
+    },
+    {
+     "key": "m18",
+     "sku": "B88518",
+     "label": "Compute - Virtual Machine GPU Standard - X7",
+     "metric": "GPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 1.275
+      }
+     ],
+     "rate": 1.275
+    },
+    {
+     "key": "m19",
+     "sku": "B89734",
+     "label": "Compute - GPU Standard - V2",
+     "metric": "GPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 2.95
+      }
+     ],
+     "rate": 2.95
+    },
+    {
+     "key": "m20",
+     "sku": "B92740",
+     "label": "Compute - GPU - E3",
+     "metric": "GPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 3.05
+      }
+     ],
+     "rate": 3.05
+    },
+    {
+     "key": "m21",
+     "sku": "B95907",
+     "label": "Compute - GPU - A100 - v2",
+     "metric": "GPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 4.0
+      }
+     ],
+     "rate": 4.0
+    },
+    {
+     "key": "m22",
+     "sku": "B95909",
+     "label": "Compute  - GPU - A10",
+     "metric": "GPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 2.0
+      }
+     ],
+     "rate": 2.0
+    },
+    {
+     "key": "m23",
+     "sku": "B98415",
+     "label": "Oracle Cloud Infrastructure - Compute - GPU - H100",
+     "metric": "GPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 10.0
+      }
+     ],
+     "rate": 10.0
+    }
+   ]
+  },
+  {
+   "id": "est1321",
+   "serviceId": 1321,
+   "label": "Compute - VMware",
+   "name": "VMware",
+   "group": "Compute",
+   "componentType": "vmware",
+   "docUrl": "https://docs.oracle.com/en-us/iaas/Content/VMware/Concepts/ocvsoverview.htm",
+   "productUrl": "https://www.oracle.com/cloud/compute/vmware/",
+   "form": {
+    "days": 31,
+    "hoursPerDay": 24,
+    "fixedUtilization": false,
+    "showHours": true,
+    "showInstances": false
+   },
+   "note": "",
+   "skus": [
+    {
+     "key": "m0",
+     "sku": "B108806",
+     "label": "Oracle Cloud VMware Solution - BM.GPU.A10.64 - Monthly Commit",
+     "metric": "Node Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 16.0
+      }
+     ],
+     "rate": 16.0
+    },
+    {
+     "key": "m1",
+     "sku": "B108807",
+     "label": "Oracle Cloud VMware Solution - BM.GPU.A10.64 - 1 Year Commit",
+     "metric": "Node Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 13.0
+      }
+     ],
+     "rate": 13.0
+    },
+    {
+     "key": "m2",
+     "sku": "B108808",
+     "label": "Oracle Cloud VMware Solution - BM.GPU.A10.64 - 3 Year Commit",
+     "metric": "Node Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 11.0
+      }
+     ],
+     "rate": 11.0
+    },
+    {
+     "key": "m3",
+     "sku": "B108809",
+     "label": "Oracle Cloud VMware Solution - BM.Standard.E5.48 - Hourly Commit",
+     "metric": "Node Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 16.6617
+      }
+     ],
+     "rate": 16.6617
+    },
+    {
+     "key": "m4",
+     "sku": "B108810",
+     "label": "Oracle Cloud VMware Solution - BM.Standard.E5.48 - 1 Year Commit",
+     "metric": "Node Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 13.1604
+      }
+     ],
+     "rate": 13.1604
+    },
+    {
+     "key": "m5",
+     "sku": "B108811",
+     "label": "Oracle Cloud VMware Solution - BM.Standard.E5.48 - 3 Year Commit",
+     "metric": "Node Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 10.6119
+      }
+     ],
+     "rate": 10.6119
+    },
+    {
+     "key": "m6",
+     "sku": "B110680",
+     "label": "Oracle Cloud VMware Solution - BM.DenseIO.E5.32 - Hourly Commit",
+     "metric": "Node Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 10.2379
+      }
+     ],
+     "rate": 10.2379
+    },
+    {
+     "key": "m7",
+     "sku": "B110681",
+     "label": "Oracle Cloud VMware Solution - BM.DenseIO.E5.32 - Monthly Commit",
+     "metric": "Node Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 8.531
+      }
+     ],
+     "rate": 8.531
+    },
+    {
+     "key": "m8",
+     "sku": "B110682",
+     "label": "Oracle Cloud VMware Solution - BM.DenseIO.E5.32 - 1 Year Commit",
+     "metric": "Node Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 6.8242
+      }
+     ],
+     "rate": 6.8242
+    },
+    {
+     "key": "m9",
+     "sku": "B110683",
+     "label": "Oracle Cloud VMware Solution - BM.DenseIO.E5.32 - 3 Year Commit",
+     "metric": "Node Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 6.072
+      }
+     ],
+     "rate": 6.072
+    },
+    {
+     "key": "m10",
+     "sku": "B110684",
+     "label": "Oracle Cloud VMware Solution - Expansion - Monthly Commit",
+     "metric": "OCPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.1338
+      }
+     ],
+     "rate": 0.1338
+    },
+    {
+     "key": "m11",
+     "sku": "B92386",
+     "label": "Oracle Cloud Vmware Solution  - BM.DenseIO2.52 - 1 Month Commit",
+     "metric": "OCPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.2031
+      }
+     ],
+     "rate": 0.2031
+    },
+    {
+     "key": "m12",
+     "sku": "B93288",
+     "label": "Oracle Cloud VMware Solution - BM.DenseIO2.52 - Hourly Commit",
+     "metric": "OCPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.2437
+      }
+     ],
+     "rate": 0.2437
+    },
+    {
+     "key": "m13",
+     "sku": "B93289",
+     "label": "Oracle Cloud VMware Solution - BM.DenseIO2.52 - 1 Year Commit",
+     "metric": "OCPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.1625
+      }
+     ],
+     "rate": 0.1625
+    },
+    {
+     "key": "m14",
+     "sku": "B93290",
+     "label": "Oracle Cloud VMware Solution - BM.DenseIO2.52 - 3 Year Commit",
+     "metric": "OCPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.132
+      }
+     ],
+     "rate": 0.132
+    },
+    {
+     "key": "m15",
+     "sku": "B93421",
+     "label": "Oracle Cloud VMware Solution - HCX Enterprise - Monthly",
+     "metric": "OCPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.0126
+      }
+     ],
+     "rate": 0.0126
+    },
+    {
+     "key": "m16",
+     "sku": "B95178",
+     "label": "Oracle Cloud VMware Solution - BM.DenseIO.E4.64 - Hourly Commit",
+     "metric": "OCPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.2437
+      }
+     ],
+     "rate": 0.2437
+    },
+    {
+     "key": "m17",
+     "sku": "B95179",
+     "label": "Oracle Cloud VMware Solution - BM.DenseIO.E4.64 - Monthly Commit",
+     "metric": "OCPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.2031
+      }
+     ],
+     "rate": 0.2031
+    },
+    {
+     "key": "m18",
+     "sku": "B95180",
+     "label": "Oracle Cloud VMware Solution - BM.DenseIO.E4.64 - 1 year Commit",
+     "metric": "OCPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.1625
+      }
+     ],
+     "rate": 0.1625
+    },
+    {
+     "key": "m19",
+     "sku": "B95181",
+     "label": "Oracle Cloud VMware Solution - BM.DenseIO.E4.64 - 3 year Commit",
+     "metric": "OCPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.132
+      }
+     ],
+     "rate": 0.132
+    },
+    {
+     "key": "m20",
+     "sku": "B95411",
+     "label": "Oracle Cloud VMware Solution - BM.DenseIO.E4.32 - Hourly Commit",
+     "metric": "OCPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.3047
+      }
+     ],
+     "rate": 0.3047
+    },
+    {
+     "key": "m21",
+     "sku": "B95412",
+     "label": "Oracle Cloud VMware Solution - BM.DenseIO.E4.32 - Monthly Commit",
+     "metric": "OCPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.2539
+      }
+     ],
+     "rate": 0.2539
+    },
+    {
+     "key": "m22",
+     "sku": "B95413",
+     "label": "Oracle Cloud VMware Solution - BM.DenseIO.E4.32 - 1 year Commit",
+     "metric": "OCPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.2031
+      }
+     ],
+     "rate": 0.2031
+    },
+    {
+     "key": "m23",
+     "sku": "B95414",
+     "label": "Oracle Cloud VMware Solution - BM.DenseIO.E4.32 - 3 year Commit",
+     "metric": "OCPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.165
+      }
+     ],
+     "rate": 0.165
+    },
+    {
+     "key": "m24",
+     "sku": "B95415",
+     "label": "Oracle Cloud VMware Solution - BM.DenseIO.E4.128 - Hourly Commit",
+     "metric": "OCPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.195
+      }
+     ],
+     "rate": 0.195
+    },
+    {
+     "key": "m25",
+     "sku": "B95416",
+     "label": "Oracle Cloud VMware Solution - BM.DenseIO.E4.128 - Monthly Commit",
+     "metric": "OCPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.1625
+      }
+     ],
+     "rate": 0.1625
+    },
+    {
+     "key": "m26",
+     "sku": "B95417",
+     "label": "Oracle Cloud VMware Solution - BM.DenseIO.E4.128 - 1 year Commit",
+     "metric": "OCPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.13
+      }
+     ],
+     "rate": 0.13
+    },
+    {
+     "key": "m27",
+     "sku": "B95418",
+     "label": "Oracle Cloud VMware Solution - BM.DenseIO.E4.128 - 3 year Commit",
+     "metric": "OCPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.1056
+      }
+     ],
+     "rate": 0.1056
+    },
+    {
+     "key": "m28",
+     "sku": "B97102",
+     "label": "Oracle Cloud VMware Solution - Base - BM.Standard2.12 - Hourly Commit",
+     "metric": "Node Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 4.714
+      }
+     ],
+     "rate": 4.714
+    },
+    {
+     "key": "m29",
+     "sku": "B97103",
+     "label": "Oracle Cloud VMware Solution - Base - BM.Standard2.12 - 1 Year Commit",
+     "metric": "Node Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 3.7144
+      }
+     ],
+     "rate": 3.7144
+    },
+    {
+     "key": "m30",
+     "sku": "B97104",
+     "label": "Oracle Cloud VMware Solution - Base - BM.Standard2.12 - 3 Year Commit",
+     "metric": "Node Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 2.953
+      }
+     ],
+     "rate": 2.953
+    },
+    {
+     "key": "m31",
+     "sku": "B97105",
+     "label": "Oracle Cloud VMware Solution - Base - BM.Standard3.16 - Hourly Commit",
+     "metric": "Node Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 5.554
+      }
+     ],
+     "rate": 5.554
+    },
+    {
+     "key": "m32",
+     "sku": "B97106",
+     "label": "Oracle Cloud VMware Solution - Base - BM.Standard3.16 - 1 Year Commit",
+     "metric": "Node Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 4.2943
+      }
+     ],
+     "rate": 4.2943
+    },
+    {
+     "key": "m33",
+     "sku": "B97107",
+     "label": "Oracle Cloud VMware Solution - Base - BM.Standard3.16 - 3 Year Commit",
+     "metric": "Node Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 3.3522
+      }
+     ],
+     "rate": 3.3522
+    },
+    {
+     "key": "m34",
+     "sku": "B97108",
+     "label": "Oracle Cloud VMware Solution - Base - BM.Standard.E4.32 - Hourly Commit",
+     "metric": "Node Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 9.2565
+      }
+     ],
+     "rate": 9.2565
+    },
+    {
+     "key": "m35",
+     "sku": "B97109",
+     "label": "Oracle Cloud VMware Solution - Base - BM.Standard.E4.32 - 1 Year Commit",
+     "metric": "Node Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 6.9223
+      }
+     ],
+     "rate": 6.9223
+    },
+    {
+     "key": "m36",
+     "sku": "B97110",
+     "label": "Oracle Cloud VMware Solution - Base - BM.Standard.E4.32 - 3 Year Commit",
+     "metric": "Node Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 5.2233
+      }
+     ],
+     "rate": 5.2233
+    },
+    {
+     "key": "m37",
+     "sku": "B97111",
+     "label": "Oracle Cloud VMware Solution - Expansion - Hourly Commit",
+     "metric": "OCPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.1605
+      }
+     ],
+     "rate": 0.1605
+    },
+    {
+     "key": "m38",
+     "sku": "B97112",
+     "label": "Oracle Cloud VMware Solution - Expansion - 1 Year Commit",
+     "metric": "OCPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.1092
+      }
+     ],
+     "rate": 0.1092
+    },
+    {
+     "key": "m39",
+     "sku": "B97113",
+     "label": "Oracle Cloud VMware Solution - Expansion - 3 Year Commit",
+     "metric": "OCPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.0739
+      }
+     ],
+     "rate": 0.0739
+    }
+   ]
+  },
+  {
+   "id": "est822",
+   "serviceId": 822,
+   "label": "Compute - Virtual Machine",
+   "name": "Virtual Machine",
+   "group": "Compute",
+   "componentType": "compute",
+   "docUrl": "https://docs.oracle.com/en-us/iaas/Content/Compute/home.htm",
+   "productUrl": "https://www.oracle.com/cloud/compute/virtual-machines/",
+   "form": {
+    "days": 31,
+    "hoursPerDay": 24,
+    "fixedUtilization": false,
+    "showHours": true,
+    "showInstances": true
+   },
+   "note": "15 GB ephemeral storage is provided for free. With OKE Virtual Nodes, you pay for Pod-level utilization of CPU and memory",
+   "skus": [
+    {
+     "key": "m0",
+     "sku": "B109529",
+     "label": "Compute - Standard - A2 OCPU",
+     "metric": "OCPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.014
+      }
+     ],
+     "rate": 0.014
+    },
+    {
+     "key": "m1",
+     "sku": "B109530",
+     "label": "Compute - Standard - A2 Memory",
+     "metric": "Gigabytes Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.002
+      }
+     ],
+     "rate": 0.002
+    },
+    {
+     "key": "m2",
+     "sku": "B111129",
+     "label": "OCI - Compute - Standard - E6 - OCPU",
+     "metric": "OCPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.03
+      }
+     ],
+     "rate": 0.03
+    },
+    {
+     "key": "m3",
+     "sku": "B111130",
+     "label": "OCI - Compute - Standard - E6 - Memory",
+     "metric": "Gigabytes Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.002
+      }
+     ],
+     "rate": 0.002
+    },
+    {
+     "key": "m4",
+     "sku": "B112141",
+     "label": "OCI - Compute - Standard - X12 Ax - OCPU",
+     "metric": "OCPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.0119
+      }
+     ],
+     "rate": 0.0119
+    },
+    {
+     "key": "m5",
+     "sku": "B112142",
+     "label": "OCI - Compute - Standard - X12 Ax - Memory",
+     "metric": "Gigabyte Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.0114
+      }
+     ],
+     "rate": 0.0114
+    },
+    {
+     "key": "m6",
+     "sku": "B112145",
+     "label": "OCI - Compute - Standard - A4 - OCPU",
+     "metric": "OCPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.0138
+      }
+     ],
+     "rate": 0.0138
+    },
+    {
+     "key": "m7",
+     "sku": "B112146",
+     "label": "OCI - Compute - Standard - A4 - Memory",
+     "metric": "Gigabyte Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.0027
+      }
+     ],
+     "rate": 0.0027
+    },
+    {
+     "key": "m8",
+     "sku": "B112530",
+     "label": "OCI - Compute - Standard - E6 Ax - OCPU",
+     "metric": "OCPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.0138
+      }
+     ],
+     "rate": 0.0138
+    },
+    {
+     "key": "m9",
+     "sku": "B112531",
+     "label": "OCI - Compute - Standard - E6 Ax - Memory",
+     "metric": "Gigabytes Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.0108
+      }
+     ],
+     "rate": 0.0108
+    },
+    {
+     "key": "m10",
+     "sku": "B112532",
+     "label": "OCI - Compute - Standard - A4 Ax - OCPU",
+     "metric": "OCPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.019
+      }
+     ],
+     "rate": 0.019
+    },
+    {
+     "key": "m11",
+     "sku": "B112533",
+     "label": "OCI - Compute - Standard - A4 Ax - Memory",
+     "metric": "Gigabytes Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.0084
+      }
+     ],
+     "rate": 0.0084
+    },
+    {
+     "key": "m12",
+     "sku": "B112556",
+     "label": "OCI - Compute - Dense IO - E6 Ax - OCPU",
+     "metric": "OCPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.0108
+      }
+     ],
+     "rate": 0.0108
+    },
+    {
+     "key": "m13",
+     "sku": "B112557",
+     "label": "OCI - Compute - Dense IO - E6 Ax - Memory",
+     "metric": "Gigabytes Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.009
+      }
+     ],
+     "rate": 0.009
+    },
+    {
+     "key": "m14",
+     "sku": "B112558",
+     "label": "OCI - Compute - Dense IO - E6 Ax - NVMe",
+     "metric": "NVMe Terabyte Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.1433
+      }
+     ],
+     "rate": 0.1433
+    },
+    {
+     "key": "m15",
+     "sku": "B88317",
+     "label": "Compute - Virtual Machine Standard - X5",
+     "metric": "OCPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.0638
+      }
+     ],
+     "rate": 0.0638
+    },
+    {
+     "key": "m16",
+     "sku": "B88514",
+     "label": "Compute - Virtual Machine Standard - X7",
+     "metric": "OCPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.0638
+      }
+     ],
+     "rate": 0.0638
+    },
+    {
+     "key": "m17",
+     "sku": "B88516",
+     "label": "Compute - Virtual Machine Dense I/O - X7",
+     "metric": "OCPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.1275
+      }
+     ],
+     "rate": 0.1275
+    },
+    {
+     "key": "m18",
+     "sku": "B90425",
+     "label": "Compute - Standard - E2",
+     "metric": "OCPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.03
+      }
+     ],
+     "rate": 0.03
+    },
+    {
+     "key": "m19",
+     "sku": "B91120",
+     "label": "Compute - Virtual Machine Standard - B1",
+     "metric": "OCPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.0638
+      }
+     ],
+     "rate": 0.0638
+    },
+    {
+     "key": "m21",
+     "sku": "B92306",
+     "label": "Compute - Standard - E3 - OCPU",
+     "metric": "OCPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.025
+      }
+     ],
+     "rate": 0.025
+    },
+    {
+     "key": "m22",
+     "sku": "B92307",
+     "label": "Compute - Standard - E3 - Memory",
+     "metric": "Gigabytes Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.0015
+      }
+     ],
+     "rate": 0.0015
+    },
+    {
+     "key": "m23",
+     "sku": "B93113",
+     "label": "Compute - Standard - E4 - OCPU",
+     "metric": "OCPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.025
+      }
+     ],
+     "rate": 0.025
+    },
+    {
+     "key": "m24",
+     "sku": "B93114",
+     "label": "Compute - Standard - E4  - Memory",
+     "metric": "Gigabyte Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.0015
+      }
+     ],
+     "rate": 0.0015
+    },
+    {
+     "key": "m25",
+     "sku": "B93121",
+     "label": "Compute - Dense I/O - E4 - OCPU",
+     "metric": "OCPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.025
+      }
+     ],
+     "rate": 0.025
+    },
+    {
+     "key": "m26",
+     "sku": "B93122",
+     "label": "Compute - Dense I/O - E4 - Memory",
+     "metric": "Gigabytes Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.0015
+      }
+     ],
+     "rate": 0.0015
+    },
+    {
+     "key": "m27",
+     "sku": "B93123",
+     "label": "Compute - Dense I/O - E4 - NVMe",
+     "metric": "NVMe Terabyte Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.0612
+      }
+     ],
+     "rate": 0.0612
+    },
+    {
+     "key": "m28",
+     "sku": "B93297",
+     "label": "Compute - Standard - A1 - OCPU",
+     "metric": "OCPU Per Hour",
+     "billing": "HOUR_UTILIZED",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": 3000.0,
+       "rate": 0.0
+      },
+      {
+       "min": 3000.0,
+       "max": null,
+       "rate": 0.01
+      }
+     ],
+     "rate": 0.01
+    },
+    {
+     "key": "m29",
+     "sku": "B93298",
+     "label": "Compute - Standard - A1 - Memory",
+     "metric": "Gigabyte Per Hour",
+     "billing": "HOUR_UTILIZED",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": 18000.0,
+       "rate": 0.0
+      },
+      {
+       "min": 18000.0,
+       "max": null,
+       "rate": 0.0015
+      }
+     ],
+     "rate": 0.0015
+    },
+    {
+     "key": "m30",
+     "sku": "B93311",
+     "label": "Compute - Optimized - X9 - OCPU",
+     "metric": "OCPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.054
+      }
+     ],
+     "rate": 0.054
+    },
+    {
+     "key": "m31",
+     "sku": "B93312",
+     "label": "Compute - Optimized - X9 - Memory",
+     "metric": "Gigabyte Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.0015
+      }
+     ],
+     "rate": 0.0015
+    },
+    {
+     "key": "m32",
+     "sku": "B94176",
+     "label": "Compute - Standard - X9 - OCPU",
+     "metric": "OCPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.04
+      }
+     ],
+     "rate": 0.04
+    },
+    {
+     "key": "m33",
+     "sku": "B94177",
+     "label": "Compute - Standard - X9 - Memory",
+     "metric": "Gigabytes Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.0015
+      }
+     ],
+     "rate": 0.0015
+    },
+    {
+     "key": "m34",
+     "sku": "B97384",
+     "label": "Compute - Standard - E5 - OCPU",
+     "metric": "OCPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.03
+      }
+     ],
+     "rate": 0.03
+    },
+    {
+     "key": "m35",
+     "sku": "B97385",
+     "label": "Compute - Standard - E5 - Memory",
+     "metric": "Gigabytes Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.002
+      }
+     ],
+     "rate": 0.002
+    },
+    {
+     "key": "m36",
+     "sku": "B98202",
+     "label": "Oracle Cloud Infrastructure - Compute - Dense I/O - E5 OCPU",
+     "metric": "OCPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.03
+      }
+     ],
+     "rate": 0.03
+    },
+    {
+     "key": "m37",
+     "sku": "B98203",
+     "label": "Oracle Cloud Infrastructure - Compute - Dense I/O - E5 Memory",
+     "metric": "Gigabytes Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.002
+      }
+     ],
+     "rate": 0.002
+    },
+    {
+     "key": "m38",
+     "sku": "B98204",
+     "label": "Oracle Cloud Infrastructure - Compute - Dense I/O - E5 NVMe",
+     "metric": "NVMe Terabyte Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.0612
+      }
+     ],
+     "rate": 0.0612
+    }
+   ]
+  },
+  {
+   "id": "est2041",
+   "serviceId": 2041,
+   "label": "Data Integration - Data Processed",
+   "name": "Data Integration - Data Processed",
+   "group": "Integration",
+   "componentType": null,
+   "docUrl": "",
+   "productUrl": "",
+   "form": {
+    "days": 31,
+    "hoursPerDay": 24,
+    "fixedUtilization": false,
+    "showHours": true,
+    "showInstances": true
+   },
+   "note": "",
+   "skus": [
+    {
+     "key": "m0",
+     "sku": "B92599",
+     "label": "OCI Data Integration - Data Processed",
+     "metric": "Gigabyte of Data Processed Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.04
+      }
+     ],
+     "rate": 0.04
+    }
+   ]
+  },
+  {
+   "id": "est2062",
+   "serviceId": 2062,
+   "label": "Data Integration - Pipeline Operator Execution",
+   "name": "Data Integration - Pipeline Operator Execution",
+   "group": "Integration",
+   "componentType": null,
+   "docUrl": "",
+   "productUrl": "",
+   "form": {
+    "days": 31,
+    "hoursPerDay": 24,
+    "fixedUtilization": false,
+    "showHours": true,
+    "showInstances": true
+   },
+   "note": "",
+   "skus": [
+    {
+     "key": "m0",
+     "sku": "B93306",
+     "label": "OCI Data Integration - Pipeline Operator Execution",
+     "metric": "Execution Hour",
+     "billing": "HOUR_UTILIZED",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": 30.0,
+       "rate": 0.0
+      },
+      {
+       "min": 30.0,
+       "max": null,
+       "rate": 0.3
+      }
+     ],
+     "rate": 0.3
+    }
+   ]
+  },
+  {
+   "id": "est2061",
+   "serviceId": 2061,
+   "label": "Data Integration - Workspace Usage",
+   "name": "Data Integration - Workspace Usage",
+   "group": "Integration",
+   "componentType": null,
+   "docUrl": "",
+   "productUrl": "",
+   "form": {
+    "days": 31,
+    "hoursPerDay": 24,
+    "fixedUtilization": false,
+    "showHours": true,
+    "showInstances": true
+   },
+   "note": "",
+   "skus": [
+    {
+     "key": "m0",
+     "sku": "B92598",
+     "label": "OCI Data Integration - Workspace Usage",
+     "metric": "Workspace Usage Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.16
+      }
+     ],
+     "rate": 0.16
+    }
+   ]
+  },
+  {
+   "id": "est1342",
+   "serviceId": 1342,
+   "label": "Database - Database Migration",
+   "name": "Database Migration",
+   "group": "Database",
+   "componentType": null,
+   "docUrl": "",
+   "productUrl": "",
+   "form": {
+    "days": 31,
+    "hoursPerDay": 24,
+    "fixedUtilization": false,
+    "showHours": true,
+    "showInstances": true
+   },
+   "note": "",
+   "skus": [
+    {
+     "key": "m0",
+     "sku": "B93199",
+     "label": "OCI Database Migration",
+     "metric": "Migration Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.2
+      }
+     ],
+     "rate": 0.2
+    }
+   ]
+  },
+  {
+   "id": "est237",
+   "serviceId": 237,
+   "label": "Database - NoSQL",
+   "name": "NoSQL",
+   "group": "Database",
+   "componentType": null,
+   "docUrl": "https://docs.oracle.com/en-us/iaas/nosql-database/index.html",
+   "productUrl": "https://www.oracle.com/database/nosql-cloud.html",
+   "form": {
+    "days": 31,
+    "hoursPerDay": 24,
+    "fixedUtilization": false,
+    "showHours": false,
+    "showInstances": false
+   },
+   "note": "Provisioned pricing charges for read and write units reserved for a NoSQL table. 1 Write Unit Per Month is defined as a one kilobyte (KB) write per second for every second in a month. 1 Read Unit Per Month is defined as a one kilobyte (KB) read per second for every second in a month. Default is eventually consistent read. 1 GB Storage Capacity Per Month is defined as a gigabyte (1073741824 bytes) of computer storage space used in a month. For a detailed pricing example, visit here . On-demand pricing charges for read and write units actually consumed for a NoSQL table. 1 Write Unit Per Month is defined as a one kilobyte (KB) write per second for every second in a month. 1 Read Unit Per Month is defined as a one kilobyte (KB) read per second for every second in a month. Default is eventually consistent read 1 GB Storage Capacity Per Month is defined as a gigabyte (1073741824 bytes) of computer storage space used in a month. For a detailed pricing example, visit here .",
+   "skus": [
+    {
+     "key": "m0",
+     "sku": "B89737",
+     "label": "Oracle NoSQL Database Cloud - Write",
+     "metric": "Write Unit Per Month",
+     "billing": "MONTH",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.1254
+      }
+     ],
+     "rate": 0.1254
+    },
+    {
+     "key": "m1",
+     "sku": "B89738",
+     "label": "Oracle NoSQL Database Cloud - Read",
+     "metric": "Read Unit Per Month",
+     "billing": "MONTH",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.0064
+      }
+     ],
+     "rate": 0.0064
+    },
+    {
+     "key": "m2",
+     "sku": "B89739",
+     "label": "Oracle NoSQL Database Cloud - Storage",
+     "metric": "Gigabyte Storage Capacity Per Month",
+     "billing": "MONTH",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.066
+      }
+     ],
+     "rate": 0.066
+    },
+    {
+     "key": "m6",
+     "sku": "B93710",
+     "label": "Oracle NoSQL Database Cloud - Write - Auto",
+     "metric": "Write Unit Per Month",
+     "billing": "MONTH",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 3.135
+      }
+     ],
+     "rate": 3.135
+    },
+    {
+     "key": "m7",
+     "sku": "B93711",
+     "label": "Oracle NoSQL Database Cloud - Read - Auto",
+     "metric": "Read Unit Per Month",
+     "billing": "MONTH",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.16
+      }
+     ],
+     "rate": 0.16
+    },
+    {
+     "key": "m8",
+     "sku": "B93712",
+     "label": "Oracle NoSQL Database Cloud - Hosted Environment",
+     "metric": "Hosted Environment Per Month",
+     "billing": "MONTH",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 28796.0
+      }
+     ],
+     "rate": 28796.0
+    },
+    {
+     "key": "m9",
+     "sku": "B97191",
+     "label": "Oracle NoSQL Database Cloud - Regional Replicated Write",
+     "metric": "Write Unit Per Month",
+     "billing": "MONTH",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.36
+      }
+     ],
+     "rate": 0.36
+    }
+   ]
+  },
+  {
+   "id": "est3462",
+   "serviceId": 3462,
+   "label": "Database - TimesTen for OKE",
+   "name": "TimesTen for OKE",
+   "group": "Database",
+   "componentType": "timesten",
+   "docUrl": "",
+   "productUrl": "",
+   "form": {
+    "days": 31,
+    "hoursPerDay": 24,
+    "fixedUtilization": false,
+    "showHours": true,
+    "showInstances": true
+   },
+   "note": "",
+   "skus": [
+    {
+     "key": "m0",
+     "sku": "B111534",
+     "label": "Oracle TimesTen In-Memory System of Record for Oracle Cloud Infrastructure Kubernetes Engine - x86",
+     "metric": "OCPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.4301
+      }
+     ],
+     "rate": 0.4301
+    },
+    {
+     "key": "m1",
+     "sku": "B111535",
+     "label": "Oracle TimesTen In-Memory System of Record for Oracle Cloud Infrastructure Kubernetes Engine - ARM",
+     "metric": "OCPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.2151
+      }
+     ],
+     "rate": 0.2151
+    },
+    {
+     "key": "m2",
+     "sku": "B111536",
+     "label": "Oracle TimesTen In-Memory Application Cache for Oracle Cloud Infrastructure Kubernetes Engine - x86",
+     "metric": "OCPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.2151
+      }
+     ],
+     "rate": 0.2151
+    },
+    {
+     "key": "m3",
+     "sku": "B111537",
+     "label": "Oracle TimesTen In-Memory Application Cache for Oracle Cloud Infrastructure Kubernetes Engine - ARM",
+     "metric": "OCPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.1076
+      }
+     ],
+     "rate": 0.1076
+    }
+   ]
+  },
+  {
+   "id": "est825",
+   "serviceId": 825,
+   "label": "Database \u2013 Autonomous AI JSON Database",
+   "name": "Database \u2013 Autonomous AI JSON Database",
+   "group": "Database",
+   "componentType": "jsonautodb",
+   "docUrl": "https://docs.oracle.com/en-us/iaas/Content/Database/Concepts/adboverview.htm",
+   "productUrl": "https://www.oracle.com/autonomous-database/autonomous-json-database/",
+   "form": {
+    "days": 31,
+    "hoursPerDay": 24,
+    "fixedUtilization": false,
+    "showHours": true,
+    "showInstances": true
+   },
+   "note": "",
+   "skus": [
+    {
+     "key": "m1",
+     "sku": "B99708",
+     "label": "Oracle Autonomous AI JSON Database - ECPU",
+     "metric": "ECPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.0807
+      }
+     ],
+     "rate": 0.0807
+    }
+   ]
+  },
+  {
+   "id": "est528",
+   "serviceId": 528,
+   "label": "Email Delivery",
+   "name": "Email Delivery",
+   "group": "Other Services",
+   "componentType": null,
+   "docUrl": "",
+   "productUrl": "",
+   "form": {
+    "days": 31,
+    "hoursPerDay": 24,
+    "fixedUtilization": false,
+    "showHours": false,
+    "showInstances": false
+   },
+   "note": "",
+   "skus": [
+    {
+     "key": "m0",
+     "sku": "B88523",
+     "label": "OCI - Email Delivery",
+     "metric": "1,000 Emails Sent",
+     "billing": "MONTH",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": 3.0,
+       "rate": 0.0
+      },
+      {
+       "min": 3.0,
+       "max": null,
+       "rate": 0.085
+      }
+     ],
+     "rate": 0.085
+    }
+   ]
+  },
+  {
+   "id": "est3161",
+   "serviceId": 3161,
+   "label": "Exadata Cloud Infrastructure X11M",
+   "name": "Exadata Cloud Infrastructure X11M",
+   "group": "Database",
+   "componentType": "exadata",
+   "docUrl": "",
+   "productUrl": "",
+   "form": {
+    "days": 31,
+    "hoursPerDay": 24,
+    "fixedUtilization": false,
+    "showHours": false,
+    "showInstances": true
+   },
+   "note": "",
+   "skus": [
+    {
+     "key": "m0",
+     "sku": "B110627",
+     "label": "Exadata Cloud Infrastructure - Database Server - X11M",
+     "metric": "Hosted Environment Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 6.3014
+      }
+     ],
+     "rate": 6.3014
+    },
+    {
+     "key": "m1",
+     "sku": "B110629",
+     "label": "Exadata Cloud Infrastructure - Storage Server - X11M",
+     "metric": "Hosted Environment Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 5.4795
+      }
+     ],
+     "rate": 5.4795
+    }
+   ]
+  },
+  {
+   "id": "est3703",
+   "serviceId": 3703,
+   "label": "Exadata Cloud Infrastructure X11MV",
+   "name": "Exadata Cloud Infrastructure X11MV",
+   "group": "Database",
+   "componentType": "exadata",
+   "docUrl": "",
+   "productUrl": "",
+   "form": {
+    "days": 31,
+    "hoursPerDay": 24,
+    "fixedUtilization": false,
+    "showHours": false,
+    "showInstances": true
+   },
+   "note": "",
+   "skus": [
+    {
+     "key": "m0",
+     "sku": "B112666",
+     "label": "Exadata Cloud Infrastructure - Database Server - X11MV",
+     "metric": "Hosted Environment Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 6.3014
+      }
+     ],
+     "rate": 6.3014
+    },
+    {
+     "key": "m1",
+     "sku": "B112667",
+     "label": "Exadata Cloud Infrastructure - Storage Server - X11MV",
+     "metric": "Hosted Environment Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 5.4795
+      }
+     ],
+     "rate": 5.4795
+    }
+   ]
+  },
+  {
+   "id": "est2862",
+   "serviceId": 2862,
+   "label": "Exadata Database Service ECPUs",
+   "name": "Exadata Database Service ECPUs",
+   "group": "Database",
+   "componentType": null,
+   "docUrl": "",
+   "productUrl": "",
+   "form": {
+    "days": 31,
+    "hoursPerDay": 24,
+    "fixedUtilization": false,
+    "showHours": true,
+    "showInstances": true
+   },
+   "note": "",
+   "skus": [
+    {
+     "key": "m0",
+     "sku": "B109356",
+     "label": "Oracle Exadata Exascale Database ECPU",
+     "metric": "ECPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.336
+      }
+     ],
+     "rate": 0.336
+    },
+    {
+     "key": "m1",
+     "sku": "B109357",
+     "label": "Oracle Exadata Exascale Database ECPU - BYOL",
+     "metric": "ECPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.0807
+      }
+     ],
+     "rate": 0.0807
+    },
+    {
+     "key": "m2",
+     "sku": "B110631",
+     "label": "Exadata Database ECPU - Dedicated Infrastructure",
+     "metric": "ECPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.336
+      }
+     ],
+     "rate": 0.336
+    },
+    {
+     "key": "m3",
+     "sku": "B110632",
+     "label": "Exadata Database ECPU - Dedicated Infrastructure - BYOL",
+     "metric": "ECPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.0807
+      }
+     ],
+     "rate": 0.0807
+    },
+    {
+     "key": "m4",
+     "sku": "B110989",
+     "label": "Oracle Globally Distributed Exadata Exascale Database ECPU",
+     "metric": "ECPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.3864
+      }
+     ],
+     "rate": 0.3864
+    },
+    {
+     "key": "m5",
+     "sku": "B110990",
+     "label": "Oracle Globally Distributed Exadata Exascale Database ECPU - BYOL",
+     "metric": "ECPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.0928
+      }
+     ],
+     "rate": 0.0928
+    }
+   ]
+  },
+  {
+   "id": "est2861",
+   "serviceId": 2861,
+   "label": "Exadata Exascale Infrastructure",
+   "name": "Exadata Exascale Infrastructure",
+   "group": "Database",
+   "componentType": "exadata",
+   "docUrl": "",
+   "productUrl": "",
+   "form": {
+    "days": 31,
+    "hoursPerDay": 24,
+    "fixedUtilization": false,
+    "showHours": true,
+    "showInstances": true
+   },
+   "note": "",
+   "skus": [
+    {
+     "key": "m0",
+     "sku": "B107951",
+     "label": "Oracle Exadata Exascale VM Filesystem Storage",
+     "metric": "Gigabyte (GB) Storage Capacity Per Month",
+     "billing": "MONTH",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.0999
+      }
+     ],
+     "rate": 0.0999
+    },
+    {
+     "key": "m1",
+     "sku": "B107952",
+     "label": "Oracle Exadata Exascale Smart Database Storage",
+     "metric": "Gigabyte (GB) Storage Capacity Per Month",
+     "billing": "MONTH",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.1953
+      }
+     ],
+     "rate": 0.1953
+    },
+    {
+     "key": "m2",
+     "sku": "B109355",
+     "label": "Oracle Exadata Exascale RDMA Compute Infrastructure",
+     "metric": "ECPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.0375
+      }
+     ],
+     "rate": 0.0375
+    },
+    {
+     "key": "m3",
+     "sku": "B109375",
+     "label": "Oracle Exadata Exascale Additional Flash Cache",
+     "metric": "Gigabytes Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.0009
+      }
+     ],
+     "rate": 0.0009
+    }
+   ]
+  },
+  {
+   "id": "est3241",
+   "serviceId": 3241,
+   "label": "File Storage with Lustre Service",
+   "name": "File Storage with Lustre Service",
+   "group": "Storage",
+   "componentType": "lustre",
+   "docUrl": "",
+   "productUrl": "",
+   "form": {
+    "days": 31,
+    "hoursPerDay": 24,
+    "fixedUtilization": false,
+    "showHours": false,
+    "showInstances": true
+   },
+   "note": "",
+   "skus": [
+    {
+     "key": "m0",
+     "sku": "B111091",
+     "label": "OCI File Storage with Lustre Service - Storage",
+     "metric": "Gigabyte Storage Capacity Per Month",
+     "billing": "MONTH",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.086
+      }
+     ],
+     "rate": 0.086
+    },
+    {
+     "key": "m1",
+     "sku": "B111092",
+     "label": "OCI File Storage with Lustre Service - Performance",
+     "metric": "Performance Units Per Gigabyte Per Month",
+     "billing": "MONTH",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.0005
+      }
+     ],
+     "rate": 0.0005
+    }
+   ]
+  },
+  {
+   "id": "est3061",
+   "serviceId": 3061,
+   "label": "Fleet Application Management",
+   "name": "Fleet Application Management",
+   "group": "Observability",
+   "componentType": null,
+   "docUrl": "",
+   "productUrl": "",
+   "form": {
+    "days": 31,
+    "hoursPerDay": 24,
+    "fixedUtilization": false,
+    "showHours": false,
+    "showInstances": false
+   },
+   "note": "",
+   "skus": [
+    {
+     "key": "m0",
+     "sku": "B110475",
+     "label": "OCI Fleet Application Management Service",
+     "metric": "1 Managed Resource Per Month",
+     "billing": "MONTH",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": 25.0,
+       "rate": 0.0
+      },
+      {
+       "min": 25.0,
+       "max": null,
+       "rate": 2.604
+      }
+     ],
+     "rate": 2.604
+    }
+   ]
+  },
+  {
+   "id": "est3623",
+   "serviceId": 3623,
+   "label": "Generative AI - xAI - Agent Tools",
+   "name": "Generative AI - xAI - Agent Tools",
+   "group": "AI & Machine Learning",
+   "componentType": "generativeai",
+   "docUrl": "",
+   "productUrl": "",
+   "form": {
+    "days": 31,
+    "hoursPerDay": 24,
+    "fixedUtilization": false,
+    "showHours": true,
+    "showInstances": true
+   },
+   "note": "",
+   "skus": [
+    {
+     "key": "m0",
+     "sku": "B112609",
+     "label": "OCI Generative AI - xAI X Search",
+     "metric": "1000 Requests",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 5.0
+      }
+     ],
+     "rate": 5.0
+    },
+    {
+     "key": "m1",
+     "sku": "B112610",
+     "label": "OCI Generative AI - xAI Web Search",
+     "metric": "1000 Requests",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 5.0
+      }
+     ],
+     "rate": 5.0
+    },
+    {
+     "key": "m2",
+     "sku": "B112611",
+     "label": "OCI Generative AI - xAI Code Execution",
+     "metric": "1000 Requests",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 5.0
+      }
+     ],
+     "rate": 5.0
+    }
+   ]
+  },
+  {
+   "id": "est2281",
+   "serviceId": 2281,
+   "label": "GoldenGate",
+   "name": "GoldenGate",
+   "group": "Integration",
+   "componentType": null,
+   "docUrl": "https://docs.oracle.com/en-us/iaas/goldengate/index.html",
+   "productUrl": "https://www.oracle.com/integration/goldengate/",
+   "form": {
+    "days": 31,
+    "hoursPerDay": 24,
+    "fixedUtilization": false,
+    "showHours": true,
+    "showInstances": true
+   },
+   "note": "",
+   "skus": [
+    {
+     "key": "m0",
+     "sku": "B92695",
+     "label": "Oracle Stream Analytics for OCI",
+     "metric": "OCPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.9498
+      }
+     ],
+     "rate": 0.9498
+    },
+    {
+     "key": "m1",
+     "sku": "B92992",
+     "label": "OCI GoldenGate",
+     "metric": "OCPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 1.3441
+      }
+     ],
+     "rate": 1.3441
+    },
+    {
+     "key": "m2",
+     "sku": "B92993",
+     "label": "OCI GoldenGate - BYOL",
+     "metric": "OCPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.3226
+      }
+     ],
+     "rate": 0.3226
+    }
+   ]
+  },
+  {
+   "id": "est2461",
+   "serviceId": 2461,
+   "label": "HeatWave Cluster",
+   "name": "HeatWave Cluster",
+   "group": "Database",
+   "componentType": "mysqlhw",
+   "docUrl": "",
+   "productUrl": "",
+   "form": {
+    "days": 31,
+    "hoursPerDay": 24,
+    "fixedUtilization": false,
+    "showHours": true,
+    "showInstances": true
+   },
+   "note": "",
+   "skus": [
+    {
+     "key": "m0",
+     "sku": "B109166",
+     "label": "MySQL HeatWave - AWS - Storage",
+     "metric": "Gigabyte Storage Capacity Per Month",
+     "billing": "MONTH",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.03
+      }
+     ],
+     "rate": 0.03
+    },
+    {
+     "key": "m1",
+     "sku": "B96157",
+     "label": "MySQL HeatWave - AWS",
+     "metric": "HeatWave Capacity Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.049
+      }
+     ],
+     "rate": 0.049
+    },
+    {
+     "key": "m2",
+     "sku": "B96625",
+     "label": "OCI - HeatWave - Storage",
+     "metric": "Gigabyte Storage Capacity Per Month",
+     "billing": "MONTH",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.02
+      }
+     ],
+     "rate": 0.02
+    },
+    {
+     "key": "m3",
+     "sku": "B96626",
+     "label": "OCI - HeatWave",
+     "metric": "HeatWave Capacity Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.011
+      }
+     ],
+     "rate": 0.011
+    }
+   ]
+  },
+  {
+   "id": "est1821",
+   "serviceId": 1821,
+   "label": "Media Services - Media Flow",
+   "name": "Media Services - Media Flow",
+   "group": "Other Services",
+   "componentType": "digitalmedia",
+   "docUrl": "",
+   "productUrl": "",
+   "form": {
+    "days": 31,
+    "hoursPerDay": 24,
+    "fixedUtilization": false,
+    "showHours": false,
+    "showInstances": false
+   },
+   "note": "",
+   "skus": [
+    {
+     "key": "m0",
+     "sku": "B95279",
+     "label": "Media Services - Media Flow - Standard - H264 - SD - Below 30fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.001
+      }
+     ],
+     "rate": 0.001
+    },
+    {
+     "key": "m1",
+     "sku": "B95280",
+     "label": "Media Services - Media Flow - Standard - H264 - SD - Above 30fps and Below 60fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.002
+      }
+     ],
+     "rate": 0.002
+    },
+    {
+     "key": "m2",
+     "sku": "B95281",
+     "label": "Media Services - Media Flow - Standard - H264 - SD - Above 60fps and Below 120fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.003
+      }
+     ],
+     "rate": 0.003
+    },
+    {
+     "key": "m3",
+     "sku": "B95282",
+     "label": "Media Services - Media Flow - Standard - H264 - HD - Below 30fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.003
+      }
+     ],
+     "rate": 0.003
+    },
+    {
+     "key": "m4",
+     "sku": "B95283",
+     "label": "Media Services - Media Flow - Standard - H264 - HD - Above 30fps and Below 60fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.004
+      }
+     ],
+     "rate": 0.004
+    },
+    {
+     "key": "m5",
+     "sku": "B95284",
+     "label": "Media Services - Media Flow - Standard - H264 - HD - Above 60fps and Below 120fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.01
+      }
+     ],
+     "rate": 0.01
+    },
+    {
+     "key": "m6",
+     "sku": "B95285",
+     "label": "Media Services - Media Flow - Standard - H264 - 4k - Below 30fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.015
+      }
+     ],
+     "rate": 0.015
+    },
+    {
+     "key": "m7",
+     "sku": "B95286",
+     "label": "Media Services - Media Flow - Standard - H264 - 4k - Above 30fps and Below 60fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.018
+      }
+     ],
+     "rate": 0.018
+    },
+    {
+     "key": "m8",
+     "sku": "B95287",
+     "label": "Media Services - Media Flow - Standard - H264 - 4k - Above 60fps and Below 120fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.036
+      }
+     ],
+     "rate": 0.036
+    },
+    {
+     "key": "m9",
+     "sku": "B95288",
+     "label": "Media Services - Media Flow - Standard - VP8 - SD - Below 30fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.003
+      }
+     ],
+     "rate": 0.003
+    },
+    {
+     "key": "m10",
+     "sku": "B95289",
+     "label": "Media Services - Media Flow - Standard - VP8 - SD - Above 30fps and Below 60fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.004
+      }
+     ],
+     "rate": 0.004
+    },
+    {
+     "key": "m11",
+     "sku": "B95290",
+     "label": "Media Services - Media Flow - Standard - VP8 - SD - Above 60fps and Below 120fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.007
+      }
+     ],
+     "rate": 0.007
+    },
+    {
+     "key": "m12",
+     "sku": "B95291",
+     "label": "Media Services - Media Flow - Standard - VP8 - HD - Below 30fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.008
+      }
+     ],
+     "rate": 0.008
+    },
+    {
+     "key": "m13",
+     "sku": "B95292",
+     "label": "Media Services - Media Flow - Standard - VP8 - HD - Above 30fps and Below 60fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.01
+      }
+     ],
+     "rate": 0.01
+    },
+    {
+     "key": "m14",
+     "sku": "B95293",
+     "label": "Media Services - Media Flow - Standard - VP8 - HD - Above 60fps and Below 120fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.015
+      }
+     ],
+     "rate": 0.015
+    },
+    {
+     "key": "m15",
+     "sku": "B95294",
+     "label": "Media Services - Media Flow - Standard - VP8 - 4k - Below 30fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.036
+      }
+     ],
+     "rate": 0.036
+    },
+    {
+     "key": "m16",
+     "sku": "B95295",
+     "label": "Media Services - Media Flow - Standard - VP8 - 4k - Above 30fps and Below 60fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.04
+      }
+     ],
+     "rate": 0.04
+    },
+    {
+     "key": "m17",
+     "sku": "B95296",
+     "label": "Media Services - Media Flow - Standard - VP8 - 4k - Above 60fps and Below 120fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.05
+      }
+     ],
+     "rate": 0.05
+    },
+    {
+     "key": "m18",
+     "sku": "B95297",
+     "label": "Media Services - Media Flow - Standard - H265VP9 - SD - Below 30fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.005
+      }
+     ],
+     "rate": 0.005
+    },
+    {
+     "key": "m19",
+     "sku": "B95298",
+     "label": "Media Services - Media Flow - Standard - H265VP9 - SD - Above 30fps and Below 60fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.007
+      }
+     ],
+     "rate": 0.007
+    },
+    {
+     "key": "m20",
+     "sku": "B95299",
+     "label": "Media Services - Media Flow - Standard - H265VP9 - SD - Above 60fps and Below 120fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.012
+      }
+     ],
+     "rate": 0.012
+    },
+    {
+     "key": "m21",
+     "sku": "B95300",
+     "label": "Media Services - Media Flow - Standard - H265VP9 - HD - Below 30fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.01
+      }
+     ],
+     "rate": 0.01
+    },
+    {
+     "key": "m22",
+     "sku": "B95301",
+     "label": "Media Services - Media Flow - Standard - H265VP9 - HD - Above 30fps and Below 60fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.02
+      }
+     ],
+     "rate": 0.02
+    },
+    {
+     "key": "m23",
+     "sku": "B95302",
+     "label": "Media Services - Media Flow - Standard - H265VP9 - HD - Above 60fps and Below 120fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.03
+      }
+     ],
+     "rate": 0.03
+    },
+    {
+     "key": "m24",
+     "sku": "B95303",
+     "label": "Media Services - Media Flow - Standard - H265VP9 - 4k - Below 30fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.026
+      }
+     ],
+     "rate": 0.026
+    },
+    {
+     "key": "m25",
+     "sku": "B95304",
+     "label": "Media Services - Media Flow - Standard - H265VP9 - 4k - Above 30fps and Below 60fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.05
+      }
+     ],
+     "rate": 0.05
+    },
+    {
+     "key": "m26",
+     "sku": "B95305",
+     "label": "Media Services - Media Flow - Standard - H265VP9 - 4k - Above 60fps and Below 120fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.063
+      }
+     ],
+     "rate": 0.063
+    },
+    {
+     "key": "m27",
+     "sku": "B95306",
+     "label": "Media Services - Media Flow - Speed - H264 - SD - Below 30fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.002
+      }
+     ],
+     "rate": 0.002
+    },
+    {
+     "key": "m28",
+     "sku": "B95307",
+     "label": "Media Services - Media Flow - Speed - H264 - SD - Above 30fps and Below 60fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.003
+      }
+     ],
+     "rate": 0.003
+    },
+    {
+     "key": "m29",
+     "sku": "B95308",
+     "label": "Media Services - Media Flow - Speed - H264 - SD - Above 60fps and Below 120fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.004
+      }
+     ],
+     "rate": 0.004
+    },
+    {
+     "key": "m30",
+     "sku": "B95309",
+     "label": "Media Services - Media Flow - Speed - H264 - HD - Below 30fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.004
+      }
+     ],
+     "rate": 0.004
+    },
+    {
+     "key": "m31",
+     "sku": "B95310",
+     "label": "Media Services - Media Flow - Speed - H264 - HD - Above 30fps and Below 60fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.005
+      }
+     ],
+     "rate": 0.005
+    },
+    {
+     "key": "m32",
+     "sku": "B95311",
+     "label": "Media Services - Media Flow - Speed - H264 - HD - Above 60fps and Below 120fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.012
+      }
+     ],
+     "rate": 0.012
+    },
+    {
+     "key": "m33",
+     "sku": "B95312",
+     "label": "Media Services - Media Flow - Speed - H264 - 4k - Below 30fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.018
+      }
+     ],
+     "rate": 0.018
+    },
+    {
+     "key": "m34",
+     "sku": "B95313",
+     "label": "Media Services - Media Flow - Speed - H264 - 4k - Above 30fps and Below 60fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.02
+      }
+     ],
+     "rate": 0.02
+    },
+    {
+     "key": "m35",
+     "sku": "B95314",
+     "label": "Media Services - Media Flow - Speed - H264 - 4k - Above 60fps and Below 120fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.04
+      }
+     ],
+     "rate": 0.04
+    },
+    {
+     "key": "m36",
+     "sku": "B95315",
+     "label": "Media Services - Media Flow - Speed - VP8 - SD - Below 30fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.005
+      }
+     ],
+     "rate": 0.005
+    },
+    {
+     "key": "m37",
+     "sku": "B95316",
+     "label": "Media Services - Media Flow - Speed - VP8 - SD - Above 30fps and Below 60fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.006
+      }
+     ],
+     "rate": 0.006
+    },
+    {
+     "key": "m38",
+     "sku": "B95317",
+     "label": "Media Services - Media Flow - Speed - VP8 - SD - Above 60fps and Below 120fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.008
+      }
+     ],
+     "rate": 0.008
+    },
+    {
+     "key": "m39",
+     "sku": "B95318",
+     "label": "Media Services - Media Flow - Speed - VP8 - HD - Below 30fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.012
+      }
+     ],
+     "rate": 0.012
+    },
+    {
+     "key": "m40",
+     "sku": "B95319",
+     "label": "Media Services - Media Flow - Speed - VP8 - HD - Above 30fps and Below 60fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.015
+      }
+     ],
+     "rate": 0.015
+    },
+    {
+     "key": "m41",
+     "sku": "B95320",
+     "label": "Media Services - Media Flow - Speed - VP8 - HD - Above 60fps and Below 120fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.018
+      }
+     ],
+     "rate": 0.018
+    },
+    {
+     "key": "m42",
+     "sku": "B95321",
+     "label": "Media Services - Media Flow - Speed - VP8 - 4k - Below 30fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.048
+      }
+     ],
+     "rate": 0.048
+    },
+    {
+     "key": "m43",
+     "sku": "B95322",
+     "label": "Media Services - Media Flow - Speed - VP8 - 4k - Above 30fps and Below 60fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.05
+      }
+     ],
+     "rate": 0.05
+    },
+    {
+     "key": "m44",
+     "sku": "B95323",
+     "label": "Media Services - Media Flow - Speed - VP8 - 4k - Above 60fps and Below 120fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.06
+      }
+     ],
+     "rate": 0.06
+    },
+    {
+     "key": "m45",
+     "sku": "B95324",
+     "label": "Media Services - Media Flow - Speed - H265VP9 - SD - Below 30fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.006
+      }
+     ],
+     "rate": 0.006
+    },
+    {
+     "key": "m46",
+     "sku": "B95325",
+     "label": "Media Services - Media Flow - Speed - H265VP9 - SD - Above 30fps and Below 60fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.008
+      }
+     ],
+     "rate": 0.008
+    },
+    {
+     "key": "m47",
+     "sku": "B95326",
+     "label": "Media Services - Media Flow - Speed - H265VP9 - SD - Above 60fps and Below 120fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.015
+      }
+     ],
+     "rate": 0.015
+    },
+    {
+     "key": "m48",
+     "sku": "B95327",
+     "label": "Media Services - Media Flow - Speed - H265VP9 - HD - Below 30fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.012
+      }
+     ],
+     "rate": 0.012
+    },
+    {
+     "key": "m49",
+     "sku": "B95328",
+     "label": "Media Services - Media Flow - Speed - H265VP9 - HD - Above 30fps and Below 60fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.025
+      }
+     ],
+     "rate": 0.025
+    },
+    {
+     "key": "m50",
+     "sku": "B95329",
+     "label": "Media Services - Media Flow - Speed - H265VP9 - HD - Above 60fps and Below 120fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.036
+      }
+     ],
+     "rate": 0.036
+    },
+    {
+     "key": "m51",
+     "sku": "B95330",
+     "label": "Media Services - Media Flow - Speed - H265VP9 - 4k - Below 30fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.05
+      }
+     ],
+     "rate": 0.05
+    },
+    {
+     "key": "m52",
+     "sku": "B95331",
+     "label": "Media Services - Media Flow - Speed - H265VP9 - 4k - Above 30fps and Below 60fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.06
+      }
+     ],
+     "rate": 0.06
+    },
+    {
+     "key": "m53",
+     "sku": "B95332",
+     "label": "Media Services - Media Flow - Speed - H265VP9 - 4k - Above 60fps and Below 120fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.075
+      }
+     ],
+     "rate": 0.075
+    },
+    {
+     "key": "m54",
+     "sku": "B95333",
+     "label": "Media Services - Media Flow - Quality - H264 - SD - Below 30fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.003
+      }
+     ],
+     "rate": 0.003
+    },
+    {
+     "key": "m55",
+     "sku": "B95334",
+     "label": "Media Services - Media Flow - Quality - H264 - SD - Above 30fps and Below 60fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.004
+      }
+     ],
+     "rate": 0.004
+    },
+    {
+     "key": "m56",
+     "sku": "B95335",
+     "label": "Media Services - Media Flow - Quality - H264 - SD - Above 60fps and Below 120fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.005
+      }
+     ],
+     "rate": 0.005
+    },
+    {
+     "key": "m57",
+     "sku": "B95336",
+     "label": "Media Services - Media Flow - Quality - H264 - HD - Below 30fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.005
+      }
+     ],
+     "rate": 0.005
+    },
+    {
+     "key": "m58",
+     "sku": "B95337",
+     "label": "Media Services - Media Flow - Quality - H264 - HD - Above 30fps and Below 60fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.006
+      }
+     ],
+     "rate": 0.006
+    },
+    {
+     "key": "m59",
+     "sku": "B95338",
+     "label": "Media Services - Media Flow - Quality - H264 - HD - Above 60fps and Below 120fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.015
+      }
+     ],
+     "rate": 0.015
+    },
+    {
+     "key": "m60",
+     "sku": "B95339",
+     "label": "Media Services - Media Flow - Quality - H264 - 4k - Below 30fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.024
+      }
+     ],
+     "rate": 0.024
+    },
+    {
+     "key": "m61",
+     "sku": "B95340",
+     "label": "Media Services - Media Flow - Quality - H264 - 4k - Above 30fps and Below 60fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.03
+      }
+     ],
+     "rate": 0.03
+    },
+    {
+     "key": "m62",
+     "sku": "B95341",
+     "label": "Media Services - Media Flow - Quality - H264 - 4k - Above 60fps and Below 120fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.05
+      }
+     ],
+     "rate": 0.05
+    },
+    {
+     "key": "m63",
+     "sku": "B95342",
+     "label": "Media Services - Media Flow - Quality - VP8 - SD - Below 30fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.006
+      }
+     ],
+     "rate": 0.006
+    },
+    {
+     "key": "m64",
+     "sku": "B95343",
+     "label": "Media Services - Media Flow - Quality - VP8 - SD - Above 30fps and Below 60fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.008
+      }
+     ],
+     "rate": 0.008
+    },
+    {
+     "key": "m65",
+     "sku": "B95344",
+     "label": "Media Services - Media Flow - Quality - VP8 - SD - Above 60fps and Below 120fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.01
+      }
+     ],
+     "rate": 0.01
+    },
+    {
+     "key": "m66",
+     "sku": "B95345",
+     "label": "Media Services - Media Flow - Quality - VP8 - HD - Below 30fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.015
+      }
+     ],
+     "rate": 0.015
+    },
+    {
+     "key": "m67",
+     "sku": "B95346",
+     "label": "Media Services - Media Flow - Quality - VP8 - HD - Above 30fps and Below 60fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.018
+      }
+     ],
+     "rate": 0.018
+    },
+    {
+     "key": "m68",
+     "sku": "B95347",
+     "label": "Media Services - Media Flow - Quality - VP8 - HD - Above 60fps and Below 120fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.02
+      }
+     ],
+     "rate": 0.02
+    },
+    {
+     "key": "m69",
+     "sku": "B95348",
+     "label": "Media Services - Media Flow - Quality - VP8 - 4k - Below 30fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.054
+      }
+     ],
+     "rate": 0.054
+    },
+    {
+     "key": "m70",
+     "sku": "B95349",
+     "label": "Media Services - Media Flow - Quality - VP8 - 4k - Above 30fps and Below 60fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.06
+      }
+     ],
+     "rate": 0.06
+    },
+    {
+     "key": "m71",
+     "sku": "B95350",
+     "label": "Media Services - Media Flow - Quality - VP8 - 4k - Above 60fps and Below 120fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.07
+      }
+     ],
+     "rate": 0.07
+    },
+    {
+     "key": "m72",
+     "sku": "B95351",
+     "label": "Media Services - Media Flow - Quality - H265VP9 - SD - Below 30fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.03
+      }
+     ],
+     "rate": 0.03
+    },
+    {
+     "key": "m73",
+     "sku": "B95352",
+     "label": "Media Services - Media Flow - Quality - H265VP9 - SD - Above 30fps and Below 60fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.045
+      }
+     ],
+     "rate": 0.045
+    },
+    {
+     "key": "m74",
+     "sku": "B95353",
+     "label": "Media Services - Media Flow - Quality - H265VP9 - SD - Above 60fps and Below 120fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.06
+      }
+     ],
+     "rate": 0.06
+    },
+    {
+     "key": "m75",
+     "sku": "B95354",
+     "label": "Media Services - Media Flow - Quality - H265VP9 - HD - Below 30fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.06
+      }
+     ],
+     "rate": 0.06
+    },
+    {
+     "key": "m76",
+     "sku": "B95355",
+     "label": "Media Services - Media Flow - Quality - H265VP9 - HD - Above 30fps and Below 60fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.09
+      }
+     ],
+     "rate": 0.09
+    },
+    {
+     "key": "m77",
+     "sku": "B95356",
+     "label": "Media Services - Media Flow - Quality - H265VP9 - HD - Above 60fps and Below 120fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.12
+      }
+     ],
+     "rate": 0.12
+    },
+    {
+     "key": "m78",
+     "sku": "B95357",
+     "label": "Media Services - Media Flow - Quality - H265VP9 - 4k - Below 30fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.12
+      }
+     ],
+     "rate": 0.12
+    },
+    {
+     "key": "m79",
+     "sku": "B95358",
+     "label": "Media Services - Media Flow - Quality - H265VP9 - 4k - Above 30fps and Below 60fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.18
+      }
+     ],
+     "rate": 0.18
+    },
+    {
+     "key": "m80",
+     "sku": "B95359",
+     "label": "Media Services - Media Flow - Quality - H265VP9 - 4k - Above 60fps and Below 120fps",
+     "metric": "Minute of Output Media Content",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.24
+      }
+     ],
+     "rate": 0.24
+    }
+   ]
+  },
+  {
+   "id": "est1981",
+   "serviceId": 1981,
+   "label": "Media Services - Media Streams",
+   "name": "Media Services - Media Streams",
+   "group": "Other Services",
+   "componentType": null,
+   "docUrl": "",
+   "productUrl": "",
+   "form": {
+    "days": 31,
+    "hoursPerDay": 24,
+    "fixedUtilization": false,
+    "showHours": false,
+    "showInstances": false
+   },
+   "note": "",
+   "skus": [
+    {
+     "key": "m0",
+     "sku": "B95375",
+     "label": "Media Services - Media Streams",
+     "metric": "GB of packaged content",
+     "billing": "MONTH",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.05
+      }
+     ],
+     "rate": 0.05
+    }
+   ]
+  },
+  {
+   "id": "est1941",
+   "serviceId": 1941,
+   "label": "Network Firewall",
+   "name": "Network Firewall",
+   "group": "Networking",
+   "componentType": null,
+   "docUrl": "",
+   "productUrl": "",
+   "form": {
+    "days": 31,
+    "hoursPerDay": 24,
+    "fixedUtilization": false,
+    "showHours": true,
+    "showInstances": false
+   },
+   "note": "",
+   "skus": [
+    {
+     "key": "m0",
+     "sku": "B95403",
+     "label": "Network Firewall Instance",
+     "metric": "Instance Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 2.75
+      }
+     ],
+     "rate": 2.75
+    },
+    {
+     "key": "m1",
+     "sku": "B95404",
+     "label": "Network Firewall Data Processing",
+     "metric": "Gigabyte (GB) of Data Processed",
+     "billing": "MONTH",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": 10240.0,
+       "rate": 0.0
+      },
+      {
+       "min": 10240.0,
+       "max": null,
+       "rate": 0.01
+      }
+     ],
+     "rate": 0.01
+    }
+   ]
+  },
+  {
+   "id": "est884",
+   "serviceId": 884,
+   "label": "Networking - Virtual Cloud Networks",
+   "name": "Virtual Cloud Networks",
+   "group": "Networking",
+   "componentType": null,
+   "docUrl": "https://docs.oracle.com/en-us/iaas/Content/Network/Tasks/managingVCNs.htm",
+   "productUrl": "https://www.oracle.com/cloud/networking/virtual-cloud-network/",
+   "form": {
+    "days": 31,
+    "hoursPerDay": 24,
+    "fixedUtilization": false,
+    "showHours": false,
+    "showInstances": false
+   },
+   "note": "",
+   "skus": [
+    {
+     "key": "m0",
+     "sku": "B88327",
+     "label": "Outbound Data Transfer - Originating in North America, Europe, and UK",
+     "metric": "Gigabyte Outbound Data Transfer Per Month",
+     "billing": "MONTH",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": 10240.0,
+       "rate": 0.0
+      },
+      {
+       "min": 10240.0,
+       "max": null,
+       "rate": 0.0085
+      }
+     ],
+     "rate": 0.0085
+    },
+    {
+     "key": "m1",
+     "sku": "B93455",
+     "label": "Outbound Data Transfer - Originating in APAC, Japan, and South America",
+     "metric": "Gigabyte Outbound Data Transfer Per Month",
+     "billing": "MONTH",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": 10240.0,
+       "rate": 0.0
+      },
+      {
+       "min": 10240.0,
+       "max": null,
+       "rate": 0.025
+      }
+     ],
+     "rate": 0.025
+    },
+    {
+     "key": "m2",
+     "sku": "B93456",
+     "label": "Outbound Data Transfer - Originating in Middle East and Africa",
+     "metric": "Gigabyte Outbound Data Transfer Per Month",
+     "billing": "MONTH",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": 10240.0,
+       "rate": 0.0
+      },
+      {
+       "min": 10240.0,
+       "max": null,
+       "rate": 0.05
+      }
+     ],
+     "rate": 0.05
+    }
+   ]
+  },
+  {
+   "id": "est1182",
+   "serviceId": 1182,
+   "label": "OCI IAM",
+   "name": "OCI IAM",
+   "group": "Security",
+   "componentType": "identitycloud",
+   "docUrl": "https://docs.oracle.com/en-us/iaas/Content/Security/Concepts/security.htm",
+   "productUrl": "https://www.oracle.com/security/cloud-security/identity-cloud/",
+   "form": {
+    "days": 31,
+    "hoursPerDay": 24,
+    "fixedUtilization": false,
+    "showHours": false,
+    "showInstances": false
+   },
+   "note": "",
+   "skus": [
+    {
+     "key": "m0",
+     "sku": "B112199",
+     "label": "Identity and Access Management - External Active User",
+     "metric": "Active User Per Month",
+     "billing": "MONTH",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.016
+      }
+     ],
+     "rate": 0.016
+    },
+    {
+     "key": "m1",
+     "sku": "B90555",
+     "label": "Oracle Identity Cloud Service - Enterprise User",
+     "metric": "User Per Month",
+     "billing": "MONTH",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 3.2
+      }
+     ],
+     "rate": 3.2
+    },
+    {
+     "key": "m2",
+     "sku": "B90556",
+     "label": "Oracle Identity Cloud Service - Consumer User",
+     "metric": "User Per Month",
+     "billing": "MONTH",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.016
+      }
+     ],
+     "rate": 0.016
+    },
+    {
+     "key": "m3",
+     "sku": "B90557",
+     "label": "Oracle Identity Cloud Service - Enterprise User - BYOL",
+     "metric": "User Per Month",
+     "billing": "MONTH",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.8
+      }
+     ],
+     "rate": 0.8
+    },
+    {
+     "key": "m4",
+     "sku": "B90558",
+     "label": "Oracle Identity Cloud Service - Consumer User - BYOL",
+     "metric": "User Per Month",
+     "billing": "MONTH",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.004
+      }
+     ],
+     "rate": 0.004
+    },
+    {
+     "key": "m6",
+     "sku": "B93493",
+     "label": "Identity and Access Management - External User",
+     "metric": "User Per Month",
+     "billing": "MONTH",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.016
+      }
+     ],
+     "rate": 0.016
+    },
+    {
+     "key": "m7",
+     "sku": "B93494",
+     "label": "Identity and Access Management - Oracle Apps Premium",
+     "metric": "User Per Month",
+     "billing": "MONTH",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.25
+      }
+     ],
+     "rate": 0.25
+    },
+    {
+     "key": "m8",
+     "sku": "B93495",
+     "label": "Identity and Access Management - Premium",
+     "metric": "User Per Month",
+     "billing": "MONTH",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 3.2
+      }
+     ],
+     "rate": 3.2
+    },
+    {
+     "key": "m9",
+     "sku": "B93496",
+     "label": "Identity and Access Management - SMS",
+     "metric": "1 SMS Message Sent",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": 1000.0,
+       "rate": 0.0
+      },
+      {
+       "min": 1000.0,
+       "max": null,
+       "rate": 0.03
+      }
+     ],
+     "rate": 0.03
+    },
+    {
+     "key": "m10",
+     "sku": "B93497",
+     "label": "Identity and Access Management - Token",
+     "metric": "Token",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": 10000.0,
+       "rate": 0.0
+      },
+      {
+       "min": 10000.0,
+       "max": null,
+       "rate": 0.004
+      }
+     ],
+     "rate": 0.004
+    },
+    {
+     "key": "m11",
+     "sku": "B93498",
+     "label": "Identity and Access Management - Replication",
+     "metric": "User Per Month",
+     "billing": "MONTH",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.004
+      }
+     ],
+     "rate": 0.004
+    }
+   ]
+  },
+  {
+   "id": "est1141",
+   "serviceId": 1141,
+   "label": "OCI Streaming",
+   "name": "OCI Streaming",
+   "group": "Integration",
+   "componentType": null,
+   "docUrl": "https://docs.oracle.com/en-us/iaas/Content/Streaming/Concepts/streamingoverview.htm",
+   "productUrl": "https://www.oracle.com/cloud-native/streaming/",
+   "form": {
+    "days": 31,
+    "hoursPerDay": 24,
+    "fixedUtilization": false,
+    "showHours": true,
+    "showInstances": true
+   },
+   "note": "",
+   "skus": [
+    {
+     "key": "m0",
+     "sku": "B90938",
+     "label": "Streaming - PUT or GET",
+     "metric": "Gigabytes of Data Transferred",
+     "billing": "MONTH",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.025
+      }
+     ],
+     "rate": 0.025
+    },
+    {
+     "key": "m1",
+     "sku": "B90939",
+     "label": "Streaming - Storage",
+     "metric": "Gigabytes Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.0002
+      }
+     ],
+     "rate": 0.0002
+    }
+   ]
+  },
+  {
+   "id": "est3101",
+   "serviceId": 3101,
+   "label": "OCI Streaming With Apache Kafka",
+   "name": "OCI Streaming With Apache Kafka",
+   "group": "Integration",
+   "componentType": "apachekafka",
+   "docUrl": "",
+   "productUrl": "",
+   "form": {
+    "days": 31,
+    "hoursPerDay": 24,
+    "fixedUtilization": false,
+    "showHours": true,
+    "showInstances": false
+   },
+   "note": "",
+   "skus": [
+    {
+     "key": "m0",
+     "sku": "B110500",
+     "label": "OCI Streaming With Apache Kafka",
+     "metric": "OCPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.1
+      }
+     ],
+     "rate": 0.1
+    }
+   ]
+  },
+  {
+   "id": "est1301",
+   "serviceId": 1301,
+   "label": "Observability - Log Analytics",
+   "name": "Log Analytics",
+   "group": "Observability",
+   "componentType": null,
+   "docUrl": "https://docs.oracle.com/en-us/iaas/logging-analytics/index.html",
+   "productUrl": "https://www.oracle.com/manageability/logging-analytics/",
+   "form": {
+    "days": 31,
+    "hoursPerDay": 24,
+    "fixedUtilization": false,
+    "showHours": true,
+    "showInstances": true
+   },
+   "note": "Each Storage Unit is defined as 300 gigabytes of logs stored during the month.",
+   "skus": [
+    {
+     "key": "m0",
+     "sku": "B92809",
+     "label": "OCI Log Analytics - Archival Storage",
+     "metric": "Logging Analytics Storage Unit Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.02
+      }
+     ],
+     "rate": 0.02
+    },
+    {
+     "key": "m1",
+     "sku": "B95634",
+     "label": "OCI Log Analytics - Active Storage",
+     "metric": "Logging Analytics Storage Unit Per Month",
+     "billing": "MONTH",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": 35.0,
+       "rate": 372.0
+      },
+      {
+       "min": 35.0,
+       "max": 103.0,
+       "rate": 260.4
+      },
+      {
+       "min": 103.0,
+       "max": null,
+       "rate": 223.2
+      }
+     ],
+     "rate": 372.0
+    }
+   ]
+  },
+  {
+   "id": "est1288",
+   "serviceId": 1288,
+   "label": "Observability - Monitoring",
+   "name": "Monitoring",
+   "group": "Observability",
+   "componentType": null,
+   "docUrl": "https://docs.oracle.com/en-us/iaas/Content/Monitoring/home.htm",
+   "productUrl": "https://www.oracle.com/devops/monitoring/",
+   "form": {
+    "days": 31,
+    "hoursPerDay": 24,
+    "fixedUtilization": false,
+    "showHours": false,
+    "showInstances": false
+   },
+   "note": "",
+   "skus": [
+    {
+     "key": "m0",
+     "sku": "B90925",
+     "label": "Monitoring - Ingestion",
+     "metric": "Million Datapoints",
+     "billing": "MONTH",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": 500.0,
+       "rate": 0.0
+      },
+      {
+       "min": 500.0,
+       "max": 999999999.0,
+       "rate": 0.0025
+      }
+     ],
+     "rate": 0.0025
+    },
+    {
+     "key": "m1",
+     "sku": "B90926",
+     "label": "Monitoring - Retrieval",
+     "metric": "Million Datapoints",
+     "billing": "MONTH",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": 1000.0,
+       "rate": 0.0
+      },
+      {
+       "min": 1000.0,
+       "max": 999999999.0,
+       "rate": 0.0015
+      }
+     ],
+     "rate": 0.0015
+    }
+   ]
+  },
+  {
+   "id": "est1289",
+   "serviceId": 1289,
+   "label": "Observability - Notifications",
+   "name": "Notifications",
+   "group": "Observability",
+   "componentType": null,
+   "docUrl": "https://docs.oracle.com/en-us/iaas/Content/Notification/Concepts/notificationoverview.htm",
+   "productUrl": "https://www.oracle.com/devops/notifications/",
+   "form": {
+    "days": 31,
+    "hoursPerDay": 24,
+    "fixedUtilization": false,
+    "showHours": false,
+    "showInstances": false
+   },
+   "note": "",
+   "skus": [
+    {
+     "key": "m0",
+     "sku": "B90940",
+     "label": "Notifications - HTTPS Delivery",
+     "metric": "Million Delivery Operations",
+     "billing": "MONTH",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": 1.0,
+       "rate": 0.0
+      },
+      {
+       "min": 1.0,
+       "max": 999999999.0,
+       "rate": 0.6
+      }
+     ],
+     "rate": 0.6
+    },
+    {
+     "key": "m1",
+     "sku": "B90941",
+     "label": "Notifications - Email Delivery",
+     "metric": "1,000 Emails Sent",
+     "billing": "MONTH",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": 1.0,
+       "rate": 0.0
+      },
+      {
+       "min": 1.0,
+       "max": 999999999.0,
+       "rate": 0.02
+      }
+     ],
+     "rate": 0.02
+    },
+    {
+     "key": "m2",
+     "sku": "B93004",
+     "label": "Notifications - SMS Outbound to Country Zone 1",
+     "metric": "Per SMS Message Sent",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": 100.0,
+       "rate": 0.0
+      },
+      {
+       "min": 100.0,
+       "max": null,
+       "rate": 0.015
+      }
+     ],
+     "rate": 0.015
+    },
+    {
+     "key": "m3",
+     "sku": "B93005",
+     "label": "Notifications - SMS Outbound to Country Zone 2",
+     "metric": "Per SMS Message Sent",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": 100.0,
+       "rate": 0.0
+      },
+      {
+       "min": 100.0,
+       "max": null,
+       "rate": 0.045
+      }
+     ],
+     "rate": 0.045
+    },
+    {
+     "key": "m4",
+     "sku": "B93006",
+     "label": "Notifications - SMS Outbound to Country Zone 3",
+     "metric": "Per SMS Message Sent",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": 100.0,
+       "rate": 0.0
+      },
+      {
+       "min": 100.0,
+       "max": null,
+       "rate": 0.086
+      }
+     ],
+     "rate": 0.086
+    },
+    {
+     "key": "m5",
+     "sku": "B93007",
+     "label": "Notifications - SMS Outbound to Country Zone 4",
+     "metric": "Per SMS Message Sent",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": 100.0,
+       "rate": 0.0
+      },
+      {
+       "min": 100.0,
+       "max": null,
+       "rate": 0.12
+      }
+     ],
+     "rate": 0.12
+    },
+    {
+     "key": "m6",
+     "sku": "B93008",
+     "label": "Notifications - SMS Outbound to Country Zone 5",
+     "metric": "Per SMS Message Sent",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": 100.0,
+       "rate": 0.0
+      },
+      {
+       "min": 100.0,
+       "max": null,
+       "rate": 0.24
+      }
+     ],
+     "rate": 0.24
+    }
+   ]
+  },
+  {
+   "id": "est1290",
+   "serviceId": 1290,
+   "label": "Observability - Ops Insights",
+   "name": "Ops Insights",
+   "group": "Observability",
+   "componentType": null,
+   "docUrl": "https://docs.oracle.com/en-us/iaas/operations-insights/index.html",
+   "productUrl": "https://www.oracle.com/manageability/operations-insights/",
+   "form": {
+    "days": 31,
+    "hoursPerDay": 24,
+    "fixedUtilization": false,
+    "showHours": true,
+    "showInstances": true
+   },
+   "note": "",
+   "skus": [
+    {
+     "key": "m0",
+     "sku": "B111087",
+     "label": "OCI Ops Insights for Warehouse - Instance",
+     "metric": "ECPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.2688
+      }
+     ],
+     "rate": 0.2688
+    },
+    {
+     "key": "m2",
+     "sku": "B92889",
+     "label": "OCI Ops Insights for Oracle Cloud Databases",
+     "metric": "OCPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.015
+      }
+     ],
+     "rate": 0.015
+    },
+    {
+     "key": "m3",
+     "sku": "B92890",
+     "label": "OCI Ops Insights for External Oracle Databases and Host",
+     "metric": "Host CPU Core Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.015
+      }
+     ],
+     "rate": 0.015
+    },
+    {
+     "key": "m4",
+     "sku": "B93705",
+     "label": "OCI Ops Insights for Warehouse - Extract",
+     "metric": "Gigabyte Per Month",
+     "billing": "MONTH",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 2.0
+      }
+     ],
+     "rate": 2.0
+    },
+    {
+     "key": "m5",
+     "sku": "B93706",
+     "label": "OCI Ops Insights for Warehouse - Instance",
+     "metric": "OCPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.5377
+      }
+     ],
+     "rate": 0.5377
+    },
+    {
+     "key": "m7",
+     "sku": "B97140",
+     "label": "OCI Ops Insights for Oracle Cloud Databases",
+     "metric": "ECPU Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.0075
+      }
+     ],
+     "rate": 0.0075
+    }
+   ]
+  },
+  {
+   "id": "est3381",
+   "serviceId": 3381,
+   "label": "Oracle AI Data Platform",
+   "name": "Oracle AI Data Platform",
+   "group": "AI & Machine Learning",
+   "componentType": "aidataplatform",
+   "docUrl": "",
+   "productUrl": "",
+   "form": {
+    "days": 31,
+    "hoursPerDay": 24,
+    "fixedUtilization": false,
+    "showHours": true,
+    "showInstances": true
+   },
+   "note": "",
+   "skus": [
+    {
+     "key": "m0",
+     "sku": "B111363",
+     "label": "Oracle AI Data Platform",
+     "metric": "AI Data Platform Unit",
+     "billing": "PER-ITEM",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.001
+      }
+     ],
+     "rate": 0.001
+    }
+   ]
+  },
+  {
+   "id": "est1901",
+   "serviceId": 1901,
+   "label": "Search Service with OpenSearch",
+   "name": "Search Service with OpenSearch",
+   "group": "Database",
+   "componentType": "opensearch",
+   "docUrl": "https://docs.oracle.com/en-us/iaas/Content/search-opensearch/home.htm",
+   "productUrl": "https://www.oracle.com/cloud/search/",
+   "form": {
+    "days": 31,
+    "hoursPerDay": 24,
+    "fixedUtilization": false,
+    "showHours": true,
+    "showInstances": false
+   },
+   "note": "",
+   "skus": [
+    {
+     "key": "m0",
+     "sku": "B93709",
+     "label": "OCI Search with OpenSearch HA",
+     "metric": "Node Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.25
+      }
+     ],
+     "rate": 0.25
+    }
+   ]
+  },
+  {
+   "id": "est521",
+   "serviceId": 521,
+   "label": "Security - Data Safe",
+   "name": "Data Safe",
+   "group": "Security",
+   "componentType": null,
+   "docUrl": "https://docs.oracle.com/en-us/iaas/data-safe/index.html",
+   "productUrl": "https://www.oracle.com/database/technologies/security/data-safe.html",
+   "form": {
+    "days": 31,
+    "hoursPerDay": 24,
+    "fixedUtilization": false,
+    "showHours": false,
+    "showInstances": false
+   },
+   "note": "",
+   "skus": [
+    {
+     "key": "m0",
+     "sku": "B91631",
+     "label": "Data Safe for Database Cloud Service - Audit Record Collection Over 1 Million Records",
+     "metric": "10,000 Audit Records Per Target Per Month",
+     "billing": "MONTH",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.1
+      }
+     ],
+     "rate": 0.1
+    },
+    {
+     "key": "m2",
+     "sku": "B92733",
+     "label": "Data Safe for On-Premises Databases & Databases on Compute",
+     "metric": "Target Database Per Month",
+     "billing": "MONTH",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": 100.0,
+       "rate": 200.0
+      },
+      {
+       "min": 100.0,
+       "max": 300.0,
+       "rate": 150.0
+      },
+      {
+       "min": 300.0,
+       "max": 500.0,
+       "rate": 100.0
+      },
+      {
+       "min": 500.0,
+       "max": null,
+       "rate": 50.0
+      }
+     ],
+     "rate": 200.0
+    },
+    {
+     "key": "m3",
+     "sku": "B92734",
+     "label": "Data Safe for On-Premises Databases & Databases on Compute",
+     "metric": "10,000 Audit Records Per Target Per Month",
+     "billing": "MONTH",
+     "hourly": false,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 0.1
+      }
+     ],
+     "rate": 0.1
+    }
+   ]
+  },
+  {
+   "id": "est1881",
+   "serviceId": 1881,
+   "label": "ZFS Storage",
+   "name": "ZFS Storage",
+   "group": "Storage",
+   "componentType": null,
+   "docUrl": "",
+   "productUrl": "",
+   "form": {
+    "days": 31,
+    "hoursPerDay": 24,
+    "fixedUtilization": false,
+    "showHours": true,
+    "showInstances": false
+   },
+   "note": "",
+   "skus": [
+    {
+     "key": "m0",
+     "sku": "B95410",
+     "label": "Oracle ZFS Storage - High Availability",
+     "metric": "Instance Per Hour",
+     "billing": "HOUR",
+     "hourly": true,
+     "decimal": false,
+     "step": 1,
+     "min": null,
+     "max": null,
+     "tiers": [
+      {
+       "min": 0.0,
+       "max": null,
+       "rate": 1.85
+      }
+     ],
+     "rate": 1.85
+    }
+   ]
+  }
+ ]
+}
