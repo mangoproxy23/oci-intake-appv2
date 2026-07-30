@@ -287,9 +287,17 @@ BASEDB_STORAGE_TIERS = [
     (256, 717), (512, 973), (1024, 1741), (2048, 2765),
     (4096, 5325), (8192, 10445), (16384, 20685), (24576, 30925),
     (32768, 41165), (40960, 51405), (49152, 61645),
-    # Intel/Enterprise continues in 8,192 GB steps to 81,920. Provisioned capacity for these is
-    # NOT known - see BASEDB_UNPRICED_TIERS - so the ECPU figures here are placeholders only.
-    (57344, 0), (65536, 0), (73728, 0), (81920, 0),
+    # The top four tiers carried 0 as a placeholder, which made them price storage at $0 - the
+    # dropdown read "81,920 usable -> 0 GB provisioned". They follow the same rule as every
+    # other tier >= 2,048 (see basedb_provisioned_formula):
+    #
+    #     provisioned = 1.25 * usable + 200,  and the ECPU flavour adds 5 GB
+    #
+    # That rule reproduces all ten known tiers exactly, and two of these four are independently
+    # confirmed by the OCPU panel figures in BASEDB_OCPU_CONFIRMED_TIERS - 73,728 -> 92,360 and
+    # 81,920 -> 102,600, which are these values minus the same 5 GB. 57,344 and 65,536 are the
+    # only two resting on the formula alone.
+    (57344, 71885), (65536, 82125), (73728, 92365), (81920, 102605),
 ]
 BASEDB_TOTAL_BY_USABLE = {u: t for u, t in BASEDB_STORAGE_TIERS}
 
