@@ -2366,7 +2366,7 @@ def search(query="", group=""):
         # Browsing: alphabetical by category, then by service, so the collapsed sections and the
         # cards inside them are scannable. A text query keeps relevance order instead - sorting
         # those alphabetically would throw away the ranking.
-        return sorted(pool, key=lambda e: (e["group"].lower(), e["name"].lower()))
+        return sorted(pool, key=lambda e: (_group_sort_key(e["group"]), e["name"].lower()))
     terms = _expand(q)
     scored = []
     for e in pool:
@@ -2509,10 +2509,19 @@ GROUP_TO_OVERVIEW_ROW = {
 }
 
 
+def _group_sort_key(name):
+    """Alphabetical, but "Other Services" parked at the end.
+
+    It is the catch-all bucket, so alphabetical order dropping it between Observability and
+    Security reads as though it were a category of its own rather than the leftovers.
+    """
+    return (1 if name == "Other Services" else 0, name.lower())
+
+
 def groups_with_counts():
     """Category chips, alphabetical. With eleven categories the old console-ish order made you
     read the whole row to find one; alphabetical means you can jump straight to it."""
     counts = {}
     for e in CURATED:
         counts[e["group"]] = counts.get(e["group"], 0) + 1
-    return [{"group": g, "count": counts[g]} for g in sorted(counts, key=str.lower)]
+    return [{"group": g, "count": counts[g]} for g in sorted(counts, key=_group_sort_key)]
