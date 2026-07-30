@@ -2021,6 +2021,42 @@ def line_cost(entry, values, hours=HOURS_PER_MONTH):
 
 
 # --- search -----------------------------------------------------------------------------------
+# A price-list description has to look like a product name to be offered as a card. 103 of the
+# 982 rows are artefacts of Oracle's PDF-ish source - "0.3000 0.3000 0.1600", "- 0.0113",
+# "1 B110965" - and they rendered as cards named after a bare number.
+_HAS_PRODUCT_NAME = re.compile(r"[A-Za-z]{3}")
+
+
+def _walk_skus(node, out):
+    """Every part number anywhere in a catalog entry - headline, meters, shape maps, model
+    tables. Used to keep the raw fallback from re-offering a SKU a curated card already prices,
+    which would let the same meter be added to a BOM twice."""
+    if isinstance(node, dict):
+        for key, value in node.items():
+            if isinstance(value, str) and key.lower().endswith("sku") and value:
+                out.add(value)
+            else:
+                _walk_skus(value, out)
+    elif isinstance(node, list):
+        for item in node:
+            _walk_skus(item, out)
+
+
+_CURATED_SKUS = None
+
+
+def curated_skus():
+    """Cached; built on first search rather than at import, since the helper is defined below
+    the catalog it reads."""
+    global _CURATED_SKUS
+    if _CURATED_SKUS is None:
+        out = set()
+        for entry in CURATED:
+            _walk_skus(entry, out)
+        _CURATED_SKUS = out
+    return _CURATED_SKUS
+
+
 def _raw_matches(q, limit=25):
     """Full-text fallback over the whole price list for anything not curated."""
     qn = _norm(q)
@@ -2032,6 +2068,10 @@ def _raw_matches(q, limit=25):
         rate = it.get("payg")
         if not isinstance(rate, (int, float)) or rate <= 0:
             continue
+        if not _HAS_PRODUCT_NAME.search(it.get("desc") or ""):
+            continue                      # a rate string, not a product name
+        if sku in curated_skus():
+            continue                      # a curated card already prices this meter
         # serviceCategory comes from Oracle's own catalog and is often how people search -
         # "Document Understanding" or "Queue" appears there when the desc says "OCI - ... - OCR".
         hay = _norm(f"{it.get('desc','')} {it.get('metric','')} {sku} {it.get('serviceCategory','')}")
