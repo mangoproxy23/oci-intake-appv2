@@ -22,6 +22,9 @@ import pandas as pd
 
 DATA_DIR = Path(__file__).resolve().parent / "data"
 HOURS_PER_MONTH = 730.0
+# The most hours a calendar month can have (31 x 24). Oracle's Cost Estimator prices on this
+# basis, not the 730-hour average, and writes it per line in the Usage Qty column.
+MAX_MONTH_HOURS = 744.0
 SKU_RE = re.compile(r"\bB\d{4,6}\b", re.IGNORECASE)
 
 
@@ -741,8 +744,15 @@ def _detect_columns(raw):
     return None, {}
 
 
-def _detect_hours_per_month(raw):
-    """Oracle BOMs carry an 'Hours per month' parameter cell; find it (defaults 730)."""
+def _detect_hours_per_month(raw, cols=None):
+    """The hours basis this BOM was priced on.
+
+    An explicit 'Hours per month' parameter cell wins. Failing that, read it off the sheet's
+    own Usage Qty column: an hourly line states its duration there, so the largest value that
+    could still be a month (<= 744) is the basis the author used. The Cost Estimator prices a
+    month as 744 hours, and assuming the 730-hour average instead re-priced every converted
+    VM ~1.9% light. Only when the sheet says nothing at all do we fall back to 730.
+    """
     for r in range(min(12, len(raw.index))):
         vals = raw.iloc[r].tolist()
         for ci, v in enumerate(vals):
@@ -751,7 +761,34 @@ def _detect_hours_per_month(raw):
                     n = _to_float(cand, 0)
                     if n > 0:
                         return n
+    usage_col = (cols or {}).get("usageqty")
+    if usage_col is not None:
+        seen = []
+        for r in range(len(raw.index)):
+            vals = raw.iloc[r].tolist()
+            if usage_col >= len(vals):
+                continue
+            n = _to_float(vals[usage_col], 0)
+            # > 1 because a per-month metric writes 1 there, which is not an hours basis.
+            if 1 < n <= MAX_MONTH_HOURS:
+                seen.append(n)
+        if seen:
+            return max(seen)
     return HOURS_PER_MONTH
+
+
+def _row_hours(usageqty, sheet_hours):
+    """How many hours one line bills for.
+
+    Usage Qty holds duration when the line's quantity sits in Part Qty (1 OCPU x 744 h). But
+    when the quantity is folded into Usage Qty instead - 9 load balancers x 744 h = 6,696
+    LB-hours - the same column is unit-hours. A month cannot exceed 744 hours, so anything
+    above that is aggregate usage and the sheet's own basis is the honest answer. Pricing
+    still multiplies by the raw Usage Qty; this is only what the row reports as its hours.
+    """
+    if usageqty and 0 < usageqty <= MAX_MONTH_HOURS:
+        return usageqty
+    return sheet_hours
 
 
 def _row_sku(values, sku_col):
@@ -837,7 +874,12 @@ def _merge_server_compute(rows, hours):
         # prices at $0 the moment a shape is picked. Leave those rows exactly as they came in.
         if comp["ocpu"] > 0 and comp["mem"] > 0:
             shape = _detect_shape_for_rates(comp["ocpu_rate"], comp["mem_rate"])
-            out.append(_make_compute_vm(comp, shape, hours))
+            # Bill this VM on the hours its OWN lines were priced at, not the sheet-wide
+            # default. Oracle's estimator prices a month as 744 hours (31 x 24) and writes
+            # that in the Usage Qty column per line; falling back to the 730-hour default
+            # re-priced every converted VM ~1.9% light the moment a shape was picked.
+            out.append(_make_compute_vm(comp, shape,
+                                        comp["ocpu_hours"] or comp["mem_hours"] or hours))
         else:
             out.extend(comp["rows"])
         comp = None
@@ -850,15 +892,19 @@ def _merge_server_compute(rows, hours):
         if r.get("_kind") in ("ocpu", "memory"):
             if comp is None:
                 comp = {"section": sec, "ocpu": 0.0, "mem": 0.0, "ocpu_rate": 0.0,
-                        "mem_rate": 0.0, "items": [], "monthly": 0.0, "rows": [],
+                        "mem_rate": 0.0, "ocpu_hours": 0.0, "mem_hours": 0.0,
+                        "items": [], "monthly": 0.0, "rows": [],
                         "sourceRow": r.get("sourceRow", 0)}
             li = dict(r["lineItems"][0])
+            line_hours = _to_float(r.get("hoursPerMonth"))
             if r["_kind"] == "ocpu":
                 comp["ocpu"] += _to_float(r["specs"].get("ocpus"))
                 comp["ocpu_rate"] = _to_float(li.get("rate")) or comp["ocpu_rate"]
+                comp["ocpu_hours"] = line_hours or comp["ocpu_hours"]
             else:
                 comp["mem"] += _to_float(r["specs"].get("memoryGb"))
                 comp["mem_rate"] = _to_float(li.get("rate")) or comp["mem_rate"]
+                comp["mem_hours"] = line_hours or comp["mem_hours"]
             comp["items"].append(li)
             comp["rows"].append(r)          # kept so flush() can put them back unmerged
             comp["monthly"] += _to_float(r.get("monthly"))
@@ -1048,7 +1094,7 @@ def _convert_oci_bom_sheets(path, sheet=None):
     raw = sheets[sheet_name]
     header_row, cols = _detect_columns(raw)
     data_start = (header_row + 1) if header_row is not None else 0
-    hours_per_month = _detect_hours_per_month(raw)
+    hours_per_month = _detect_hours_per_month(raw, cols)
 
     rows = []
     totals = {"ocpus": 0.0, "memoryGb": 0.0, "blockStorageGb": 0.0, "fileStorageGb": 0.0,
@@ -1215,7 +1261,7 @@ def _convert_oci_bom_sheets(path, sheet=None):
             "sourceService": section or "OCI BOM",
             "sourceMonthlyCost": round(bom_monthly, 4),
             "windowsLicenseMonthly": 0.0,
-            "hoursPerMonth": usageqty or HOURS_PER_MONTH,
+            "hoursPerMonth": _row_hours(usageqty, hours_per_month),
             "shapeUsed": None,
             "specs": specs,
             "fullServiceMapping": {

@@ -1,5 +1,8 @@
 """Database lines in an imported OCI BOM must never become re-mappable compute VMs.
 
+It also pins where a converted VM's hours come from - the lines it was merged from, not a
+sheet-wide default - because one estimate can carry sections on different bases.
+
 A database engine bills per OCPU/ECPU exactly like compute does. When classify_resource()
 typed those lines "ocpu", _merge_server_compute() folded them into one synthetic VM and
 the Shape step's "Continue to Services" re-priced them at plain compute rates - which on a
@@ -146,15 +149,94 @@ def check_conversion():
     return failures
 
 
+
+def build_mixed_hours_fixture(path):
+    """Two compute sections priced on DIFFERENT hours bases in one sheet, which is what a
+    sheet-wide hours default can never represent: the estimator writes 744 for a full month
+    but 730 wherever the author overrode it, and a real estimate carries both."""
+    import openpyxl
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "PAAS"
+    ws.append(["Oracle Investment Proposal"])
+    ws.append(["Part", "Description", "Part Qty", "Instance Qty", "Usage Qty",
+               "Unit Price", "Monthly Cost"])
+    ws.append([None, "Autonomous AI Database"])
+    ws.append(["B95702", "Oracle Autonomous AI Transaction Processing - ECPU (ECPU Per Hour)",
+               2.05, 1, 744, 0.336, 512.4672])
+    ws.append([None, "Clone: Virtual Machine"])            # 730-hour basis
+    ws.append(["B112530", "OCI - Compute - Standard - E6 Ax - OCPU (OCPU Per Hour)", 15, 1, 730, 0.0138, 151.11])
+    ws.append(["B112531", "OCI - Compute - Standard - E6 Ax - Memory (Gigabyte Per Hour)", 80, 1, 730, 0.0108, 630.72])
+    ws.append([None, "Virtual Machine"])                   # 744-hour basis
+    ws.append(["B112530", "OCI - Compute - Standard - E6 Ax - OCPU (OCPU Per Hour)", 15, 1, 744, 0.0138, 154.008])
+    ws.append(["B112531", "OCI - Compute - Standard - E6 Ax - Memory (Gigabyte Per Hour)", 80, 1, 744, 0.0108, 642.816])
+    ws.append([None, "Boot Volume"])
+    ws.append(["B88318", "Compute - Windows OS (OCPU Per Hour)", 15, 1, 730, 0.092, 1007.4])
+    wb.save(path)
+
+
+def check_hours():
+    """Each converted VM must bill on the hours ITS OWN lines were priced at."""
+    import tempfile
+    failures = []
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "mixed_hours.xlsx"
+        build_mixed_hours_fixture(path)
+        result = bom_convert.convert_oci_bom(path)
+        rows = result["rows"]
+
+        vms = {r["sourceService"]: r for r in rows if r.get("isConvertedCompute")}
+        for section, want in (("Clone: Virtual Machine", 730.0), ("Virtual Machine", 744.0)):
+            row = vms.get(section)
+            if row is None:
+                failures.append(f"no converted VM for section {section!r}")
+            elif abs(row["computeHours"] - want) > 0.001:
+                failures.append(f"{section!r} computeHours == {row['computeHours']}, want {want}")
+
+        # The Autonomous line bills per ECPU: database, and never re-shapeable.
+        auto = [r for r in rows if "Autonomous" in r["ociProduct"]]
+        if not auto:
+            failures.append("the Autonomous AI Database line vanished")
+        for row in auto:
+            if row["ociServiceCategory"] != "Database" or row.get("isConvertedCompute"):
+                failures.append(f"Autonomous line typed {row['ociServiceCategory']!r}, "
+                                f"isConvertedCompute={row.get('isConvertedCompute')}")
+            if abs(row["hoursPerMonth"] - 744.0) > 0.001:
+                failures.append(f"Autonomous line hoursPerMonth == {row['hoursPerMonth']}, want 744")
+
+        # A Windows licence billed per OCPU-hour is licensing, not compute to be merged.
+        win = [r for r in rows if r["ociServiceCategory"] == "Licensing"]
+        if len(win) != 1:
+            failures.append(f"expected 1 Licensing row for the Windows OS line, got {len(win)}")
+        elif win[0].get("isConvertedCompute"):
+            failures.append("the Windows OS licence was merged into a compute VM")
+
+        # Re-pricing each VM on its own hours must reproduce the sheet, to the cent.
+        for section, ocpu_cost, mem_cost in (("Clone: Virtual Machine", 151.11, 630.72),
+                                             ("Virtual Machine", 154.01, 642.82)):
+            row = vms.get(section)
+            if not row:
+                continue
+            hours = row["computeHours"]
+            got = round(round(row["originalOcpus"] * hours * 0.0138, 2)
+                        + round(row["originalMemoryGb"] * hours * 0.0108, 2), 2)
+            want = round(ocpu_cost + mem_cost, 2)
+            if abs(got - want) > 0.011:
+                failures.append(f"{section!r} re-prices to {got}, the sheet says {want}")
+    return failures
+
+
 def main():
-    failures = check_classification() + check_catalog_sweep() + check_conversion()
+    failures = (check_classification() + check_catalog_sweep()
+                + check_conversion() + check_hours())
     if failures:
         print("FAILED:")
         for f in failures:
             print("  - " + f)
         return 1
-    print(f"Database BOM mapping checks passed "
-          f"({len(CLASSIFY_CASES)} classifications, full price-list sweep, conversion round-trip).")
+    print(f"Database BOM mapping + per-row hours checks passed "
+          f"({len(CLASSIFY_CASES)} classifications, full price-list sweep, two conversion "
+          f"round-trips including mixed 730/744-hour sections).")
     return 0
 
 
