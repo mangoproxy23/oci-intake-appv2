@@ -2522,7 +2522,10 @@ def build_full_bom_bytes(pricing, rows=None, fields=None, ramp=None, bom_name=""
     servers = []
     apps = []
     storage_rows = []
-    is_cloud_bill = bool(cloud_comparison)
+    # An overview payload is now built for BOTH modes (on-prem uses current on-prem spend as
+    # the baseline), so "is this a cloud bill" can no longer be inferred from its presence.
+    on_prem_overview = bool((cloud_comparison or {}).get("onPrem"))
+    is_cloud_bill = bool(cloud_comparison) and not on_prem_overview
     for pr in (pricing or {}).get("rows", []):
         specs = pr.get("specs") or {}
         raw = raw_by_id.get(str(pr.get("rowId"))) or {}
@@ -2611,7 +2614,7 @@ def build_full_bom_bytes(pricing, rows=None, fields=None, ramp=None, bom_name=""
     # Cloud-bill: itemize the storage services on the Storage sheet (the compute-loop above
     # skipped them). This is display only - the Storage line total is set on the Pricing
     # Overview by _add_cloud_bill_services, so there's no double count.
-    if cloud_comparison:
+    if is_cloud_bill:
         storage_rows = _cloud_storage_rows(cloud_comparison.get("pricing") or pricing)
     _extra_priced = None
     if extra_services:
@@ -2656,10 +2659,10 @@ def build_full_bom_bytes(pricing, rows=None, fields=None, ramp=None, bom_name=""
         _add_extra_services(wb, _extra_priced)
     # Cloud-bill mode: roll the non-compute mapped services into the Pricing Overview lines
     # so the template total covers the whole bill, not just compute.
-    if cloud_comparison:
+    if is_cloud_bill:
         _add_cloud_bill_services(wb, cloud_comparison.get("pricing") or pricing)
     _service_pricing = (
-        cloud_comparison.get("pricing") if cloud_comparison else pricing) or pricing
+        cloud_comparison.get("pricing") if is_cloud_bill else pricing) or pricing
     _write_service_tabs(
         wb, _service_pricing, _extra_priced, spec, _compute_last, len(storage_rows))
     # Cloud-bill mode shifts the Pricing Overview baseline up by 4 rows (relayout below) and
@@ -2707,12 +2710,19 @@ def build_full_bom_bytes(pricing, rows=None, fields=None, ramp=None, bom_name=""
     if cloud_comparison:
         import bom_export
         _cc_pricing = cloud_comparison.get("pricing") or pricing
-        _aws_monthly = float((_cc_pricing.get("totals") or {}).get("sourceMonthlyCost") or 0)
+        # On-prem compares against what the estate costs to run today; cloud-bill against the
+        # uploaded bill. Either way the figure lands in an editable cell.
+        if on_prem_overview:
+            _baseline_monthly = float(cloud_comparison.get("baselineMonthly") or 0)
+            _baseline_cloud, _baseline_estimated = "onprem", False
+        else:
+            _baseline_monthly = float((_cc_pricing.get("totals") or {}).get("sourceMonthlyCost") or 0)
+            _baseline_cloud = _cc_pricing.get("sourceCloud") or "aws"
+            _baseline_estimated = bool(_cc_pricing.get("sourceCostEstimated"))
         bom_export.add_comparison_to_pricing_overview(
             wb["Pricing Overview"], 22, "$B$18", "$B$19",
-            _aws_monthly, bom_export._util_by_year(cloud_comparison.get("ramp")),
-            source_cloud=_cc_pricing.get("sourceCloud") or "aws",
-            estimated=bool(_cc_pricing.get("sourceCostEstimated")))
+            _baseline_monthly, bom_export._util_by_year(cloud_comparison.get("ramp")),
+            source_cloud=_baseline_cloud, estimated=_baseline_estimated)
 
     # Architecture diagram generated from THIS BOM. The optional AI plan is constrained
     # metadata; graph geometry, quantities, rendering, and validation remain deterministic.
@@ -2764,14 +2774,19 @@ def build_full_bom_bytes(pricing, rows=None, fields=None, ramp=None, bom_name=""
             arch_png = None
     if not arch_png:
         # Nothing to show: the template ships no architecture picture of its own, so the
-        # slot is simply empty. Clear its caption too.
+        # slot is simply empty. Clear its caption too - at whichever row it now lives on.
+        # _relayout_pricing_overview re-homes the caption from D27 to D57, and the comparison
+        # block's 5-Year Projection then OWNS D27 (the Year-4 cumulative). Blanking row 27
+        # unconditionally wiped that cell and broke the cumulative chain, so only clear the
+        # row the caption actually occupies.
         ws_po = wb["Pricing Overview"]
+        _cap_row = 57 if _relayout_notes is not None else 27
         for merged in list(ws_po.merged_cells.ranges):
-            if str(merged) == "D27:P27":
+            if str(merged) in (f"D{_cap_row}:P{_cap_row}", f"D{_cap_row}:Q{_cap_row}"):
                 ws_po.unmerge_cells(str(merged))
         for c in range(4, 17):
-            ws_po.cell(27, c).value = None
-            ws_po.cell(27, c).style = "Normal"
+            ws_po.cell(_cap_row, c).value = None
+            ws_po.cell(_cap_row, c).style = "Normal"
         # No diagram to anchor to - still place the re-homed footnotes just below the
         # comparison blocks so they aren't lost.
         if cloud_comparison and _relayout_notes:
@@ -2780,7 +2795,10 @@ def build_full_bom_bytes(pricing, rows=None, fields=None, ramp=None, bom_name=""
     # Cloud-bill mode: append the Service Mapping (per-line breakdown) + Notes sheets alongside
     # the 12-sheet deliverable. The Pricing Overview then PULLS its comparison source/OCI/savings
     # straight from the Service Mapping total row, so the two always tie out.
-    if cloud_comparison:
+    # On-prem has no uploaded bill to map, so these sheets don't exist and the comparison keeps
+    # the editable baseline cell written by add_comparison_to_pricing_overview - repointing it
+    # at a 'Service Mapping' sheet that was never created would leave B41 a broken reference.
+    if is_cloud_bill:
         try:
             import bom_export
             _cc = bom_export.add_cloud_comparison_sheets(

@@ -10,6 +10,9 @@ warnings.filterwarnings("ignore", message="'cgi' is deprecated.*", category=Depr
 # Pillow used to kill the Full BOM export with a cryptic ImportError from inside openpyxl.
 import bootstrap
 bootstrap.ensure()
+# Keep the Oracle SKU catalog current without anyone remembering to. Non-blocking and
+# failure-tolerant - see bootstrap.refresh_catalog_if_stale.
+bootstrap.refresh_catalog_if_stale()
 
 import cgi
 import gzip
@@ -76,7 +79,7 @@ INTAKE_MODE_CLOUD_BILL = "cloud_bill"
 PROVIDER_AUTO = "auto"
 DEFAULT_OPENAI_MODEL = "gpt-5-mini"
 OPENAI_DISABLED_MESSAGE = "OpenAI API calls are temporarily disabled."
-OPENAI_ACTIVE_FEATURES = ("inventory_scrub", "cloud_bill_mapping", "architecture")
+OPENAI_ACTIVE_FEATURES = ("inventory_scrub", "cloud_bill_mapping", "architecture", "foreign_bom")
 MAX_DECOMPRESSED_UPLOAD_BYTES = 128 * 1024 * 1024
 
 
@@ -114,6 +117,7 @@ def openai_api_configured():
 AGENT_AUTHORITY = {
     "inventory_scrub": "advisory",     # parsing an uploaded inventory
     "cloud_bill_mapping": "advisory",  # AWS/Azure/GCP bill line -> OCI service
+    "foreign_bom_mapping": "advisory", # a foreign OCI BOM line the SKU catalog didn't recognize
     "pricing": "advisory",             # rates, sizing, OCPU/RAM/storage math
     "shape_selection": "advisory",     # which OCI shape a workload lands on
     "bom_export": "advisory",          # workbook contents and totals
@@ -813,7 +817,7 @@ SHAPE_DEFINITIONS = [
         "memorySku": "B112533",
         "computeRate": 0.0190,
         "memoryRate": 0.0084,
-        "summary": "Newest AmpereOne M (Arm) Ax shape; the default target for Arm/Graviton source workloads. OCPU B112532, Memory B112533.",
+        "summary": "Newest AmpereOne M (Arm) Ax shape; 1 OCPU = 2 Arm cores. OCPU B112532, Memory B112533.",
         "accent": "#3d6b4f",
     },
     {
@@ -826,7 +830,7 @@ SHAPE_DEFINITIONS = [
         "memorySku": "B112146",
         "computeRate": 0.0138,
         "memoryRate": 0.0027,
-        "summary": "OCI - Compute - Standard - A4; AmpereOne M (Arm). OCPU B112145, Memory B112146.",
+        "summary": "OCI - Compute - Standard - A4; AmpereOne M (Arm), 1 OCPU = 2 cores. OCPU B112145, Memory B112146.",
         "accent": "#347a5c",
     },
     {
@@ -839,7 +843,7 @@ SHAPE_DEFINITIONS = [
         "memorySku": "B109530",
         "computeRate": 0.0140,
         "memoryRate": 0.0020,
-        "summary": "Compute - Standard - A2; AmpereOne (Arm). OCPU B109529, Memory B109530.",
+        "summary": "Compute - Standard - A2; AmpereOne (Arm), 1 OCPU = 2 cores. OCPU B109529, Memory B109530.",
         "accent": "#356055",
     },
     {
@@ -948,9 +952,10 @@ SHAPE_LOOKUP = {shape["key"]: shape for shape in SHAPE_DEFINITIONS}
 BEST_SHAPE_BY_VENDOR = {"amd": "e6-standard-ax", "intel": "x12-standard-ax", "arm": "a4-standard-ax"}
 
 # Best Match -> equivalent-generation OCI shape for the source instance's chip era.
-# Each list is (min source generation, OCI shape key), checked high-to-low.
-# Generation is the AWS family digit (m7a -> 7) or the Azure/GCP version (Dadsv6 -> 6).
-EQUIV_GEN_MAP = {
+# The defaults keep startup resilient, but the auditable source of truth is
+# data/processor_generation_mapping.json. Keeping the policy in data lets the shape refresh
+# script and the runtime use the same validated Intel/AMD/Arm generation thresholds.
+_DEFAULT_EQUIV_GEN_MAP = {
     ("aws", "amd"): [(8, "e6-standard"), (7, "e5-standard"), (6, "e4-standard"), (0, "e4-standard")],
     ("azure", "amd"): [(7, "e6-standard"), (6, "e5-standard"), (5, "e4-standard"), (0, "e4-standard")],
     ("gcp", "amd"): [(4, "e6-standard"), (3, "e5-standard"), (0, "e4-standard")],
@@ -4424,10 +4429,17 @@ def gpu_pricing_for_context(context):
 SHAPE_KEY_TO_OCI = {
     "e6-standard-ax": ("VM.Standard.E6.Ax.Flex", 94, 712, "amd"),
     "e6-standard": ("VM.Standard.E6.Flex", 126, 1454, "amd"),
-    "e5-standard": ("VM.Standard.E5.Flex", 94, 1049, "amd"),
+    "e5-standard": ("VM.Standard.E5.Flex", 126, 1049, "amd"),
     "e4-standard": ("VM.Standard.E4.Flex", 64, 1024, "amd"),
     "x9-standard": ("VM.Standard3.Flex", 32, 512, "intel"),
     "x12-standard-ax": ("VM.Standard4.Ax.Flex", 39, 360, "intel"),
+    # Arm limits must be explicit: A1 uses one core per OCPU, while A2/A4 use two cores
+    # per OCPU. Falling back to the first generic Arm flex tier made A1/A2 capacity checks
+    # incorrectly inherit A4 Ax's smaller 45-OCPU limit.
+    "a1-standard": ("VM.Standard.A1.Flex", 76, 472, "arm"),
+    "a2-standard": ("VM.Standard.A2.Flex", 78, 946, "arm"),
+    "a4-standard": ("VM.Standard.A4.Flex", 45, 700, "arm"),
+    "a4-standard-ax": ("VM.Standard.A4.Ax.Flex", 45, 720, "arm"),
 }
 
 
@@ -10568,6 +10580,132 @@ def call_llm_mapping(pricing):
     return payload, None
 
 
+FOREIGN_BOM_KINDS = ("ocpu", "memory", "blockStorage", "fileStorage", "objectStorage",
+                      "perf", "network", "database", "license", "gpu", "other")
+FOREIGN_BOM_CATEGORIES = ("Compute", "Storage", "Networking", "Database", "Licensing",
+                          "Security", "Disaster Recovery", "Other Services")
+
+
+def foreign_bom_assist(result, min_unrecognized=3, min_share=0.2):
+    """Advisory pass over the lines a foreign OCI BOM left unrecognized.
+
+    A BOM from outside this app can use SKUs the catalog has never seen (older parts, services
+    the app doesn't price, a partner's private part numbers). The deterministic converter still
+    carries those lines at the cost the BOM itself states - nothing is dropped - but it can't say
+    WHAT they are, so their service category and their OCPU / RAM / storage sizing stay blank.
+
+    That blank is precisely what AGENT_POLICY.md lets an agent fill: `foreign_bom_mapping` is
+    advisory, so this may only classify a line the engine couldn't. Specifically it may return a
+    service category and a resource kind, and nothing else.
+
+    It may NOT return money or quantities. Every figure stays the BOM's own: the agent says
+    "this line is block storage", the file says "2000 units", and the deterministic code
+    multiplies. So an agent never writes a rate and never turns a blank into a number - it only
+    labels a number the document already contained. Rows it touches are marked aiAssisted and
+    reviewRequired so the classification is visibly a suggestion, not a fact.
+
+    Returns (applied_count, status_dict). The result dict is mutated in place.
+    """
+    rows = (result or {}).get("rows") or []
+    pending = []
+    for row in rows:
+        mapping = row.get("fullServiceMapping") or {}
+        # reviewRequired is exactly the set the deterministic converter could not identify:
+        # no catalog match, and not a legitimate $0 free-tier line.
+        if not mapping.get("reviewRequired"):
+            continue
+        sku = clean_text(mapping.get("sku"))
+        desc = clean_text(mapping.get("ociProduct")) or clean_text(row.get("name"))
+        if not desc and not sku:
+            continue
+        pending.append({"rowId": row.get("rowId"), "sku": sku, "description": desc,
+                        "unit": clean_text(mapping.get("unit")),
+                        "quantity": mapping.get("quantity")})
+
+    total_lines = len(rows) or 1
+    status = {"ran": False, "applied": 0, "considered": len(pending), "note": ""}
+    # Only worth a round trip when a meaningful share of the BOM is unreadable. A stray
+    # unrecognized line isn't a reason to call out to a model.
+    if len(pending) < min_unrecognized or (len(pending) / total_lines) < min_share:
+        status["note"] = "Deterministic SKU recognition covered this BOM."
+        return 0, status
+    if not openai_api_enabled():
+        status["note"] = OPENAI_DISABLED_MESSAGE
+        return 0, status
+    if not openai_api_configured():
+        status["note"] = ("OPENAI_API_KEY is not set, so %d unrecognized line items keep the cost "
+                          "the BOM states but no service classification." % len(pending))
+        return 0, status
+
+    system = (
+        "You classify line items from an Oracle Cloud Infrastructure bill of materials that an "
+        "automated SKU catalog could not recognize. "
+        "For each line, decide what kind of OCI resource it is from its description, unit and part number. "
+        "Return compact JSON only: {\"lines\":[{\"rowId\":string,\"category\":string,\"kind\":string,"
+        "\"ociProduct\":string,\"confidence\":number,\"note\":string}],\"warnings\":[string]}. "
+        "category must be one of: " + ", ".join(FOREIGN_BOM_CATEGORIES) + ". "
+        "kind must be one of: " + ", ".join(FOREIGN_BOM_KINDS) + ". "
+        "ociProduct is the official Oracle product name you believe the line refers to. "
+        "NEVER return a price, a rate, a cost or a quantity - those come from the BOM itself and "
+        "are not yours to set. Omit any line you cannot classify with reasonable confidence "
+        "rather than guessing. confidence is 0..1."
+    )
+    payload, warning = call_openai_json(
+        system,
+        {"lines": pending[:120], "bomSheet": clean_text(result.get("sheetName"))},
+        max_output_tokens=2000,
+        timeout=60,
+        model_env="OPENAI_FOREIGN_BOM_MODEL",
+        reasoning_effort_env="OPENAI_FOREIGN_BOM_REASONING_EFFORT",
+        default_reasoning_effort="low",
+    )
+    if warning or not isinstance(payload, dict):
+        status["note"] = ("AI assist did not complete, so %d unrecognized line items keep the "
+                          "cost the BOM states. Detail: %s" % (len(pending), warning or "no result"))
+        return 0, status
+
+    by_id = {str(r.get("rowId")): r for r in rows if r.get("rowId") is not None}
+    applied = 0
+    for suggestion in (payload.get("lines") or []):
+        if not isinstance(suggestion, dict):
+            continue
+        row = by_id.get(str(suggestion.get("rowId")))
+        if row is None:
+            continue
+        category = clean_text(suggestion.get("category"))
+        kind = clean_text(suggestion.get("kind"))
+        # Reject anything outside the closed vocabulary - a model returning a category the app
+        # doesn't have must not create one.
+        if category not in FOREIGN_BOM_CATEGORIES or kind not in FOREIGN_BOM_KINDS:
+            continue
+        mapping = row.setdefault("fullServiceMapping", {})
+        # Advisory: only fill what the engine left blank. "Other Services" IS the converter's
+        # blank - it's the fallback when classify_resource recognized nothing - so that may be
+        # replaced. Any real deterministic category is left exactly as it was.
+        if clean_text(row.get("ociServiceCategory")) in ("", "Other Services"):
+            row["ociServiceCategory"] = category
+            mapping["ociServiceCategory"] = category
+        product = clean_text(suggestion.get("ociProduct"))
+        if product:
+            mapping["aiSuggestedProduct"] = product
+        mapping["aiSuggestedKind"] = kind
+        mapping["aiConfidence"] = to_number(suggestion.get("confidence"), 0)
+        mapping["aiNote"] = clean_text(suggestion.get("note"))[:300]
+        mapping["reviewRequired"] = True
+        row["aiAssisted"] = True
+        applied += 1
+
+    status.update({
+        "ran": True,
+        "applied": applied,
+        "warnings": [clean_text(w)[:300] for w in (payload.get("warnings") or []) if clean_text(w)],
+        "note": ("AI assist classified %d of %d unrecognized line items. Costs, quantities and "
+                 "sizing are unchanged - they remain the BOM's own figures - and every assisted "
+                 "line stays flagged for review." % (applied, len(pending))),
+    })
+    return applied, status
+
+
 def compact_table_edit_context(fields, rows, max_rows=250):
     editable_fields = [
         {
@@ -10803,6 +10941,15 @@ class IntakeHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         parsed = urlparse(self.path)
         path = unquote(parsed.path)
+        if path == "/api/catalog-status":
+            # Lets the UI - or an agent - see how current the Oracle SKU catalog is without
+            # having to read the price-list file or know the refresh script exists.
+            try:
+                import bootstrap
+                self.send_json(200, bootstrap.catalog_status())
+            except Exception as exc:
+                self.send_error_json(500, f"Could not read catalog status: {exc}")
+            return
         if path == "/api/health":
             self.send_json(
                 200,
@@ -10909,15 +11056,30 @@ class IntakeHandler(BaseHTTPRequestHandler):
             return
         file_item = form["file"]
         filename = clean_text(getattr(file_item, "filename", "")) or "bom.xlsx"
-        if not filename.lower().endswith((".xlsx", ".xls", ".csv", ".tsv")):
-            self.send_error_json(400, "Please upload an OCI BOM as .xlsx, .xls, or .csv.")
+        if not filename.lower().endswith((".xlsx", ".xls", ".csv", ".tsv", ".json")):
+            self.send_error_json(400, "Please upload an OCI BOM as .xlsx, .xls, .csv, or .json.")
             return
         safe_name = re.sub(r"[^A-Za-z0-9_.-]+", "_", filename)
         saved_path = UPLOAD_DIR / f"{int(time.time())}_bom_{safe_name}"
         saved_path.write_bytes(file_item.file.read())
+        # Workbooks routinely hold several proposals side by side; the client can name which
+        # sheet to convert after seeing the options the first pass reported.
+        requested_sheet = ""
+        if "sheet" in form:
+            requested_sheet = clean_text(form.getfirst("sheet") or "")
         try:
             import bom_convert
-            result = bom_convert.convert_oci_bom(saved_path)
+            result = bom_convert.convert_oci_bom(saved_path, sheet=requested_sheet or None)
+            # Advisory AI pass over whatever the SKU catalog could not identify. It never touches
+            # a cost, a quantity or a rate - see foreign_bom_assist and AGENT_POLICY.md.
+            try:
+                _assist_applied, _assist_status = foreign_bom_assist(result)
+                result["aiAssist"] = _assist_status
+                if _assist_status.get("ran") and _assist_status.get("note"):
+                    result.setdefault("conversionWarnings", []).append(_assist_status["note"])
+            except Exception as assist_exc:
+                result["aiAssist"] = {"ran": False, "applied": 0,
+                                      "note": f"AI assist unavailable: {assist_exc}"}
             result["fileName"] = filename
             result["selectedShape"] = shape_payload(DEFAULT_SHAPE_KEY)
             result["rateCard"] = build_rate_card(DEFAULT_SHAPE_KEY, True)
@@ -11340,6 +11502,21 @@ class IntakeHandler(BaseHTTPRequestHandler):
                         "ociDiscount": oci_discount,
                         "extraServices": payload.get("extraServices") or [],
                         "hours": hours_per_month or HOURS_PER_MONTH,
+                    }
+                else:
+                    # On-prem gets the same Pricing Overview treatment - editable OCI discount,
+                    # 5-year projection, savings and chart - with current on-prem spend standing
+                    # in for the uploaded bill. The baseline is whatever the user entered in the
+                    # app; it is written as an editable cell, so leaving it at zero gives the
+                    # customer a blank to fill in rather than a fabricated number.
+                    cloud_comparison = {
+                        "pricing": pricing,
+                        "ramp": payload.get("ramp"),
+                        "ociDiscount": oci_discount,
+                        "extraServices": payload.get("extraServices") or [],
+                        "hours": hours_per_month or HOURS_PER_MONTH,
+                        "onPrem": True,
+                        "baselineMonthly": to_number(existing_infra_cost, 0),
                     }
                 full_diagram_options, full_architecture_plan = architecture_options_with_ai(
                     pricing,

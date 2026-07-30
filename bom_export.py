@@ -713,7 +713,10 @@ def build_cloud_overview_sheet(ws, util_by_year, oci_monthly, existing_monthly,
     existing_monthly = float(existing_monthly or 0)
     oci_annual = oci_monthly * 12.0
     existing_annual = existing_monthly * 12.0
-    _cloudnm = {"aws": "AWS", "azure": "Azure", "gcp": "GCP"}.get(str(source_cloud or "aws").lower(), "AWS")
+    # "onprem" names the on-prem baseline: the block is identical, only what the OCI estimate
+    # is being measured against changes.
+    _cloudnm = {"aws": "AWS", "azure": "Azure", "gcp": "GCP",
+                "onprem": "On-Prem"}.get(str(source_cloud or "aws").lower(), "AWS")
     _est = " (App Estimate)" if estimated else ""
     if existing_label is None:
         existing_label = f"Current {_cloudnm} Spend (monthly){_est}:"
@@ -950,7 +953,10 @@ def add_comparison_to_pricing_overview(ws, start_row, oci_monthly_ref, oci_annua
       estimated    = True when the bill had no pricing and aws_monthly is an App Estimate;
                      appends " (App Estimate)" to the existing-cost labels.
     """
-    _cloudnm = {"aws": "AWS", "azure": "Azure", "gcp": "GCP"}.get(str(source_cloud or "aws").lower(), "AWS")
+    # "onprem" names the on-prem baseline: the block is identical, only what the OCI estimate
+    # is being measured against changes.
+    _cloudnm = {"aws": "AWS", "azure": "Azure", "gcp": "GCP",
+                "onprem": "On-Prem"}.get(str(source_cloud or "aws").lower(), "AWS")
     _est = " (App Estimate)" if estimated else ""
     from openpyxl.chart import BarChart, LineChart, Reference
     from openpyxl.chart.axis import ChartLines
@@ -1509,7 +1515,10 @@ def build_cloud_comparison_bytes(pricing, ramp=None, bom_name="", oci_discount=0
 def _cloud_product_breakdown(ws, ordered, present_groups, bom_name, oci_discount=0.0,
                              source_cloud="aws", estimated=False):
     ws.title = "Product Breakdown "  # trailing space is intentional
-    _cloudnm = {"aws": "AWS", "azure": "Azure", "gcp": "GCP"}.get(str(source_cloud or "aws").lower(), "AWS")
+    # "onprem" names the on-prem baseline: the block is identical, only what the OCI estimate
+    # is being measured against changes.
+    _cloudnm = {"aws": "AWS", "azure": "Azure", "gcp": "GCP",
+                "onprem": "On-Prem"}.get(str(source_cloud or "aws").lower(), "AWS")
     _est = " (App Estimate)" if estimated else ""
 
     # ---- sheet view / page setup ----
@@ -1759,7 +1768,10 @@ def _cloud_legend(ws, present_groups, first, last, total_row, start_row,
     main Product Breakdown table (columns B:H) rather than off to the right."""
     base = Font(name="Calibri", size=14)
     n = len(present_groups)
-    _cloudnm = {"aws": "AWS", "azure": "Azure", "gcp": "GCP"}.get(str(source_cloud or "aws").lower(), "AWS")
+    # "onprem" names the on-prem baseline: the block is identical, only what the OCI estimate
+    # is being measured against changes.
+    _cloudnm = {"aws": "AWS", "azure": "Azure", "gcp": "GCP",
+                "onprem": "On-Prem"}.get(str(source_cloud or "aws").lower(), "AWS")
     _est = " (App Estimate)" if estimated else ""
 
     # ---- disclaimer banner (B:G) ----

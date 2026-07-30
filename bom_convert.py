@@ -32,16 +32,60 @@ def _clean(value):
     return "" if text.lower() in {"nan", "none", "nat"} else text
 
 
+EXCEL_ERRORS = {"#value!", "#ref!", "#n/a", "#div/0!", "#name?", "#null!", "#num!", "n/a", "na"}
+
+
 def _to_float(value, default=0.0):
     text = _clean(value)
     if not text:
         return default
-    text = text.replace(",", "").replace("$", "").strip()
+    # Excel error text and "N/A" placeholders are NOT numbers. Without this the digit-scavenging
+    # fallback below turns cells like "#DIV/0!" or a stray "M1" ramp label into a quantity.
+    if text.lower() in EXCEL_ERRORS:
+        return default
+    text = text.replace(",", "").replace("$", "").replace("(", "-").replace(")", "").strip()
     try:
         return float(text)
     except ValueError:
         m = re.search(r"-?\d+(?:\.\d+)?", text)
         return float(m.group(0)) if m else default
+
+
+# Rows that restate a total rather than adding a line. These carry a description and a number
+# but no SKU, so they look exactly like a priced line - and adding them double-counts the whole
+# sheet. Also catches the boilerplate the estimator appends under the table.
+_SUMMARY_ROW_RE = re.compile(
+    r"^\s*(?:\*\s*)?(?:"
+    r"(?:estimated\s+)?(?:total|sub\s*-?\s*total|grand\s+total)\b"
+    r"|(?:monthly|yearly|annual|weekly|daily|one\s+time|onetime|upfront)\s+total\b"
+    r"|total\s+(?:cost|costs|monthly|annual|yearly|price|\$)"
+    r"|(?:estimated\s+)?total\s+cost\s*-"
+    r"|quote\s+is\s+for"
+    r"|disclaimer\b"
+    r"|note\s*:"
+    r"|\*\s*total\s+was\s+calculated"
+    r")",
+    re.IGNORECASE,
+)
+
+
+def _is_summary_row(desc, values):
+    """True when this row restates a total instead of adding a line item."""
+    if _SUMMARY_ROW_RE.search(_clean(desc)):
+        return True
+    # The label sometimes sits in a neighbouring cell rather than the description column
+    # (e.g. F52 'Yearly Total with Transition' with the figure in H52).
+    for v in values:
+        text = _clean(v)
+        if text and _SUMMARY_ROW_RE.search(text):
+            return True
+    return False
+
+
+def _is_blank_cell(value):
+    """True when a cell carries no data. Oracle's estimator writes a single space into the
+    columns of a section-header row, so ' ' has to count as blank."""
+    return _clean(value) == ""
 
 
 def _norm(value):
@@ -151,15 +195,50 @@ def _augment_with_app_shapes():
                 ("memorySku", "memoryRate", "Memory", "Gigabyte Per Hour"),
             ):
                 sku = _clean(sh.get(sku_key)).upper()
-                if sku and sku not in SKU_CATALOG:
-                    SKU_CATALOG[sku] = {
-                        "sku": sku,
-                        "product": f"Compute {sh.get('label', '')} - {kind_label}".strip(),
-                        "unit": unit,
-                        "rate": _to_float(sh.get(rate_key)),
-                    }
+                if not sku:
+                    continue
+                # The app's shape table is the better source even when the raw price list
+                # already has the SKU: the price list's `payg` for these rows is sometimes a
+                # bundle factor (a literal 1.0) rather than a dollar rate, and its product text
+                # is marketing copy ("AMD-based Available on both Bare Metal or Virtual
+                # Machine."). Overwrite rather than setdefault so a converted BOM shows the
+                # shape name and the rate the app would actually price at.
+                SKU_CATALOG[sku] = {
+                    "sku": sku,
+                    "product": f"Compute {sh.get('label', '')} - {kind_label}".strip(),
+                    "unit": unit,
+                    "rate": _to_float(sh.get(rate_key)),
+                }
     except Exception:
         pass
+    # The curated add-on catalog (Autonomous DB, OIC, FastConnect port speeds, WAF, DR...) holds
+    # SKUs the raw price list doesn't. Without these, a BOM full of ADB or OIC lines comes back
+    # almost entirely "unrecognized" even though the app prices those services itself.
+    try:
+        import oci_catalog
+        for entry in getattr(oci_catalog, "CURATED", []):
+            for sku, product, unit, rate in _curated_sku_variants(entry):
+                sku = _clean(sku).upper()
+                if sku and sku not in SKU_CATALOG:
+                    SKU_CATALOG[sku] = {"sku": sku, "product": product,
+                                        "unit": unit, "rate": _to_float(rate)}
+    except Exception:
+        pass
+
+
+def _curated_sku_variants(entry):
+    """Every SKU a curated catalog entry can bill under - the headline SKU plus the per-option
+    SKUs a card carries (FastConnect's four port speeds, for example)."""
+    out = [(entry.get("sku"), entry.get("name") or "", entry.get("unit") or "", entry.get("rate"))]
+    speed_skus = entry.get("speedSkus") or {}
+    speed_rates = entry.get("speedRates") or {}
+    speed_labels = entry.get("speedLabels") or {}
+    for key, sku in speed_skus.items():
+        out.append((sku,
+                    f"{entry.get('name') or ''} ({speed_labels.get(key, key)})".strip(),
+                    entry.get("unit") or "",
+                    speed_rates.get(key)))
+    return out
 
 
 def recognize_sku(sku):
@@ -184,11 +263,36 @@ def _hidden_sheets(path):
         return set()
 
 
+def _read_ragged_csv(path):
+    """Read a CSV/TSV whose rows have DIFFERENT column counts.
+
+    A CSV exported from Oracle's cost estimator is not a rectangle: the header block
+    ("Oracle Investment Proposal...", "Currency: USD") is one field wide, the line-item table is
+    seven or more, and the disclaimer at the bottom is one again. pandas.read_csv infers the
+    column count from the first line and then raises "Expected 1 fields in line 6, saw 7", so the
+    whole file was rejected. Parse with the csv module and pad every row to the widest instead.
+    """
+    import csv as _csv
+    sep = "\t" if str(path).lower().endswith(".tsv") else ","
+    with open(path, "r", newline="", encoding="utf-8-sig", errors="replace") as fh:
+        # Sniff the delimiter so a comma-named .csv that is really semicolon-separated
+        # (common from European Excel locales) still parses.
+        sample = fh.read(8192)
+        fh.seek(0)
+        try:
+            sep = _csv.Sniffer().sniff(sample, delimiters=",;\t|").delimiter
+        except Exception:
+            pass
+        rows = [list(r) for r in _csv.reader(fh, delimiter=sep)]
+    width = max((len(r) for r in rows), default=0)
+    padded = [r + [None] * (width - len(r)) for r in rows]
+    return pd.DataFrame(padded, dtype=object)
+
+
 def _read_sheets(path):
     path = str(path)
     if path.lower().endswith((".csv", ".tsv")):
-        sep = "\t" if path.lower().endswith(".tsv") else ","
-        return {"Sheet1": pd.read_csv(path, header=None, dtype=object, sep=sep)}
+        return {"Sheet1": _read_ragged_csv(path)}
     xl = pd.ExcelFile(path)
     hidden = _hidden_sheets(path)
     names = [n for n in xl.sheet_names if n not in hidden] or list(xl.sheet_names)
@@ -457,6 +561,130 @@ def _pick_bom_sheet(sheets):
     return best, (best_key[2] if best_key else -1)
 
 
+ALL_SHEETS = "__all__"
+
+
+def _convert_all_sheets(path, sheets, sheet_options):
+    """Convert every BOM sheet in the workbook and add them together.
+
+    Used for estimator exports that split one estimate across a sheet per service type. Each
+    sheet is converted by the ordinary single-sheet path (so all the per-line logic is identical),
+    then the line items are concatenated with unique row ids and the totals summed."""
+    parts = []
+    for option in sheet_options:
+        try:
+            parts.append((option["sheet"], convert_oci_bom(path, sheet=option["sheet"])))
+        except Exception:
+            continue
+    if not parts:
+        raise ValueError("No OCI SKUs (e.g. B94277) were found in this file - it does not look like an OCI BOM.")
+    if len(parts) == 1:
+        return parts[0][1]
+
+    base = dict(parts[0][1])
+    rows, warnings = [], []
+    numeric_totals = {}
+    stated_total = 0.0
+    recognized = unrecognized = 0
+    for sheet_name, part in parts:
+        for row in (part.get("rows") or []):
+            row = dict(row)
+            # Row ids must stay unique across sheets, and the sheet has to stay visible on the
+            # line - "Compute OCPU" means little without knowing which proposal it came from.
+            row["rowId"] = f"{sheet_name}::{row.get('rowId')}"
+            row["sourceSheet"] = sheet_name
+            if not _clean(row.get("environment")):
+                row["environment"] = sheet_name
+            rows.append(row)
+        for key, value in (part.get("totals") or {}).items():
+            if isinstance(value, (int, float)):
+                numeric_totals[key] = numeric_totals.get(key, 0.0) + float(value)
+        stated_total += float(part.get("statedMonthlyTotal") or 0)
+        recognized += int(part.get("recognizedSkus") or 0)
+        unrecognized += int(part.get("unrecognizedSkus") or 0)
+        for warning in (part.get("conversionWarnings") or []):
+            warnings.append(f"[{sheet_name}] {warning}")
+
+    monthly = round(numeric_totals.get("monthly", 0.0), 4)
+    numeric_totals["monthly"] = monthly
+    numeric_totals["annual"] = round(monthly * 12, 4)
+    base.update({
+        "rows": rows,
+        "totals": numeric_totals,
+        "sheetName": f"All {len(parts)} BOM sheets combined",
+        "sheetOptions": sheet_options,
+        "combinedSheets": [name for name, _ in parts],
+        "statedMonthlyTotal": round(stated_total, 4),
+        "recognizedSkus": recognized,
+        "unrecognizedSkus": unrecognized,
+        "conversionWarnings": warnings,
+    })
+    return base
+
+
+def _bom_sheet_options(sheets):
+    """Every sheet that looks like a BOM, with enough detail for the user to choose between
+    them. Real customer workbooks routinely hold several proposals side by side (an OCVS
+    option, an IaaS option, a 1-year commit, a separate ERP BOM), and picking one silently
+    hides the rest - so the caller gets the whole list and converts whichever is asked for."""
+    options = []
+    for name, raw in sheets.items():
+        sku_rows = 0
+        for r in range(min(800, len(raw.index))):
+            vals = raw.iloc[r].tolist()
+            if any(SKU_RE.search(_clean(v)) for v in vals):
+                sku_rows += 1
+        if sku_rows <= 0:
+            continue
+        options.append({
+            "sheet": name,
+            "skuRows": sku_rows,
+            "label": _sheet_reference_label(raw),
+            "statedMonthly": _stated_monthly_total(raw),
+        })
+    return options
+
+
+def _sheet_reference_label(raw):
+    """The estimator writes 'Reference label: <name>' in the first few rows - a far better
+    description of what a sheet holds than the tab name someone typed."""
+    for r in range(min(6, len(raw.index))):
+        for v in raw.iloc[r].tolist():
+            text = _clean(v)
+            if text.lower().startswith("reference label:"):
+                return text.split(":", 1)[1].strip()
+    return ""
+
+
+def _detect_currency(raw):
+    """The estimator writes 'Currency: USD' (or CAD, EUR...) in the header block. A BOM priced
+    in another currency must not be silently mixed with the app's USD rate card."""
+    for r in range(min(8, len(raw.index))):
+        for v in raw.iloc[r].tolist():
+            text = _clean(v)
+            if text.lower().startswith("currency:"):
+                code = text.split(":", 1)[1].strip().upper()
+                if re.fullmatch(r"[A-Z]{3}", code):
+                    return code
+    return ""
+
+
+def _stated_monthly_total(raw):
+    """The BOM's own 'Monthly Total' figure, so a converted sheet can be checked against what
+    the source file claims rather than trusting the re-added lines blindly."""
+    for r in range(len(raw.index)):
+        vals = raw.iloc[r].tolist()
+        labelled = any(_norm(v) in {"monthly total", "total monthly", "monthly total cost"}
+                       for v in vals)
+        if not labelled:
+            continue
+        nums = [_to_float(v, 0) for v in vals]
+        best = max(nums) if nums else 0.0
+        if best > 0:
+            return round(best, 4)
+    return 0.0
+
+
 HEADER_KEYS = {
     "sku": ["prod #", "prod", "part number", "part", "sku", "product number"],
     "desc": ["description", "oracle cloud service", "cloud service", "product", "item", "service", "line item"],
@@ -611,14 +839,178 @@ def _merge_server_compute(rows, hours):
     return out
 
 
-def convert_oci_bom(path):
-    """Parse an alternate OCI BOM and return a pricing-result dict for the app."""
+def _looks_like_estimator_json(path):
+    """True for the cost estimator's native .json export (its own save format)."""
+    if not str(path).lower().endswith(".json"):
+        return False
+    try:
+        with open(path, "r", encoding="utf-8-sig", errors="replace") as fh:
+            data = json.load(fh)
+        return isinstance(data, dict) and isinstance(data.get("configs"), list)
+    except Exception:
+        return False
+
+
+def convert_estimator_json(path):
+    """Convert the cost estimator's native JSON export.
+
+    This is cleaner than parsing the spreadsheet: the JSON carries the SKU, quantity, unit price
+    and monthly cost per line as real numbers, with no merged cells, section headers or free-tier
+    split rows to disentangle. Structure is configs[] -> services[] -> items[], where a config is
+    a card in the estimator UI and a service is one metered product within it.
+
+    Items with no quantity AND no cost are the preset's unused meters - the estimator lists every
+    SKU a service *could* bill, not just the ones you configured - so they are skipped rather
+    than emitted as a wall of $0 lines.
+    """
+    _augment_with_app_shapes()
+    with open(path, "r", encoding="utf-8-sig", errors="replace") as fh:
+        data = json.load(fh)
+
+    rows = []
+    totals = {"ocpus": 0.0, "memoryGb": 0.0, "blockStorageGb": 0.0, "fileStorageGb": 0.0,
+              "cloudStorageGb": 0.0, "monthly": 0.0, "recognized": 0, "unrecognized": 0,
+              "review": 0}
+    order = 0
+    for config in (data.get("configs") or []):
+        section = _clean(config.get("label"))
+        for service in (config.get("services") or []):
+            svc_label = _clean(service.get("label")) or section
+            util = service.get("utilization") or {}
+            hours = _to_float(util.get("hoursPerMonth"), HOURS_PER_MONTH) or HOURS_PER_MONTH
+            instances = _to_float(util.get("instances"), 1) or 1.0
+            for item in (service.get("items") or []):
+                qty = _to_float(item.get("quantity"), 0)
+                monthly = _to_float(item.get("monthlyCost"), 0)
+                if not qty and not monthly:
+                    continue          # a preset meter the user never configured
+                sku = _clean(item.get("sku")).upper()
+                rate = _to_float(item.get("unitPrice"), 0)
+                rec = recognize_sku(sku) if sku else None
+                product = (rec or {}).get("product") or svc_label or sku or "OCI line item"
+                unit = (rec or {}).get("unit") or ""
+                kind, category = classify_resource(f"{svc_label} {product}", unit)
+
+                specs = {"applicationServers": 0.0, "databaseServers": 0.0, "vcpus": 0.0,
+                         "ocpus": 0.0, "memoryGb": 0.0, "blockStorageGb": 0.0,
+                         "fileStorageGb": 0.0}
+                size = qty * instances
+                for k, tk in (("ocpu", "ocpus"), ("memory", "memoryGb"),
+                              ("blockStorage", "blockStorageGb"), ("fileStorage", "fileStorageGb"),
+                              ("objectStorage", "cloudStorageGb")):
+                    if kind == k:
+                        if tk in specs:
+                            specs[tk] = size
+                        totals[tk] += size
+
+                recognized = bool(rec)
+                is_review = not recognized and monthly > 0
+                totals["recognized" if recognized else "unrecognized"] += 1
+                if is_review:
+                    totals["review"] += 1
+                totals["monthly"] += monthly
+                order += 1
+                name = (f"{section} · {product}" if section and section != product else product)[:120]
+                rows.append({
+                    "rowId": f"json-{order}", "sourceRow": order, "_kind": kind, "name": name,
+                    "environment": section or "", "region": "",
+                    "sizeCheck": {"status": "ok"},
+                    "mappingFlag": "May not be an optimal mapping" if is_review else "",
+                    "costAction": "price", "ociServiceCategory": category, "ociProduct": product,
+                    "sourceService": svc_label or "OCI Cost Estimator",
+                    "sourceMonthlyCost": round(monthly, 4), "windowsLicenseMonthly": 0.0,
+                    "hoursPerMonth": hours, "shapeUsed": None, "specs": specs,
+                    "fullServiceMapping": {
+                        "sku": sku, "ociProduct": product, "sourceProvider": "OCI Cost Estimator",
+                        "sourceService": svc_label, "sourceProduct": sku,
+                        "sourceMonthlyCost": round(monthly, 4), "sourceCurrency":
+                            _clean(data.get("currency")) or "USD",
+                        "quantity": round(qty, 4), "unit": unit,
+                        "confidence": 0.95 if recognized else 0.4,
+                        "reviewRequired": is_review,
+                    },
+                    "lineItems": [{
+                        "sku": sku, "description": product, "quantity": round(qty, 4),
+                        "unit": unit, "rate": rate, "monthly": round(monthly, 4),
+                        "mapping": (f"Recognized OCI SKU {sku}: {product}." if recognized else
+                                    f"SKU {sku or '(none)'} not in the OCI catalog - carried at "
+                                    f"the estimate's stated cost for review."),
+                        "ociServiceUsage": recognized,
+                    }],
+                    "monthly": round(monthly, 4), "annual": round(monthly * 12, 4),
+                    "assumptions": ["Converted from an OCI Cost Estimator JSON export."],
+                })
+
+    if not rows:
+        raise ValueError("This estimator JSON has no configured line items.")
+
+    monthly_total = round(totals["monthly"], 4)
+    currency = _clean(data.get("currency")).upper() or "USD"
+    warnings = []
+    if currency != "USD":
+        warnings.append(f"This estimate is priced in {currency}; figures are used as written.")
+    if totals["unrecognized"]:
+        share = totals["unrecognized"] / max(1, totals["unrecognized"] + totals["recognized"])
+        if share >= 0.25:
+            warnings.append(
+                f"{totals['unrecognized']} of {totals['unrecognized'] + totals['recognized']} "
+                f"line items use SKUs this app's catalog doesn't carry. They keep the cost the "
+                f"estimate states and are flagged for review.")
+    diagram_available = any(
+        any(_to_float((r.get("specs") or {}).get(k), 0) > 0
+            for k in ("ocpus", "memoryGb", "blockStorageGb")) for r in rows)
+    return {
+        "converted": True, "intakeMode": "on_prem", "fullServiceBeta": True, "auto": False,
+        "engine": "local deterministic", "sheetName": _clean(data.get("label")) or "Cost Estimator",
+        "sheetOptions": [], "statedMonthlyTotal": monthly_total, "sourceCurrency": currency,
+        "conversionWarnings": warnings, "hoursPerMonth": HOURS_PER_MONTH,
+        "cpuUnitResolved": "ocpu",
+        "totals": {
+            "ocpus": totals["ocpus"], "memoryGb": totals["memoryGb"],
+            "blockStorageGb": totals["blockStorageGb"], "fileStorageGb": totals["fileStorageGb"],
+            "cloudStorageGb": totals["cloudStorageGb"], "fullServiceMonthly": monthly_total,
+            "mappedServiceRows": totals["recognized"], "unpricedServiceRows": totals["review"],
+            "oversizeRows": 0, "impossibleRows": 0, "sourceMonthlyCost": monthly_total,
+            "mappedSourceMonthlyCost": monthly_total, "unmappedSourceMonthlyCost": 0.0,
+            "monthly": monthly_total, "annual": round(monthly_total * 12, 4),
+        },
+        "rows": rows, "recognizedSkus": totals["recognized"],
+        "unrecognizedSkus": totals["unrecognized"], "diagramAvailable": diagram_available,
+        "diagramUnavailableReason": ("" if diagram_available else
+            "This estimate has pricing lines but no workload-level CPU, memory or storage "
+            "detail for an architecture diagram."),
+    }
+
+
+def convert_oci_bom(path, sheet=None):
+    if _looks_like_estimator_json(path):
+        return convert_estimator_json(path)
+    return _convert_oci_bom_sheets(path, sheet)
+
+
+def _convert_oci_bom_sheets(path, sheet=None):
+    """Parse an alternate OCI BOM and return a pricing-result dict for the app.
+
+    `sheet` names which worksheet to convert. Workbooks holding several proposals side by side
+    are normal, so when it's omitted the best-looking sheet is converted and every candidate is
+    returned as `sheetOptions` for the caller to offer as a re-pick."""
     _augment_with_app_shapes()
     sheets = _read_sheets(path)
     comparison_summary = _convert_comparison_summary(sheets)
     if comparison_summary:
         return comparison_summary
-    sheet_name, sku_count = _pick_bom_sheet(sheets)
+    sheet_options = _bom_sheet_options(sheets)
+    requested = _clean(sheet)
+    # The estimator splits ONE estimate across a sheet per service type (IAAS + PAAS + SAAS), so
+    # converting a single sheet silently drops half the deal. ALL_SHEETS converts every BOM sheet
+    # and adds them together.
+    if requested == ALL_SHEETS and len(sheet_options) > 1:
+        return _convert_all_sheets(path, sheets, sheet_options)
+    if requested and requested in sheets:
+        sheet_name = requested
+        sku_count = next((o["skuRows"] for o in sheet_options if o["sheet"] == requested), 1)
+    else:
+        sheet_name, sku_count = _pick_bom_sheet(sheets)
     if not sheet_name or sku_count <= 0:
         raise ValueError("No OCI SKUs (e.g. B94277) were found in this file - it does not look like an OCI BOM.")
     raw = sheets[sheet_name]
@@ -632,6 +1024,8 @@ def convert_oci_bom(path):
               "review": 0}
     section = ""
     order = 0
+    # Previous line-item row, so a blank-Part tier continuation can inherit its SKU.
+    prev_sku, prev_desc = "", ""
 
     for ri in range(data_start, len(raw.index)):
         values = raw.iloc[ri].tolist()
@@ -657,11 +1051,35 @@ def convert_oci_bom(path):
         free_text = _norm(cell("partqty")) in {"free", "included", "no charge"} or \
             _norm(desc) in {"free tier"} or _norm(cell("monthly")) in {"free", "included"}
 
-        # Only SKU rows are priced line items. A row with no SKU is either a section
-        # header (e.g. a server name - becomes the row's grouping) or a free-tier line.
+        # Is there any actual data in the numeric columns? A section-header row carries a
+        # description and nothing else (Oracle's estimator fills the rest with a single space).
+        # This must look at the RAW cells: instqty/hours get defaulted above, so the parsed
+        # values can't distinguish "blank" from "1".
+        has_numbers = any(
+            not _is_blank_cell(cell(k)) and _to_float(cell(k), 0) != 0
+            for k in ("partqty", "usageqty", "unitprice", "monthly")
+        )
+        tier_continuation = False
+
+        # A row with no recognizable SKU is a section header (e.g. a server or service-group
+        # name, which becomes the grouping for the lines beneath it) UNLESS it carries real
+        # numbers - hand-built BOMs routinely have priced lines whose Part cell is blank,
+        # "N/A", or a service with no SKU at all. Treating those as headers silently dropped
+        # their cost from the total and mislabeled every line that followed.
         if not sku:
+            if _is_summary_row(desc, values):
+                continue      # a restated total or boilerplate - never a line item
             if free_text and desc:
-                pass  # fall through to emit a $0 free line item
+                pass          # fall through to emit a $0 free line item
+            elif has_numbers:
+                # The estimator splits a metered service across TIERS: the free allowance on the
+                # SKU row, then the billable remainder on the next row with the Part cell blank
+                # and the SAME description. That continuation row is not an unknown service - it
+                # is the line above at its paid rate - so inherit the SKU instead of flagging a
+                # perfectly well understood line as "not in the catalog".
+                if desc and _norm(desc) == _norm(prev_desc) and prev_sku:
+                    sku = prev_sku
+                    tier_continuation = True
             elif desc:
                 section = desc
                 continue
@@ -681,7 +1099,14 @@ def convert_oci_bom(path):
         # Pricing. The BOM's per-line unit price is authoritative OCI pricing. Hours
         # factor: an explicit usage-hours column wins (app BOM); otherwise a per-hour
         # metric bills x hours/month and a per-month metric x1 (Oracle BOM-tool format).
-        rate = unitprice or ((rec or {}).get("rate") or 0.0)
+        #
+        # A stated unit price of ZERO is a real price, not a missing one. Free-tier and
+        # included lines (Load Balancer Base, the first 10 TB of egress, a bundled NLB) are
+        # written as $0.00 by the estimator, and falling back to the catalog rate on a falsy
+        # 0 billed them at list - inventing cost the source quote explicitly says is free.
+        # So only reach for the catalog rate when the cell is genuinely absent.
+        priced_in_source = not _is_blank_cell(cell("unitprice"))
+        rate = unitprice if priced_in_source else ((rec or {}).get("rate") or 0.0)
         qty_units = (partqty * instqty) if partqty else (instqty if instqty != 1.0 else 0.0)
         metric_l = _norm(metric or cat_unit)
         if usageqty:
@@ -780,8 +1205,12 @@ def convert_oci_bom(path):
             "assumptions": [
                 "Converted from an alternate OCI BOM.",
                 "Recognized SKUs are re-priced at the app's OCI catalog rate; unrecognized lines are carried at the BOM's stated cost and flagged for review.",
-            ],
+            ]
+            + (["Billable tier of the line above (the estimator lists the free allowance and the "
+                "paid remainder as separate rows sharing one SKU)."] if tier_continuation else []),
         })
+        if sku and desc:
+            prev_sku, prev_desc = sku, desc
 
     # Group each server section's compute (OCPU + memory) into ONE re-mappable VM row
     # so the results page can offer a per-server shape dropdown.
@@ -810,6 +1239,37 @@ def convert_oci_bom(path):
             for key in ("ocpus", "memoryGb", "blockStorageGb"))
         for row in rows
     )
+
+    # Say plainly what didn't line up. A foreign BOM is somebody else's document: it can be in
+    # another currency, carry hand-added adjustment columns the converter can't know about, or
+    # use SKUs this app has never seen. None of that is silently repaired - the deterministic
+    # numbers stand and the discrepancy is reported so a human can judge it.
+    currency = _detect_currency(raw)
+    stated_total = _stated_monthly_total(raw)
+    warnings = []
+    if currency and currency != "USD":
+        warnings.append(
+            f"This BOM is priced in {currency}. The app's rate card is USD, so the converted "
+            f"figures stay in {currency} as written - they are not converted."
+        )
+    if stated_total > 0:
+        drift = monthly_total - stated_total
+        if abs(drift) > max(1.0, stated_total * 0.005):
+            warnings.append(
+                f"This sheet states a monthly total of {stated_total:,.2f} but its line items "
+                f"add up to {monthly_total:,.2f} ({drift:+,.2f}). That usually means the sheet "
+                f"carries a hand-added adjustment column (a transition or ramp factor) that "
+                f"isn't part of the standard Monthly Cost column. The line items are used as-is."
+            )
+    if totals["unrecognized"] > 0:
+        share = totals["unrecognized"] / max(1, totals["unrecognized"] + totals["recognized"])
+        if share >= 0.25:
+            warnings.append(
+                f"{totals['unrecognized']} of "
+                f"{totals['unrecognized'] + totals['recognized']} line items use SKUs this app's "
+                f"catalog doesn't carry. They are kept at the cost the BOM states and flagged "
+                f"for review; their sizing (OCPU / RAM / storage) may be incomplete."
+            )
     return {
         "converted": True,
         "intakeMode": "on_prem",
@@ -817,6 +1277,14 @@ def convert_oci_bom(path):
         "auto": False,
         "engine": "local deterministic",
         "sheetName": sheet_name,
+        # Every BOM-looking sheet in the workbook, so the UI can offer a re-pick instead of
+        # quietly converting one proposal out of six.
+        "sheetOptions": sheet_options,
+        # What the source sheet says its own monthly total is. Surfaced so a mismatch between
+        # the file's figure and the sum of the lines we recognized is visible rather than hidden.
+        "statedMonthlyTotal": stated_total,
+        "sourceCurrency": currency,
+        "conversionWarnings": warnings,
         "hoursPerMonth": HOURS_PER_MONTH,
         "cpuUnitResolved": "ocpu",
         "totals": result_totals,

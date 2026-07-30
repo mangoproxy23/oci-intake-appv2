@@ -506,10 +506,17 @@ textarea {
 .upload-panel {
   min-height: calc(100vh - 120px);
   display: grid;
-  grid-template-columns: minmax(280px, 0.8fr) minmax(320px, 1fr);
-  align-items: center;
+  /* Even halves. The intake modes stack vertically in the left column now, so the two sides
+     carry similar weight - an uneven split left the drop zone looking cramped beside them. */
+  grid-template-columns: minmax(280px, 1fr) minmax(320px, 1fr);
+  align-items: stretch;
   gap: 34px;
   padding: 40px;
+}
+
+.upload-copy {
+  display: flex;
+  flex-direction: column;
 }
 
 .upload-panel.is-uploading .drop-zone {
@@ -559,15 +566,23 @@ textarea {
 
 .mode-selector {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  /* One card per row. Side by side, a third mode squeezed the descriptions to two words a
+     line; stacked, each card gets the full column width and the copy reads in one go. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 10px;
   margin-top: 24px;
+  /* Share the leftover column height with the drop zone so both sides finish flush. */
+  flex: 1;
+  align-content: stretch;
 }
 
 .mode-card {
   display: grid;
   gap: 7px;
-  min-height: 126px;
+  /* Stacked cards size to their content and share the column, so the fixed 126px floor the
+     side-by-side layout needed to keep two cards level is no longer wanted. */
+  min-height: 0;
+  align-content: center;
   border: 1px solid var(--line);
   border-top: 4px solid transparent;
   border-radius: 8px;
@@ -632,7 +647,7 @@ textarea {
 }
 
 .drop-zone {
-  min-height: 310px;
+  min-height: 400px;
   display: grid;
   place-items: center;
   align-content: center;
@@ -2141,6 +2156,46 @@ td input[type="checkbox"] {
 }
 
 .load-workflow-status[hidden] { display: none; }
+
+/* Foreign OCI BOM: which sheet in the workbook, and what didn't reconcile. */
+.foreign-bom-sheets {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line, #d8dee6);
+  border-radius: 8px;
+  background: #f5f7fa;
+  font-size: 13px;
+  max-width: 520px;
+}
+
+.foreign-bom-sheets[hidden] { display: none; }
+.foreign-bom-sheets select {
+  padding: 6px 8px;
+  border: 1px solid var(--line, #d8dee6);
+  border-radius: 6px;
+  background: #fff;
+  font: inherit;
+}
+.foreign-bom-sheets small { color: #6b7682; }
+
+.foreign-bom-warnings {
+  margin-top: 8px;
+  padding: 8px 12px;
+  border: 1px solid #f0d9a8;
+  border-left: 3px solid #d99b1c;
+  border-radius: 8px;
+  background: #fdf7e8;
+  font-size: 13px;
+  color: #6a4c07;
+  max-width: 720px;
+}
+
+.foreign-bom-warnings[hidden] { display: none; }
+.foreign-bom-warnings p { margin: 0 0 6px; }
+.foreign-bom-warnings p:last-child { margin-bottom: 0; }
 .load-workflow-status .lws-name { font-weight: 600; }
 .load-workflow-status .lws-state { color: #6b7682; }
 .load-workflow-status.lws-ok { background: #e6f4ec; border-color: #bfe3cd; }

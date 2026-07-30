@@ -117,6 +117,10 @@
                 <strong>Cloud Bill</strong>
                 <span>AWS, Azure, or GCP bill exports mapped to OCI-equivalent services.</span>
               </button>
+              <button id="modeForeignBom" class="mode-card" type="button" data-mode="foreign_bom">
+                <strong>Foreign OCI BOM</strong>
+                <span>Upload an existing BOM from the cost estimator tool, or other formats.</span>
+              </button>
             </div>
             <label id="providerControl" class="provider-control is-hidden" for="providerHint">
               <span>Provider Detection</span>
@@ -148,6 +152,12 @@
             <span class="lws-name"></span>
             <span class="lws-state"></span>
           </div>
+          <div id="foreignBomSheets" class="foreign-bom-sheets" hidden>
+            <label for="foreignBomSheetSelect"><strong>Which BOM in this workbook?</strong></label>
+            <select id="foreignBomSheetSelect"></select>
+            <small>This file holds more than one proposal. Pick the one to convert.</small>
+          </div>
+          <div id="foreignBomWarnings" class="foreign-bom-warnings" hidden role="status"></div>
           <div id="selectedDocTile" class="selected-doc-tile" hidden>
             <span class="selected-doc-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24"><path d="M6 2h8l4 4v16H6z"/><path d="M14 2v4h4"/></svg>
@@ -699,6 +709,16 @@
                   <b class="discount-suffix" aria-hidden="true">%</b>
                 </div>
                 <small>Applied to the OCI estimate; licensing is not discounted</small>
+              </label>
+              <label class="ramp-control" id="existingInfraControl" hidden>
+                <span>Current On-Prem Cost</span>
+                <div class="currency-input">
+                  <b aria-hidden="true">$</b>
+                  <input id="existingInfraCost" type="number" min="0" step="1000" value="0"
+                         inputmode="decimal" aria-label="Current on-premises monthly cost in dollars"
+                         title="What the estate costs to run today, per month. Used as the baseline the OCI estimate is compared against in the BOM. Leave at 0 if unknown - the workbook cell stays editable." />
+                </div>
+                <small id="existingInfraHint">Monthly. Baseline for the BOM comparison - editable in the workbook too</small>
               </label>
             </div>
             <div class="ramp-years" aria-label="Annual Ramp Totals">
