@@ -21,8 +21,10 @@ def main():
     storage = oci_catalog.search("", "Storage")
     tiers = {item["id"]: item for item in storage}
 
-    assert len(storage) == 5
-    assert {"object", "object_ia", "archive"} <= set(tiers)
+    # The curated five must all be present. The group also carries estimator-generated cards
+    # now, so assert on what this test is about rather than on a total that will keep moving.
+    assert {"block", "object", "object_ia", "archive", "file"} <= set(tiers)
+    assert len([t for t in storage if t.get("source") != "estimator"]) == 5
     assert tiers["object"]["sku"] == "B91628"
     assert tiers["object_ia"]["sku"] == "B93000"
     assert tiers["archive"]["sku"] == "B91633"
@@ -86,6 +88,35 @@ def main():
     assert app.map_service_comparison("azure", "Blob Cool LRS")["product"] == (
         "OCI Infrequent Access Storage"
     )
+
+    # Every S3 line carries the same service name, so the tier lives only in the product text or
+    # the usage type. Matching on the service alone priced all of them as Standard ($0.0255/GB)
+    # instead of IA ($0.0100) or Archive ($0.0026) - 8 lines on a real AWS bill. The detail is
+    # allowed to refine the service ONLY along this tier ladder, so a named service still wins
+    # everywhere else (AmazonCloudFront must not become plain egress).
+    tier_cases = [
+        (("Amazon S3", "Standard-IA"), "OCI Infrequent Access Storage"),
+        (("Amazon S3", "One Zone-IA"), "OCI Infrequent Access Storage"),
+        (("Amazon S3", "Glacier"), "OCI Archive Storage"),
+        (("Amazon S3", "Glacier Deep Archive"), "OCI Archive Storage"),
+        (("Amazon S3", "Standard"), "OCI Object Storage"),
+        (("Amazon S3",), "OCI Object Storage"),
+        (("Amazon Simple Storage Service", "TimedStorage-SIA-ByteHrs"),
+         "OCI Infrequent Access Storage"),
+        (("Amazon Simple Storage Service", "TimedStorage-ZIA-ByteHrs"),
+         "OCI Infrequent Access Storage"),
+        (("Amazon Simple Storage Service", "TimedStorage-GDA-ByteHrs"), "OCI Archive Storage"),
+        (("Amazon Simple Storage Service", "TimedStorage-ByteHrs"), "OCI Object Storage"),
+        # Guards on the narrowness of the rule - these must NOT be refined by detail text.
+        (("AmazonCloudFront", "US-DataTransfer-Out-Bytes"),
+         "Third-Party CDN (Akamai / CloudFlare)"),
+        (("AWSDataTransfer", "regional data transfer - in/out/between EC2 AZs"),
+         "OCI Outbound Data Transfer"),
+        (("Amazon Elastic Compute Cloud", "BoxUsage:m5.large"), "OCI Virtual Machine Instances"),
+    ]
+    for texts, expected in tier_cases:
+        got = (app.map_service_comparison("aws", *texts) or {}).get("product")
+        assert got == expected, f"{texts} mapped to {got!r}, expected {expected!r}"
 
     print("Object Storage tier pricing regression checks passed.")
 

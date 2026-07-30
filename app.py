@@ -6585,6 +6585,19 @@ def _keyword_hit(kw, haystack):
     return kw in haystack
 
 
+# Storage tiers are the one mapping a bill's SERVICE name cannot express: every S3 line says
+# "Amazon S3" whether it is Standard, Standard-IA, One Zone-IA or Glacier, and the tier appears
+# only in the product description or usage type (TimedStorage-SIA-ByteHrs). These are the only
+# refinements a detail match is allowed to make over a service match - keeping it to an explicit
+# ladder is what stops generic detail text ("data transfer out") from overriding a named service.
+STORAGE_TIER_REFINEMENTS = {
+    "OCI Object Storage": (
+        "OCI Infrequent Access Storage",   # Standard-IA, One Zone-IA, SIA/ZIA usage types
+        "OCI Archive Storage",             # Glacier, Glacier Deep Archive, GDA usage types
+    ),
+}
+
+
 def map_service_comparison(provider, *texts):
     """Map a source-cloud service to its OCI equivalent using Oracle's Service
     Comparison guides. provider is 'aws'/'azure'; texts are the bill's service/
@@ -6597,25 +6610,52 @@ def map_service_comparison(provider, *texts):
     if not haystack:
         return None
 
-    def _first_match(text):
+    def _best_match(text):
+        """Longest keyword hit in `text`, not the first entry in file order.
+
+        File order is arbitrary, so "amazon s3 standard-ia" matched whichever of the S3 rules
+        happened to be listed first. Scoring by keyword length makes the most specific rule win:
+        "standard-ia" (11 chars) beats "s3" (2).
+        """
         if not text:
             return None
+        best = None
         for entry in entries:
             for kw in entry.get("keywords", []):
-                if _keyword_hit(normalize(kw), text):
-                    return {
+                nkw = normalize(kw)
+                if _keyword_hit(nkw, text) and (best is None or len(nkw) > best[0]):
+                    best = (len(nkw), {
                         "category": entry.get("category", ""),
                         "product": entry.get("ociProduct", ""),
                         "note": entry.get("note", ""),
-                    }
-        return None
+                    })
+        return best
 
-    # The SERVICE name is authoritative; a meter description only mentions other services in
-    # passing. Matching the joined text let "regional data transfer - in/out/between EC2 AZs"
-    # hit the EC2 rule (which is listed first) and map 55 AWSDataTransfer lines to OCI Virtual
-    # Machine Instances. Try the service on its own before falling back to the full text.
+    # The SERVICE name is authoritative for WHICH service, and it stays that way - matching the
+    # joined text let "regional data transfer - in/out/between EC2 AZs" hit the EC2 rule, and
+    # letting generic detail text win flips AmazonCloudFront onto plain egress.
+    #
+    # The one thing the service name CANNOT carry is the storage TIER: an S3 line is always
+    # service "Amazon S3", with Standard / Standard-IA / Glacier living only in the product or
+    # usage-type detail. Mapping on the service alone priced every S3 line as Standard
+    # ($0.0255/GB) instead of Infrequent Access ($0.0100) or Archive ($0.0026).
+    #
+    # So the override is deliberately narrow: a detail match may refine a service match only
+    # along the tier ladder declared below. Everything else keeps the service name's answer.
     service_text = normalize(clean_text(texts[0])) if texts else ""
-    return _first_match(service_text) or _first_match(haystack)
+    detail_text = normalize(" ".join(clean_text(t) for t in texts[1:] if t))
+    svc_best = _best_match(service_text)
+    detail_best = _best_match(detail_text)
+    if svc_best and detail_best:
+        tiers = STORAGE_TIER_REFINEMENTS.get(svc_best[1]["product"]) or ()
+        if detail_best[1]["product"] in tiers:
+            return detail_best[1]
+    if svc_best:
+        return svc_best[1]
+    if detail_best:
+        return detail_best[1]
+    full_best = _best_match(haystack)
+    return full_best[1] if full_best else None
 
 
 def seed_cloud_bill_mapping(row, fields, rate_card):

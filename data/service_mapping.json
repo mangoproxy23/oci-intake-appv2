@@ -5,127 +5,966 @@
     "match": "Case-insensitive substring match of the listed keywords against the bill's source service/product text. First match wins (more specific entries are listed first)."
   },
   "aws": [
-    {"keywords": ["cloudwatch logs", "cloudwatchlogs"], "category": "Observability and Management", "ociProduct": "OCI Logging"},
-    {"keywords": ["cloudwatch events", "cloudwatchevents", "eventbridge"], "category": "Observability and Management", "ociProduct": "OCI Events"},
-    {"keywords": ["cloudwatch"], "category": "Observability and Management", "ociProduct": "OCI Monitoring"},
-    {"keywords": ["cloudtrail"], "category": "Observability and Management", "ociProduct": "OCI Audit"},
-    {"keywords": ["cloudformation"], "category": "Observability and Management", "ociProduct": "OCI Resource Manager"},
-    {"keywords": ["cloud map", "cloudmap"], "category": "Observability and Management", "ociProduct": "OCI Resource Manager"},
-    {"keywords": ["cloudfront"], "category": "Networking", "ociProduct": "Third-Party CDN (Akamai / CloudFlare)", "note": "No native OCI CDN; uses a third-party CDN."},
-    {"keywords": ["cloudhsm"], "category": "Security and Identity", "ociProduct": "OCI Dedicated Key Management (External HSM)"},
-    {"keywords": ["lambda"], "category": "Compute", "ociProduct": "OCI Functions"},
-    {"keywords": ["ec2 container registry", "elastic container registry", "container registry", "amazonecr"], "category": "Containers", "ociProduct": "OCI Registry"},
-    {"keywords": ["elastic container service for kubernetes", "elastic kubernetes", "eks", "kubernetes"], "category": "Containers", "ociProduct": "OCI Kubernetes Engine (OKE)"},
-    {"keywords": ["elastic container service", "fargate", "ecs"], "category": "Containers", "ociProduct": "OCI Container Instances"},
-    {"keywords": ["lightsail"], "category": "Compute", "ociProduct": "OCI Compute & Storage"},
-    {"keywords": ["elastic compute", "ec2"], "category": "Compute", "ociProduct": "OCI Virtual Machine Instances"},
-    {"keywords": ["s3 glacier", "glacier", "deep archive", "deeparchive", "glacier deep archive", "gda-byte", "-gda-", "gir-byte", "archive access", "s3 archive"], "category": "Storage", "ociProduct": "OCI Archive Storage"},
-    {"keywords": ["standard-ia", "standard ia", "one zone-ia", "one zone ia", "onezone-ia", "infrequent access", "sia-byte", "z-ia"], "category": "Storage", "ociProduct": "OCI Infrequent Access Storage"},
-    {"keywords": ["simple storage", "amazons3", "amazon s3", "s3"], "category": "Storage", "ociProduct": "OCI Object Storage"},
-    {"keywords": ["elastic block", "ebs"], "category": "Storage", "ociProduct": "OCI Block Volumes"},
-    {"keywords": ["workspaces", "workspace"], "category": "End User Computing", "ociProduct": "OCI Secure Desktops", "note": "AWS WorkSpaces has no exact OCI equivalent; mapped to OCI Secure Desktops as the closest match."},
-    {"keywords": ["fsx"], "category": "Storage", "ociProduct": "OCI ZFS Storage (HA)", "note": "AWS FSx maps to the Oracle ZFS Storage HA appliance: marketplace image fee (B95410, $1.85/instance-hour) plus OCI block volume for the provisioned capacity, per Oracle ZFS HA documentation. Priced this way rather than File Storage, whose $0.30/GB-mo rate is ~23x the FSx HDD rate."},
-    {"keywords": ["elastic file", "efs"], "category": "Storage", "ociProduct": "OCI File Storage"},
-    {"keywords": ["aws backup", "amazon backup", "backup storage"], "category": "Storage", "ociProduct": "OCI Backup Storage"},
-    {"keywords": ["snowball"], "category": "Storage", "ociProduct": "OCI Data Transfer"},
-    {"keywords": ["storage gateway", "storagegateway"], "category": "Storage", "ociProduct": "OCI File Storage / ZFS Appliance", "note": "Closest OCI equivalent; confirm ZFS appliance fit."},
-    {"keywords": ["codeartifact"], "category": "DevOps", "ociProduct": "OCI Artifact Registry"},
-    {"keywords": ["data transfer", "datatransfer"], "category": "Networking", "ociProduct": "OCI Outbound Data Transfer"},
-    {"keywords": ["virtual private cloud", "vpc"], "category": "Networking", "ociProduct": "OCI Virtual Cloud Network (VCN)"},
-    {"keywords": ["direct connect", "directconnect"], "category": "Networking", "ociProduct": "OCI FastConnect"},
-    {"keywords": ["global accelerator"], "category": "Networking", "ociProduct": "OCI Global Network"},
-    {"keywords": ["route 53", "route53"], "category": "Networking", "ociProduct": "OCI DNS"},
-    {"keywords": ["elastic load balancing", "elasticloadbalancing", "elb", "load balanc"], "category": "Networking", "ociProduct": "OCI Load Balancer"},
-    {"keywords": ["transfer family", "awstransfer", "aws transfer"], "category": "Networking", "ociProduct": "SFTP / SOA Suite (Marketplace)"},
-    {"keywords": ["network firewall"], "category": "Security and Identity", "ociProduct": "OCI Network Firewall"},
-    {"keywords": ["firewall manager"], "category": "Security and Identity", "ociProduct": "OCI Firewall"},
-    {"keywords": ["web application firewall", "waf"], "category": "Security and Identity", "ociProduct": "OCI Web Application Firewall"},
-    {"keywords": ["shield"], "category": "Security and Identity", "ociProduct": "OCI Web Application Firewall"},
-    {"keywords": ["vpn"], "category": "Networking", "ociProduct": "OCI VPN Connect"},
-    {"keywords": ["database migration", "migration service", "dms"], "category": "Database", "ociProduct": "OCI GoldenGate"},
-    {"keywords": ["documentdb"], "category": "Database", "ociProduct": "Oracle Autonomous JSON Database"},
-    {"keywords": ["neptune"], "category": "Database", "ociProduct": "Oracle Autonomous Database"},
-    {"keywords": ["aurora", "rds", "relational database"], "category": "Database", "ociProduct": "OCI Database (DBaaS)"},
-    {"keywords": ["elasticache"], "category": "Database", "ociProduct": "OCI Cache with Redis"},
-    {"keywords": ["opensearch"], "category": "Database", "ociProduct": "OCI Search with OpenSearch"},
-    {"keywords": ["dynamodb", "dynamo db", "simpledb"], "category": "Database", "ociProduct": "Oracle NoSQL Database Cloud Service"},
-    {"keywords": ["redshift"], "category": "Analytics", "ociProduct": "Oracle Autonomous Data Warehouse"},
-    {"keywords": ["managed streaming for apache kafka", "msk"], "category": "Analytics", "ociProduct": "OCI Streaming with Apache Kafka"},
-    {"keywords": ["kinesis", "firehose"], "category": "Analytics", "ociProduct": "OCI Streaming"},
-    {"keywords": ["elastic mapreduce", "emr"], "category": "Analytics", "ociProduct": "OCI Big Data Service"},
-    {"keywords": ["quicksight"], "category": "Analytics", "ociProduct": "Oracle Analytics Cloud"},
-    {"keywords": ["glue", "data pipeline"], "category": "Analytics", "ociProduct": "OCI Data Integration"},
-    {"keywords": ["simple queue", "sqs", "amazon mq", " mq"], "category": "Application Integration", "ociProduct": "OCI Queue"},
-    {"keywords": ["simple notification", "sns"], "category": "Application Integration", "ociProduct": "OCI Notifications"},
-    {"keywords": ["simple email", "simpleemail", "amazonses"], "category": "Application Integration", "ociProduct": "OCI Email Delivery"},
-    {"keywords": ["step functions"], "category": "Application Integration", "ociProduct": "OCI Process Automation"},
-    {"keywords": ["api gateway"], "category": "DevOps", "ociProduct": "OCI API Management"},
-    {"keywords": ["amplify"], "category": "DevOps", "ociProduct": "OCI Visual Builder Studio"},
-    {"keywords": ["codebuild", "codepipeline", "codecommit", "devops guru"], "category": "DevOps", "ociProduct": "OCI DevOps Service"},
-    {"keywords": ["cognito"], "category": "Security and Identity", "ociProduct": "OCI Identity and Access Management with Identity Domains"},
-    {"keywords": ["identity and access", "iam"], "category": "Security and Identity", "ociProduct": "OCI Identity and Access Management"},
-    {"keywords": ["secrets manager", "secretsmanager"], "category": "Security and Identity", "ociProduct": "OCI Vault (Secrets Management)"},
-    {"keywords": ["key management", "kms"], "category": "Security and Identity", "ociProduct": "OCI Vault"},
-    {"keywords": ["certificate manager", "certificatemanager", "acm"], "category": "Security and Identity", "ociProduct": "OCI Certificates"},
-    {"keywords": ["config"], "category": "Security and Identity", "ociProduct": "OCI Cloud Guard / Security Zones"},
-    {"keywords": ["guardduty"], "category": "Security and Identity", "ociProduct": "OCI Threat Detector"},
-    {"keywords": ["inspector"], "category": "Security and Identity", "ociProduct": "OCI Vulnerability Scanning"},
-    {"keywords": ["security hub", "detective", "audit manager"], "category": "Security and Identity", "ociProduct": "Oracle Cloud Guard"},
-    {"keywords": ["macie"], "category": "Security and Identity", "ociProduct": "OCI Data Safe"},
-    {"keywords": ["directory service"], "category": "Security and Identity", "ociProduct": "OCI Managed Microsoft Active Directory"},
-    {"keywords": ["systems manager"], "category": "Observability and Management", "ociProduct": "Oracle Management Cloud"},
-    {"keywords": ["x-ray", "xray"], "category": "Observability and Management", "ociProduct": "OCI Application Performance Monitoring"},
-    {"keywords": ["compute optimizer"], "category": "Observability and Management", "ociProduct": "OCI Cloud Advisor"},
-    {"keywords": ["cost explorer"], "category": "Observability and Management", "ociProduct": "OCI Cost Estimator"},
-    {"keywords": ["budgets"], "category": "Observability and Management", "ociProduct": "OCI Budgets"},
-    {"keywords": ["elastic disaster recovery", "disaster recovery"], "category": "Other Services", "ociProduct": "OCI Full Stack Disaster Recovery"},
-    {"keywords": ["service catalog"], "category": "Other Services", "ociProduct": "OCI Service Catalog"},
-    {"keywords": ["quantum ledger"], "category": "Other Services", "ociProduct": "OCI Blockchain Platform"},
-    {"keywords": ["bedrock", "claude", "llama", "titan", "sdxl", "machine learning"], "category": "AI and Machine Learning", "ociProduct": "OCI Generative AI"},
-    {"keywords": ["sagemaker"], "category": "AI and Machine Learning", "ociProduct": "OCI Data Science"},
-    {"keywords": ["rekognition"], "category": "AI and Machine Learning", "ociProduct": "OCI Vision"},
-    {"keywords": ["textract"], "category": "AI and Machine Learning", "ociProduct": "OCI Document Understanding"},
-    {"keywords": ["comprehend"], "category": "AI and Machine Learning", "ociProduct": "OCI Language"},
-    {"keywords": ["transcribe"], "category": "AI and Machine Learning", "ociProduct": "OCI Speech"},
-    {"keywords": ["translate"], "category": "AI and Machine Learning", "ociProduct": "OCI Language"},
-    {"keywords": ["kendra"], "category": "AI and Machine Learning", "ociProduct": "OCI AI Services"},
-    {"keywords": ["amazon q", "amazonq"], "category": "AI and Machine Learning", "ociProduct": "OCI Digital Assistant"}
+    {
+      "keywords": [
+        "cloudwatch logs",
+        "cloudwatchlogs"
+      ],
+      "category": "Observability and Management",
+      "ociProduct": "OCI Logging"
+    },
+    {
+      "keywords": [
+        "cloudwatch events",
+        "cloudwatchevents",
+        "eventbridge"
+      ],
+      "category": "Observability and Management",
+      "ociProduct": "OCI Events"
+    },
+    {
+      "keywords": [
+        "cloudwatch"
+      ],
+      "category": "Observability and Management",
+      "ociProduct": "OCI Monitoring"
+    },
+    {
+      "keywords": [
+        "cloudtrail"
+      ],
+      "category": "Observability and Management",
+      "ociProduct": "OCI Audit"
+    },
+    {
+      "keywords": [
+        "cloudformation"
+      ],
+      "category": "Observability and Management",
+      "ociProduct": "OCI Resource Manager"
+    },
+    {
+      "keywords": [
+        "cloud map",
+        "cloudmap"
+      ],
+      "category": "Observability and Management",
+      "ociProduct": "OCI Resource Manager"
+    },
+    {
+      "keywords": [
+        "cloudfront"
+      ],
+      "category": "Networking",
+      "ociProduct": "Third-Party CDN (Akamai / CloudFlare)",
+      "note": "No native OCI CDN; uses a third-party CDN."
+    },
+    {
+      "keywords": [
+        "cloudhsm"
+      ],
+      "category": "Security and Identity",
+      "ociProduct": "OCI Dedicated Key Management (External HSM)"
+    },
+    {
+      "keywords": [
+        "lambda"
+      ],
+      "category": "Compute",
+      "ociProduct": "OCI Functions"
+    },
+    {
+      "keywords": [
+        "ec2 container registry",
+        "elastic container registry",
+        "container registry",
+        "amazonecr"
+      ],
+      "category": "Containers",
+      "ociProduct": "OCI Registry"
+    },
+    {
+      "keywords": [
+        "elastic container service for kubernetes",
+        "elastic kubernetes",
+        "eks",
+        "kubernetes"
+      ],
+      "category": "Containers",
+      "ociProduct": "OCI Kubernetes Engine (OKE)"
+    },
+    {
+      "keywords": [
+        "elastic container service",
+        "fargate",
+        "ecs"
+      ],
+      "category": "Containers",
+      "ociProduct": "OCI Container Instances"
+    },
+    {
+      "keywords": [
+        "lightsail"
+      ],
+      "category": "Compute",
+      "ociProduct": "OCI Compute & Storage"
+    },
+    {
+      "keywords": [
+        "elastic compute",
+        "ec2"
+      ],
+      "category": "Compute",
+      "ociProduct": "OCI Virtual Machine Instances"
+    },
+    {
+      "keywords": [
+        "s3 glacier",
+        "glacier",
+        "deep archive",
+        "deeparchive",
+        "glacier deep archive",
+        "gda-byte",
+        "-gda-",
+        "gir-byte",
+        "archive access",
+        "s3 archive"
+      ],
+      "category": "Storage",
+      "ociProduct": "OCI Archive Storage"
+    },
+    {
+      "keywords": [
+        "standard-ia",
+        "standard ia",
+        "one zone-ia",
+        "one zone ia",
+        "onezone-ia",
+        "infrequent access",
+        "sia-byte",
+        "z-ia",
+        "zia-byte"
+      ],
+      "category": "Storage",
+      "ociProduct": "OCI Infrequent Access Storage"
+    },
+    {
+      "keywords": [
+        "simple storage",
+        "amazons3",
+        "amazon s3",
+        "s3"
+      ],
+      "category": "Storage",
+      "ociProduct": "OCI Object Storage"
+    },
+    {
+      "keywords": [
+        "elastic block",
+        "ebs"
+      ],
+      "category": "Storage",
+      "ociProduct": "OCI Block Volumes"
+    },
+    {
+      "keywords": [
+        "workspaces",
+        "workspace"
+      ],
+      "category": "End User Computing",
+      "ociProduct": "OCI Secure Desktops",
+      "note": "AWS WorkSpaces has no exact OCI equivalent; mapped to OCI Secure Desktops as the closest match."
+    },
+    {
+      "keywords": [
+        "fsx"
+      ],
+      "category": "Storage",
+      "ociProduct": "OCI ZFS Storage (HA)",
+      "note": "AWS FSx maps to the Oracle ZFS Storage HA appliance: marketplace image fee (B95410, $1.85/instance-hour) plus OCI block volume for the provisioned capacity, per Oracle ZFS HA documentation. Priced this way rather than File Storage, whose $0.30/GB-mo rate is ~23x the FSx HDD rate."
+    },
+    {
+      "keywords": [
+        "elastic file",
+        "efs"
+      ],
+      "category": "Storage",
+      "ociProduct": "OCI File Storage"
+    },
+    {
+      "keywords": [
+        "aws backup",
+        "amazon backup",
+        "backup storage"
+      ],
+      "category": "Storage",
+      "ociProduct": "OCI Backup Storage"
+    },
+    {
+      "keywords": [
+        "snowball"
+      ],
+      "category": "Storage",
+      "ociProduct": "OCI Data Transfer"
+    },
+    {
+      "keywords": [
+        "storage gateway",
+        "storagegateway"
+      ],
+      "category": "Storage",
+      "ociProduct": "OCI File Storage / ZFS Appliance",
+      "note": "Closest OCI equivalent; confirm ZFS appliance fit."
+    },
+    {
+      "keywords": [
+        "codeartifact"
+      ],
+      "category": "DevOps",
+      "ociProduct": "OCI Artifact Registry"
+    },
+    {
+      "keywords": [
+        "data transfer",
+        "datatransfer"
+      ],
+      "category": "Networking",
+      "ociProduct": "OCI Outbound Data Transfer"
+    },
+    {
+      "keywords": [
+        "virtual private cloud",
+        "vpc"
+      ],
+      "category": "Networking",
+      "ociProduct": "OCI Virtual Cloud Network (VCN)"
+    },
+    {
+      "keywords": [
+        "direct connect",
+        "directconnect"
+      ],
+      "category": "Networking",
+      "ociProduct": "OCI FastConnect"
+    },
+    {
+      "keywords": [
+        "global accelerator"
+      ],
+      "category": "Networking",
+      "ociProduct": "OCI Global Network"
+    },
+    {
+      "keywords": [
+        "route 53",
+        "route53"
+      ],
+      "category": "Networking",
+      "ociProduct": "OCI DNS"
+    },
+    {
+      "keywords": [
+        "elastic load balancing",
+        "elasticloadbalancing",
+        "elb",
+        "load balanc"
+      ],
+      "category": "Networking",
+      "ociProduct": "OCI Load Balancer"
+    },
+    {
+      "keywords": [
+        "transfer family",
+        "awstransfer",
+        "aws transfer"
+      ],
+      "category": "Networking",
+      "ociProduct": "SFTP / SOA Suite (Marketplace)"
+    },
+    {
+      "keywords": [
+        "network firewall"
+      ],
+      "category": "Security and Identity",
+      "ociProduct": "OCI Network Firewall"
+    },
+    {
+      "keywords": [
+        "firewall manager"
+      ],
+      "category": "Security and Identity",
+      "ociProduct": "OCI Firewall"
+    },
+    {
+      "keywords": [
+        "web application firewall",
+        "waf"
+      ],
+      "category": "Security and Identity",
+      "ociProduct": "OCI Web Application Firewall"
+    },
+    {
+      "keywords": [
+        "shield"
+      ],
+      "category": "Security and Identity",
+      "ociProduct": "OCI Web Application Firewall"
+    },
+    {
+      "keywords": [
+        "vpn"
+      ],
+      "category": "Networking",
+      "ociProduct": "OCI VPN Connect"
+    },
+    {
+      "keywords": [
+        "database migration",
+        "migration service",
+        "dms"
+      ],
+      "category": "Database",
+      "ociProduct": "OCI GoldenGate"
+    },
+    {
+      "keywords": [
+        "documentdb"
+      ],
+      "category": "Database",
+      "ociProduct": "Oracle Autonomous JSON Database"
+    },
+    {
+      "keywords": [
+        "neptune"
+      ],
+      "category": "Database",
+      "ociProduct": "Oracle Autonomous Database"
+    },
+    {
+      "keywords": [
+        "aurora",
+        "rds",
+        "relational database"
+      ],
+      "category": "Database",
+      "ociProduct": "OCI Database (DBaaS)"
+    },
+    {
+      "keywords": [
+        "elasticache"
+      ],
+      "category": "Database",
+      "ociProduct": "OCI Cache with Redis"
+    },
+    {
+      "keywords": [
+        "opensearch"
+      ],
+      "category": "Database",
+      "ociProduct": "OCI Search with OpenSearch"
+    },
+    {
+      "keywords": [
+        "dynamodb",
+        "dynamo db",
+        "simpledb"
+      ],
+      "category": "Database",
+      "ociProduct": "Oracle NoSQL Database Cloud Service"
+    },
+    {
+      "keywords": [
+        "redshift"
+      ],
+      "category": "Analytics",
+      "ociProduct": "Oracle Autonomous Data Warehouse"
+    },
+    {
+      "keywords": [
+        "managed streaming for apache kafka",
+        "msk"
+      ],
+      "category": "Analytics",
+      "ociProduct": "OCI Streaming with Apache Kafka"
+    },
+    {
+      "keywords": [
+        "kinesis",
+        "firehose"
+      ],
+      "category": "Analytics",
+      "ociProduct": "OCI Streaming"
+    },
+    {
+      "keywords": [
+        "elastic mapreduce",
+        "emr"
+      ],
+      "category": "Analytics",
+      "ociProduct": "OCI Big Data Service"
+    },
+    {
+      "keywords": [
+        "quicksight"
+      ],
+      "category": "Analytics",
+      "ociProduct": "Oracle Analytics Cloud"
+    },
+    {
+      "keywords": [
+        "glue",
+        "data pipeline"
+      ],
+      "category": "Analytics",
+      "ociProduct": "OCI Data Integration"
+    },
+    {
+      "keywords": [
+        "simple queue",
+        "sqs",
+        "amazon mq",
+        " mq"
+      ],
+      "category": "Application Integration",
+      "ociProduct": "OCI Queue"
+    },
+    {
+      "keywords": [
+        "simple notification",
+        "sns"
+      ],
+      "category": "Application Integration",
+      "ociProduct": "OCI Notifications"
+    },
+    {
+      "keywords": [
+        "simple email",
+        "simpleemail",
+        "amazonses"
+      ],
+      "category": "Application Integration",
+      "ociProduct": "OCI Email Delivery"
+    },
+    {
+      "keywords": [
+        "step functions"
+      ],
+      "category": "Application Integration",
+      "ociProduct": "OCI Process Automation"
+    },
+    {
+      "keywords": [
+        "api gateway"
+      ],
+      "category": "DevOps",
+      "ociProduct": "OCI API Management"
+    },
+    {
+      "keywords": [
+        "amplify"
+      ],
+      "category": "DevOps",
+      "ociProduct": "OCI Visual Builder Studio"
+    },
+    {
+      "keywords": [
+        "codebuild",
+        "codepipeline",
+        "codecommit",
+        "devops guru"
+      ],
+      "category": "DevOps",
+      "ociProduct": "OCI DevOps Service"
+    },
+    {
+      "keywords": [
+        "cognito"
+      ],
+      "category": "Security and Identity",
+      "ociProduct": "OCI Identity and Access Management with Identity Domains"
+    },
+    {
+      "keywords": [
+        "identity and access",
+        "iam"
+      ],
+      "category": "Security and Identity",
+      "ociProduct": "OCI Identity and Access Management"
+    },
+    {
+      "keywords": [
+        "secrets manager",
+        "secretsmanager"
+      ],
+      "category": "Security and Identity",
+      "ociProduct": "OCI Vault (Secrets Management)"
+    },
+    {
+      "keywords": [
+        "key management",
+        "kms"
+      ],
+      "category": "Security and Identity",
+      "ociProduct": "OCI Vault"
+    },
+    {
+      "keywords": [
+        "certificate manager",
+        "certificatemanager",
+        "acm"
+      ],
+      "category": "Security and Identity",
+      "ociProduct": "OCI Certificates"
+    },
+    {
+      "keywords": [
+        "config"
+      ],
+      "category": "Security and Identity",
+      "ociProduct": "OCI Cloud Guard / Security Zones"
+    },
+    {
+      "keywords": [
+        "guardduty"
+      ],
+      "category": "Security and Identity",
+      "ociProduct": "OCI Threat Detector"
+    },
+    {
+      "keywords": [
+        "inspector"
+      ],
+      "category": "Security and Identity",
+      "ociProduct": "OCI Vulnerability Scanning"
+    },
+    {
+      "keywords": [
+        "security hub",
+        "detective",
+        "audit manager"
+      ],
+      "category": "Security and Identity",
+      "ociProduct": "Oracle Cloud Guard"
+    },
+    {
+      "keywords": [
+        "macie"
+      ],
+      "category": "Security and Identity",
+      "ociProduct": "OCI Data Safe"
+    },
+    {
+      "keywords": [
+        "directory service"
+      ],
+      "category": "Security and Identity",
+      "ociProduct": "OCI Managed Microsoft Active Directory"
+    },
+    {
+      "keywords": [
+        "systems manager"
+      ],
+      "category": "Observability and Management",
+      "ociProduct": "Oracle Management Cloud"
+    },
+    {
+      "keywords": [
+        "x-ray",
+        "xray"
+      ],
+      "category": "Observability and Management",
+      "ociProduct": "OCI Application Performance Monitoring"
+    },
+    {
+      "keywords": [
+        "compute optimizer"
+      ],
+      "category": "Observability and Management",
+      "ociProduct": "OCI Cloud Advisor"
+    },
+    {
+      "keywords": [
+        "cost explorer"
+      ],
+      "category": "Observability and Management",
+      "ociProduct": "OCI Cost Estimator"
+    },
+    {
+      "keywords": [
+        "budgets"
+      ],
+      "category": "Observability and Management",
+      "ociProduct": "OCI Budgets"
+    },
+    {
+      "keywords": [
+        "elastic disaster recovery",
+        "disaster recovery"
+      ],
+      "category": "Other Services",
+      "ociProduct": "OCI Full Stack Disaster Recovery"
+    },
+    {
+      "keywords": [
+        "service catalog"
+      ],
+      "category": "Other Services",
+      "ociProduct": "OCI Service Catalog"
+    },
+    {
+      "keywords": [
+        "quantum ledger"
+      ],
+      "category": "Other Services",
+      "ociProduct": "OCI Blockchain Platform"
+    },
+    {
+      "keywords": [
+        "bedrock",
+        "claude",
+        "llama",
+        "titan",
+        "sdxl",
+        "machine learning"
+      ],
+      "category": "AI and Machine Learning",
+      "ociProduct": "OCI Generative AI"
+    },
+    {
+      "keywords": [
+        "sagemaker"
+      ],
+      "category": "AI and Machine Learning",
+      "ociProduct": "OCI Data Science"
+    },
+    {
+      "keywords": [
+        "rekognition"
+      ],
+      "category": "AI and Machine Learning",
+      "ociProduct": "OCI Vision"
+    },
+    {
+      "keywords": [
+        "textract"
+      ],
+      "category": "AI and Machine Learning",
+      "ociProduct": "OCI Document Understanding"
+    },
+    {
+      "keywords": [
+        "comprehend"
+      ],
+      "category": "AI and Machine Learning",
+      "ociProduct": "OCI Language"
+    },
+    {
+      "keywords": [
+        "transcribe"
+      ],
+      "category": "AI and Machine Learning",
+      "ociProduct": "OCI Speech"
+    },
+    {
+      "keywords": [
+        "translate"
+      ],
+      "category": "AI and Machine Learning",
+      "ociProduct": "OCI Language"
+    },
+    {
+      "keywords": [
+        "kendra"
+      ],
+      "category": "AI and Machine Learning",
+      "ociProduct": "OCI AI Services"
+    },
+    {
+      "keywords": [
+        "amazon q",
+        "amazonq"
+      ],
+      "category": "AI and Machine Learning",
+      "ociProduct": "OCI Digital Assistant"
+    }
   ],
   "azure": [
-    {"keywords": ["monitor logs", "log analytics"], "category": "Observability and Management", "ociProduct": "OCI Logging"},
-    {"keywords": ["azure monitor", "monitor"], "category": "Observability and Management", "ociProduct": "OCI Monitoring"},
-    {"keywords": ["activity log"], "category": "Security and Identity", "ociProduct": "OCI Audit"},
-    {"keywords": ["event grid", "eventgrid"], "category": "Application Integration", "ociProduct": "OCI Events"},
-    {"keywords": ["azure functions", "functions"], "category": "Compute", "ociProduct": "OCI Functions"},
-    {"keywords": ["kubernetes", "aks"], "category": "Containers", "ociProduct": "OCI Kubernetes Engine"},
-    {"keywords": ["container registry"], "category": "Containers", "ociProduct": "OCI Registry"},
-    {"keywords": ["virtual machine", "azure vm"], "category": "Compute", "ociProduct": "OCI Virtual Machine Instances"},
-    {"keywords": ["blob cool", "cool blob", "cool tier", "cool lrs", "cool grs", "cool ragrs"], "category": "Storage", "ociProduct": "OCI Infrequent Access Storage"},
-    {"keywords": ["blob storage", "blob"], "category": "Storage", "ociProduct": "OCI Object Storage"},
-    {"keywords": ["managed disk", "disks"], "category": "Storage", "ociProduct": "OCI Block Volumes"},
-    {"keywords": ["azure files", "files"], "category": "Storage", "ociProduct": "OCI File Storage"},
-    {"keywords": ["data box", "import/export", "storsimple"], "category": "Storage", "ociProduct": "OCI Data Transfer"},
-    {"keywords": ["virtual network", "vnet"], "category": "Networking", "ociProduct": "OCI Virtual Cloud Network (VCN)"},
-    {"keywords": ["expressroute"], "category": "Networking", "ociProduct": "OCI FastConnect"},
-    {"keywords": ["vpn gateway", "vpn"], "category": "Networking", "ociProduct": "OCI VPN Connect"},
-    {"keywords": ["traffic manager", "azure dns", "dns"], "category": "Networking", "ociProduct": "OCI DNS"},
-    {"keywords": ["application gateway", "load balancer", "load balanc"], "category": "Networking", "ociProduct": "OCI Load Balancer"},
-    {"keywords": ["web application firewall", "waf"], "category": "Security and Identity", "ociProduct": "OCI Web Application Firewall"},
-    {"keywords": ["ddos"], "category": "Networking", "ociProduct": "OCI DDoS Protection"},
-    {"keywords": ["database for mysql"], "category": "Database", "ociProduct": "OCI MySQL Database Service"},
-    {"keywords": ["database for postgresql"], "category": "Database", "ociProduct": "OCI Database with PostgreSQL"},
-    {"keywords": ["sql database", "azure sql"], "category": "Database", "ociProduct": "Oracle Autonomous AI Transaction Processing (ATP)"},
-    {"keywords": ["cosmos db", "cosmosdb", "table storage"], "category": "Database", "ociProduct": "Oracle NoSQL Database Cloud Service"},
-    {"keywords": ["synapse"], "category": "Analytics", "ociProduct": "Oracle Autonomous AI Lakehouse"},
-    {"keywords": ["stream analytics", "streaming analytics"], "category": "Analytics", "ociProduct": "OCI Streaming"},
-    {"keywords": ["power bi", "powerbi"], "category": "Analytics", "ociProduct": "Oracle Analytics Cloud"},
-    {"keywords": ["machine learning"], "category": "AI and Machine Learning", "ociProduct": "OCI Data Science"},
-    {"keywords": ["data catalog"], "category": "Analytics", "ociProduct": "OCI Data Catalog"},
-    {"keywords": ["queue storage"], "category": "Application Integration", "ociProduct": "OCI Queue"},
-    {"keywords": ["service bus", "servicebus"], "category": "Application Integration", "ociProduct": "OCI Notifications"},
-    {"keywords": ["key vault", "keyvault"], "category": "Security and Identity", "ociProduct": "OCI Vault"},
-    {"keywords": ["entra", "active directory"], "category": "Security and Identity", "ociProduct": "OCI Identity and Access Management"},
-    {"keywords": ["defender", "sentinel"], "category": "Security and Identity", "ociProduct": "Oracle Cloud Guard"},
-    {"keywords": ["resource manager"], "category": "Observability and Management", "ociProduct": "OCI Resource Manager"}
+    {
+      "keywords": [
+        "monitor logs",
+        "log analytics"
+      ],
+      "category": "Observability and Management",
+      "ociProduct": "OCI Logging"
+    },
+    {
+      "keywords": [
+        "azure monitor",
+        "monitor"
+      ],
+      "category": "Observability and Management",
+      "ociProduct": "OCI Monitoring"
+    },
+    {
+      "keywords": [
+        "activity log"
+      ],
+      "category": "Security and Identity",
+      "ociProduct": "OCI Audit"
+    },
+    {
+      "keywords": [
+        "event grid",
+        "eventgrid"
+      ],
+      "category": "Application Integration",
+      "ociProduct": "OCI Events"
+    },
+    {
+      "keywords": [
+        "azure functions",
+        "functions"
+      ],
+      "category": "Compute",
+      "ociProduct": "OCI Functions"
+    },
+    {
+      "keywords": [
+        "kubernetes",
+        "aks"
+      ],
+      "category": "Containers",
+      "ociProduct": "OCI Kubernetes Engine"
+    },
+    {
+      "keywords": [
+        "container registry"
+      ],
+      "category": "Containers",
+      "ociProduct": "OCI Registry"
+    },
+    {
+      "keywords": [
+        "virtual machine",
+        "azure vm"
+      ],
+      "category": "Compute",
+      "ociProduct": "OCI Virtual Machine Instances"
+    },
+    {
+      "keywords": [
+        "blob cool",
+        "cool blob",
+        "cool tier",
+        "cool lrs",
+        "cool grs",
+        "cool ragrs"
+      ],
+      "category": "Storage",
+      "ociProduct": "OCI Infrequent Access Storage"
+    },
+    {
+      "keywords": [
+        "blob storage",
+        "blob"
+      ],
+      "category": "Storage",
+      "ociProduct": "OCI Object Storage"
+    },
+    {
+      "keywords": [
+        "managed disk",
+        "disks"
+      ],
+      "category": "Storage",
+      "ociProduct": "OCI Block Volumes"
+    },
+    {
+      "keywords": [
+        "azure files",
+        "files"
+      ],
+      "category": "Storage",
+      "ociProduct": "OCI File Storage"
+    },
+    {
+      "keywords": [
+        "data box",
+        "import/export",
+        "storsimple"
+      ],
+      "category": "Storage",
+      "ociProduct": "OCI Data Transfer"
+    },
+    {
+      "keywords": [
+        "virtual network",
+        "vnet"
+      ],
+      "category": "Networking",
+      "ociProduct": "OCI Virtual Cloud Network (VCN)"
+    },
+    {
+      "keywords": [
+        "expressroute"
+      ],
+      "category": "Networking",
+      "ociProduct": "OCI FastConnect"
+    },
+    {
+      "keywords": [
+        "vpn gateway",
+        "vpn"
+      ],
+      "category": "Networking",
+      "ociProduct": "OCI VPN Connect"
+    },
+    {
+      "keywords": [
+        "traffic manager",
+        "azure dns",
+        "dns"
+      ],
+      "category": "Networking",
+      "ociProduct": "OCI DNS"
+    },
+    {
+      "keywords": [
+        "application gateway",
+        "load balancer",
+        "load balanc"
+      ],
+      "category": "Networking",
+      "ociProduct": "OCI Load Balancer"
+    },
+    {
+      "keywords": [
+        "web application firewall",
+        "waf"
+      ],
+      "category": "Security and Identity",
+      "ociProduct": "OCI Web Application Firewall"
+    },
+    {
+      "keywords": [
+        "ddos"
+      ],
+      "category": "Networking",
+      "ociProduct": "OCI DDoS Protection"
+    },
+    {
+      "keywords": [
+        "database for mysql"
+      ],
+      "category": "Database",
+      "ociProduct": "OCI MySQL Database Service"
+    },
+    {
+      "keywords": [
+        "database for postgresql"
+      ],
+      "category": "Database",
+      "ociProduct": "OCI Database with PostgreSQL"
+    },
+    {
+      "keywords": [
+        "sql database",
+        "azure sql"
+      ],
+      "category": "Database",
+      "ociProduct": "Oracle Autonomous AI Transaction Processing (ATP)"
+    },
+    {
+      "keywords": [
+        "cosmos db",
+        "cosmosdb",
+        "table storage"
+      ],
+      "category": "Database",
+      "ociProduct": "Oracle NoSQL Database Cloud Service"
+    },
+    {
+      "keywords": [
+        "synapse"
+      ],
+      "category": "Analytics",
+      "ociProduct": "Oracle Autonomous AI Lakehouse"
+    },
+    {
+      "keywords": [
+        "stream analytics",
+        "streaming analytics"
+      ],
+      "category": "Analytics",
+      "ociProduct": "OCI Streaming"
+    },
+    {
+      "keywords": [
+        "power bi",
+        "powerbi"
+      ],
+      "category": "Analytics",
+      "ociProduct": "Oracle Analytics Cloud"
+    },
+    {
+      "keywords": [
+        "machine learning"
+      ],
+      "category": "AI and Machine Learning",
+      "ociProduct": "OCI Data Science"
+    },
+    {
+      "keywords": [
+        "data catalog"
+      ],
+      "category": "Analytics",
+      "ociProduct": "OCI Data Catalog"
+    },
+    {
+      "keywords": [
+        "queue storage"
+      ],
+      "category": "Application Integration",
+      "ociProduct": "OCI Queue"
+    },
+    {
+      "keywords": [
+        "service bus",
+        "servicebus"
+      ],
+      "category": "Application Integration",
+      "ociProduct": "OCI Notifications"
+    },
+    {
+      "keywords": [
+        "key vault",
+        "keyvault"
+      ],
+      "category": "Security and Identity",
+      "ociProduct": "OCI Vault"
+    },
+    {
+      "keywords": [
+        "entra",
+        "active directory"
+      ],
+      "category": "Security and Identity",
+      "ociProduct": "OCI Identity and Access Management"
+    },
+    {
+      "keywords": [
+        "defender",
+        "sentinel"
+      ],
+      "category": "Security and Identity",
+      "ociProduct": "Oracle Cloud Guard"
+    },
+    {
+      "keywords": [
+        "resource manager"
+      ],
+      "category": "Observability and Management",
+      "ociProduct": "OCI Resource Manager"
+    }
   ]
 }
