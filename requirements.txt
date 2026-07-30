@@ -1,4 +1,6 @@
 pandas
+# Used by the official AWS/Azure/GCP compute-shape table importer.
+lxml
 openpyxl
 xlrd
 pypdf

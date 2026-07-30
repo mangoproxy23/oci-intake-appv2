@@ -1,0 +1,207 @@
+{
+  "meta": {
+    "validatedOn": "2026-07-29",
+    "purpose": "Auditable source-cloud processor vendor/generation to OCI compute-family mapping rules.",
+    "notes": [
+      "Processor signatures take precedence over provider instance-name generation thresholds.",
+      "For x86 OCI shapes, one OCPU equals two vCPUs.",
+      "OCI A1 uses one Arm core per OCPU. OCI A2 and A4 use two Arm cores per OCPU, so Arm conversion depends on the selected OCI generation.",
+      "Mappings preserve processor architecture and choose the closest available OCI processor generation; capacity checks are performed separately."
+    ],
+    "sources": [
+      {
+        "provider": "oci",
+        "url": "https://docs.oracle.com/en-us/iaas/Content/Compute/References/computeshapes.htm",
+        "retrievedOn": "2026-07-29",
+        "supports": "OCI processor models, OCPU semantics, and shape capacities"
+      },
+      {
+        "provider": "aws",
+        "url": "https://docs.aws.amazon.com/ec2/latest/instancetypes/ec2-instance-type-specifications.html",
+        "retrievedOn": "2026-07-29",
+        "supports": "EC2 instance processor, vCPU, and memory specifications"
+      },
+      {
+        "provider": "azure",
+        "url": "https://learn.microsoft.com/en-us/azure/virtual-machines/sizes/overview",
+        "retrievedOn": "2026-07-29",
+        "supports": "Azure VM size series, processor families, vCPU, and memory specifications"
+      },
+      {
+        "provider": "gcp",
+        "url": "https://docs.cloud.google.com/compute/docs/machine-resource",
+        "retrievedOn": "2026-07-29",
+        "supports": "Compute Engine machine series, processors, vCPU, and memory specifications"
+      }
+    ]
+  },
+  "ociTargets": {
+    "e4-standard": {
+      "vendor": "amd",
+      "shape": "VM.Standard.E4.Flex",
+      "processor": "AMD EPYC 7J13",
+      "coresPerOcpu": 1,
+      "threadsPerCore": 2
+    },
+    "e5-standard": {
+      "vendor": "amd",
+      "shape": "VM.Standard.E5.Flex",
+      "processor": "AMD EPYC 9J14",
+      "coresPerOcpu": 1,
+      "threadsPerCore": 2
+    },
+    "e6-standard": {
+      "vendor": "amd",
+      "shape": "VM.Standard.E6.Flex",
+      "processor": "AMD EPYC 9J45",
+      "coresPerOcpu": 1,
+      "threadsPerCore": 2
+    },
+    "x9-standard": {
+      "vendor": "intel",
+      "shape": "VM.Standard3.Flex",
+      "processor": "Intel Xeon Platinum 8358",
+      "coresPerOcpu": 1,
+      "threadsPerCore": 2
+    },
+    "x12-standard-ax": {
+      "vendor": "intel",
+      "shape": "VM.Standard4.Ax.Flex",
+      "processor": "Intel Xeon 6987P-C",
+      "coresPerOcpu": 1,
+      "threadsPerCore": 2
+    },
+    "a1-standard": {
+      "vendor": "arm",
+      "shape": "VM.Standard.A1.Flex",
+      "processor": "Ampere Altra Q80-30",
+      "coresPerOcpu": 1,
+      "threadsPerCore": 1
+    },
+    "a2-standard": {
+      "vendor": "arm",
+      "shape": "VM.Standard.A2.Flex",
+      "processor": "AmpereOne A160-30",
+      "coresPerOcpu": 2,
+      "threadsPerCore": 1
+    },
+    "a4-standard": {
+      "vendor": "arm",
+      "shape": "VM.Standard.A4.Flex",
+      "processor": "AmpereOne M A06-36M",
+      "coresPerOcpu": 2,
+      "threadsPerCore": 1
+    }
+  },
+  "providerGenerationRules": {
+    "aws": {
+      "amd": [
+        [8, "e6-standard"],
+        [7, "e5-standard"],
+        [0, "e4-standard"]
+      ],
+      "intel": [
+        [7, "x12-standard-ax"],
+        [0, "x9-standard"]
+      ],
+      "arm": [
+        [8, "a4-standard"],
+        [7, "a2-standard"],
+        [0, "a1-standard"]
+      ]
+    },
+    "azure": {
+      "amd": [
+        [7, "e6-standard"],
+        [6, "e5-standard"],
+        [0, "e4-standard"]
+      ],
+      "intel": [
+        [6, "x12-standard-ax"],
+        [0, "x9-standard"]
+      ],
+      "arm": [
+        [7, "a4-standard"],
+        [6, "a2-standard"],
+        [0, "a1-standard"]
+      ]
+    },
+    "gcp": {
+      "amd": [
+        [4, "e6-standard"],
+        [3, "e5-standard"],
+        [0, "e4-standard"]
+      ],
+      "intel": [
+        [4, "x12-standard-ax"],
+        [0, "x9-standard"]
+      ],
+      "arm": [
+        [4, "a4-standard"],
+        [0, "a1-standard"]
+      ]
+    }
+  },
+  "processorSignatureRules": [
+    {
+      "pattern": "graviton4",
+      "vendor": "arm",
+      "target": "a4-standard"
+    },
+    {
+      "pattern": "graviton3",
+      "vendor": "arm",
+      "target": "a2-standard"
+    },
+    {
+      "pattern": "graviton2",
+      "vendor": "arm",
+      "target": "a1-standard"
+    },
+    {
+      "pattern": "cobalt 200",
+      "vendor": "arm",
+      "target": "a4-standard"
+    },
+    {
+      "pattern": "cobalt 100",
+      "vendor": "arm",
+      "target": "a2-standard"
+    },
+    {
+      "pattern": "ampere altra",
+      "vendor": "arm",
+      "target": "a1-standard"
+    },
+    {
+      "pattern": "axion",
+      "vendor": "arm",
+      "target": "a4-standard"
+    },
+    {
+      "pattern": "turin|epyc 9r|epyc 9j45",
+      "vendor": "amd",
+      "target": "e6-standard"
+    },
+    {
+      "pattern": "genoa|epyc 9j14",
+      "vendor": "amd",
+      "target": "e5-standard"
+    },
+    {
+      "pattern": "milan|epyc 7j13",
+      "vendor": "amd",
+      "target": "e4-standard"
+    },
+    {
+      "pattern": "granite rapids|emerald rapids|sapphire rapids|xeon 6",
+      "vendor": "intel",
+      "target": "x12-standard-ax"
+    },
+    {
+      "pattern": "ice lake|cascade lake|skylake|broadwell|haswell",
+      "vendor": "intel",
+      "target": "x9-standard"
+    }
+  ]
+}

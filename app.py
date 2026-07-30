@@ -968,6 +968,25 @@ _DEFAULT_EQUIV_GEN_MAP = {
 }
 
 
+def _load_equiv_gen_map():
+    path = Path(__file__).resolve().parent / "data" / "processor_generation_mapping.json"
+    try:
+        payload = json.loads(path.read_text())
+        rules = payload.get("providerGenerationRules") or {}
+        loaded = {}
+        for provider, vendors in rules.items():
+            for vendor, entries in (vendors or {}).items():
+                loaded[(provider, vendor)] = [
+                    (int(threshold), shape_key) for threshold, shape_key in entries
+                ]
+        return loaded or _DEFAULT_EQUIV_GEN_MAP
+    except Exception:
+        return _DEFAULT_EQUIV_GEN_MAP
+
+
+EQUIV_GEN_MAP = _load_equiv_gen_map()
+
+
 def equivalent_gen_shape_key(provider, vendor, generation):
     """Map a source instance's generation to the equivalent-generation OCI shape key.
     Falls back to the newest shape for the vendor when there's no specific rule."""

@@ -22,7 +22,8 @@
   },
   "allShapes": [
     {"shape": "VM.Standard.E6.Ax.Flex", "vendor": "amd",   "maxOcpu": 94,  "maxMem": 712,  "tier": "flex"},
-    {"shape": "VM.Standard.E5.Flex",    "vendor": "amd",   "maxOcpu": 94,  "maxMem": 1049, "tier": "flex"},
+    {"shape": "VM.Standard.E5.Flex",    "vendor": "amd",   "maxOcpu": 126, "maxMem": 1049, "tier": "flex"},
+    {"shape": "VM.Standard.E6.Flex",    "vendor": "amd",   "maxOcpu": 126, "maxMem": 1454, "tier": "flex"},
     {"shape": "VM.Standard.E4.Flex",    "vendor": "amd",   "maxOcpu": 64,  "maxMem": 1024, "tier": "flex"},
     {"shape": "VM.Standard.E3.Flex",    "vendor": "amd",   "maxOcpu": 64,  "maxMem": 1024, "tier": "flex"},
     {"shape": "VM.Standard4.Ax.Flex",   "vendor": "intel", "maxOcpu": 39,  "maxMem": 360,  "tier": "flex"},
