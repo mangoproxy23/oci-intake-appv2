@@ -64,3 +64,30 @@ Flipping `architecture` to `advisory` immediately stops agent plans driving the 
 - An agent must never write a rate. Rates come from the rate card and the curated OCI catalog.
 - An agent must never turn a blank into a number on a customer-facing figure. Empty stays empty
   and gets flagged — the app does not invent data.
+
+## The Oracle SKU catalog refreshes itself
+
+Prices and part numbers come from Oracle's Cost Estimator catalog, mirrored into
+`data/oci_price_list.json`. The app checks the catalog's age at startup and refreshes in the
+background when it is more than 7 days old (`bootstrap.refresh_catalog_if_stale`). A stale
+catalog does not break pricing — it just misses SKUs Oracle published since the last pull, which
+shows up as unrecognized lines on a Foreign OCI BOM import rather than as a wrong number.
+
+**Agents must not hand-edit `data/oci_price_list.json`.** It is a mirror, and an edit is
+overwritten by the next refresh. To change a rate, fix the source:
+
+- a rate the app curates itself → `oci_catalog.py` or `data/oci_service_prices.json`
+- a rate Oracle publishes → nothing to do; the refresh picks it up
+
+To pull on demand, or on a machine that has been offline:
+
+```sh
+python3 scripts/refresh_oracle_catalog.py            # fetch, merge, report
+python3 scripts/refresh_oracle_catalog.py --dry-run  # report without writing
+```
+
+`GET /api/catalog-status` returns the dataset version, the UTC refresh stamp, its age in days,
+the SKU count, and whether it is considered stale. Check that before concluding a SKU is missing
+from Oracle's catalog — it may just be that this copy hasn't been refreshed.
+
+Set `OCI_APP_NO_CATALOG_REFRESH=1` to disable the automatic refresh entirely.

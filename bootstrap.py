@@ -115,6 +115,75 @@ def _warn(packages, detail):
     print("=" * 72, file=sys.stderr)
 
 
+CATALOG_MAX_AGE_DAYS = 7
+
+
+def catalog_status():
+    """How old the Oracle SKU catalog is. Returns {version, refreshedUtc, ageDays, stale}."""
+    import datetime
+    import json
+    from pathlib import Path
+    path = Path(__file__).resolve().parent / "data" / "oci_price_list.json"
+    out = {"version": "", "refreshedUtc": "", "ageDays": None, "stale": True,
+           "skus": 0, "maxAgeDays": CATALOG_MAX_AGE_DAYS}
+    try:
+        data = json.loads(path.read_text())
+    except Exception:
+        return out
+    out["skus"] = len(data.get("items") or [])
+    out["version"] = str(data.get("oracleCatalogVersion") or "")
+    stamp = str(data.get("oracleCatalogRefreshedUtc") or "")
+    out["refreshedUtc"] = stamp
+    if not stamp:
+        return out                      # never refreshed - treat as stale, but don't crash
+    try:
+        when = datetime.datetime.fromisoformat(stamp)
+        age = (datetime.datetime.utcnow() - when).total_seconds() / 86400.0
+        out["ageDays"] = round(age, 2)
+        out["stale"] = age > CATALOG_MAX_AGE_DAYS
+    except Exception:
+        pass
+    return out
+
+
+def refresh_catalog_if_stale(quiet=False):
+    """Pull a fresh Oracle SKU catalog when the local one is over a week old.
+
+    Runs on a BACKGROUND thread so startup is never blocked by a network call, and a failure is
+    logged and swallowed - a stale price list still prices correctly, it just misses SKUs Oracle
+    published this week, whereas a refresh that hangs the app on a bad connection is a worse
+    outcome than slightly old data.
+
+    This is what stops the catalog silently rotting. A cron entry works too, but it has to be
+    installed on every machine that runs the app and nothing reminds you when it isn't; checking
+    at startup means the app maintains itself wherever it happens to be running.
+
+    Set OCI_APP_NO_CATALOG_REFRESH=1 to disable (offline or locked-down deployments).
+    """
+    import threading
+    if os.environ.get("OCI_APP_NO_CATALOG_REFRESH") == "1":
+        return None
+    status = catalog_status()
+    if not status["stale"]:
+        return status
+
+    def _run():
+        import subprocess
+        script = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                              "scripts", "refresh_oracle_catalog.py")
+        try:
+            subprocess.run([sys.executable, script, "--quiet"], timeout=180,
+                           capture_output=True, check=False)
+        except Exception:
+            pass                        # offline is fine; the existing catalog still works
+
+    age = "never refreshed" if status["ageDays"] is None else f"{status['ageDays']:.0f} days old"
+    if not quiet:
+        print(f"[catalog] Oracle SKU catalog is {age} - refreshing in the background")
+    threading.Thread(target=_run, daemon=True, name="oracle-catalog-refresh").start()
+    return status
+
+
 if __name__ == "__main__":
     installed = ensure()
     still_missing = [pkg for _, pkg in _missing()]
