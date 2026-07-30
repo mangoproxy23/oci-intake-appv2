@@ -2461,25 +2461,7 @@ async function priceRows({ keepView = false, destination = "price" } = {}) {
     : `Mapping SKUs for ${selectedShape().label}`;
 
   try {
-    const requestOptions = await jsonRequestOptions({
-      fields: state.fields,
-      rows: state.rows,
-      shape: state.selectedShape,
-      intakeMode: state.intakeMode,
-      providerHint: state.providerHint,
-      fullServiceBeta: state.fullServiceBeta,
-      hideGpuPricing: state.hideGpuPricing,
-      hideWindowsPricing: state.hideWindowsPricing,
-      hideSqlPricing: state.hideSqlPricing,
-      cpuUnit: state.cpuUnit,
-      shapeOverrides: state.shapeOverrides,
-      costOverrides: state.costOverrides,
-      hoursPerMonth: state.hoursPerMonth,
-      hoursOverride: state.hoursOverride,
-      oicMessagePacks: state.oicMessagePacks,
-      // Gen-gap sizing trim. Off = map every workload 1:1 with the source.
-      rightsize: !!state.rightsize,
-    });
+    const requestOptions = await jsonRequestOptions(pricingInputs());
     const { response, payload } = await fetchJson(
       "/api/price",
       requestOptions,
@@ -2588,25 +2570,16 @@ async function exportToExcel(triggerButton = null) {
     }
     const ramp = { ceiling: state.ramp.ceiling, monthly };
     const exportPayload = {
-      fields: state.fields,
-      rows: state.rows,
-      shape: state.selectedShape,
-      intakeMode: state.intakeMode,
-      providerHint: state.providerHint,
-      fullServiceBeta: state.fullServiceBeta,
-      hideGpuPricing: state.hideGpuPricing,
-      hideWindowsPricing: state.hideWindowsPricing,
-      hideSqlPricing: state.hideSqlPricing,
-      cpuUnit: state.cpuUnit,
-      shapeOverrides: state.shapeOverrides,
-      costOverrides: state.costOverrides,
-      hoursPerMonth: state.hoursPerMonth,
-      hoursOverride: state.hoursOverride,
+      // The export RE-PRICES server-side, so it MUST send every flag /api/price sends -
+      // see pricingInputs(). This used to be a hand-copied list that had drifted: rightsize
+      // was missing, so an export re-priced the whole estate at full size while the screen
+      // showed the trimmed number ($117,329 on screen vs $129,125 in the workbook on a
+      // 7,490-line AWS bill). Spreading the shared object is what keeps them honest.
+      ...pricingInputs(),
       bomName: state.bomName || "",
       // Universal Credits / negotiated discount. Sent as a fraction; the server also accepts a
       // percent. Third-party licensing (Windows, SQL) is excluded from the discount downstream.
       ociDiscount: Number(state.ociDiscount || 0) / 100,
-      oicMessagePacks: state.oicMessagePacks,
       ramp,
       existingInfraCost: state.existingInfraCost || 0,
       workflowState: collectWorkflowState(),
@@ -2805,6 +2778,10 @@ async function applyWorkflowState(wf) {
     "hideWindowsPricing", "hideSqlPricing",
     "cpuUnit",
     "bomName", "ociDiscount", "rightsize", "oicMessagePacks", "selectedShape", "existingInfraCost",
+    // Pricing inputs: these MUST be restored, or a re-imported BOM re-prices differently from
+    // the one that was exported. hoursPerMonth/hoursOverride used to be saved and then thrown
+    // away by a hard reset below.
+    "hoursPerMonth", "hoursOverride",
     "selectedVendor", "lastShapeByVendor", "crossCloudTopTier", "uploadMetadata",
     "workflowMaxUnlockedStep",
     "showMissingOnly", "extraServices", "fields", "rows",
@@ -2850,8 +2827,12 @@ async function applyWorkflowState(wf) {
     state.resultSort = { key: "document", direction: "asc" };
   }
   state.cpuUnit = ["auto", "vcpu", "ocpu"].includes(state.cpuUnit) ? state.cpuUnit : "auto";
-  state.hoursPerMonth = 730;
-  state.hoursOverride = false;
+  // Validate the restored hours rather than discarding them: a saved BOM that was priced on a
+  // custom hours/month must re-import at that same figure, or the reopened workbook disagrees
+  // with the one the customer already has.
+  const savedHours = Number(state.hoursPerMonth);
+  state.hoursPerMonth = savedHours > 0 && savedHours <= 744 ? savedHours : 730;
+  state.hoursOverride = !!state.hoursOverride;
   state.uploadReady = state.rows.length > 0;
   state.workflowMaxUnlockedStep = state.uploadReady
     ? Math.max(
@@ -3596,6 +3577,34 @@ function rampMonthlyValues() {
     values.push(rampValueAtMonth(month));
   }
   return values;
+}
+
+// Every input the SERVER re-prices from, in one place.
+//
+// /api/price and /api/export both run calculate_pricing() from scratch on whatever they are
+// sent - the export does NOT reuse the pricing already on screen. So any flag one call sends
+// and the other omits makes the workbook disagree with the app, silently and only in the
+// money. Both call sites spread this object; add new pricing inputs here, never inline.
+function pricingInputs() {
+  return {
+    fields: state.fields,
+    rows: state.rows,
+    shape: state.selectedShape,
+    intakeMode: state.intakeMode,
+    providerHint: state.providerHint,
+    fullServiceBeta: state.fullServiceBeta,
+    hideGpuPricing: state.hideGpuPricing,
+    hideWindowsPricing: state.hideWindowsPricing,
+    hideSqlPricing: state.hideSqlPricing,
+    cpuUnit: state.cpuUnit,
+    shapeOverrides: state.shapeOverrides,
+    costOverrides: state.costOverrides,
+    hoursPerMonth: state.hoursPerMonth,
+    hoursOverride: state.hoursOverride,
+    oicMessagePacks: state.oicMessagePacks,
+    // Gen-gap sizing trim. Off = map every workload 1:1 with the source.
+    rightsize: !!state.rightsize,
+  };
 }
 
 function windowsLicensingMonthly(pricing) {
@@ -5254,21 +5263,9 @@ async function downloadDiagram(triggerButton = null) {
   );
   try {
     const diagramPayload = {
-      fields: state.fields,
-      rows: state.rows,
-      shape: state.selectedShape,
-      intakeMode: state.intakeMode,
-      providerHint: state.providerHint,
-      fullServiceBeta: state.fullServiceBeta,
-      hideGpuPricing: state.hideGpuPricing,
-      hideWindowsPricing: state.hideWindowsPricing,
-      hideSqlPricing: state.hideSqlPricing,
-      cpuUnit: state.cpuUnit,
-      shapeOverrides: state.shapeOverrides,
-      costOverrides: state.costOverrides,
-      hoursPerMonth: state.hoursPerMonth,
-      hoursOverride: state.hoursOverride,
-      oicMessagePacks: state.oicMessagePacks,
+      // /api/diagram re-prices too (the diagram is sized off the pricing), so it takes the
+      // same shared inputs - it was missing rightsize for the same reason the export was.
+      ...pricingInputs(),
       extraServices: state.extraServices || [],
       diagramOptions: state.diagramOptions || {},
       bomName: state.bomName || "",
