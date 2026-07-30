@@ -29,11 +29,9 @@ That's the only system prerequisite — macOS already includes Python 3.
 ## 2. Clone the repository
 
 ```bash
-git clone https://github.com/Chris-Wegenek/oci-intake-app.git
-cd oci-intake-app
-
-# The latest work is on this branch:
-git checkout "Chris'-Branch"
+git clone https://github.com/mangoproxy23/oci-intake-appv2.git
+cd oci-intake-appv2
+git checkout main
 ```
 
 ---
