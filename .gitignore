@@ -52,3 +52,4 @@ AGENT_READOUT.md
 # Oracle Cost Estimator raw snapshot (42 MB, regenerable via
 # scripts/refresh_oracle_catalog.py). data/estimator_services.json is the derived file.
 oracle-cost-estimator-ai-integration/*.json
+oracle-cost-estimator-ai-integration/*.sha256
