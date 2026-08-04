@@ -1599,7 +1599,7 @@ _DATA_CHECK_SIGNALS = [
     ("storage",     "Storage",            [["storage"], ["disk"], ["capacity"]]),
     ("os",          "OS family",          [["os", "family"], ["os", "type"], ["operating", "system"],
                                            ["os", "name"], ["os"]]),
-    ("server",      "Server / VM name",   [["vm", "name"], ["server", "name"], ["machine", "name"],
+    ("server",      "Server / VM name",   [["vm", "name"], ["vm"], ["server", "name"], ["machine", "name"],
                                            ["machine", "id"],
                                            ["host", "name"], ["hostname"], ["name"]]),
     ("environment", "Environment",        [["environment"], ["env"]]),
@@ -2412,7 +2412,232 @@ def looks_like_comparison_bom(sheet_names):
     return hits >= 2
 
 
+RVTOOLS_FIELD_KEYS = (
+    "application_name",
+    "machine_name",
+    "environment",
+    "application_details_operating_system",
+    "application_details_number_of_servers",
+    "application_details_number_of_cpu_cores_per_server",
+    "application_details_memory_per_server_gb",
+    "application_details_local_storage_gb",
+)
+
+
+def rvtools_environment(*values):
+    """Return an environment only when RVTools text contains an explicit lifecycle token."""
+    source_values = [normalize(value) for value in values if clean_text(value)]
+    text = " ".join(source_values)
+    checks = (
+        ("DR", ("dr", "disaster recovery", "disasterrecovery")),
+        ("Prod", ("prod", "prd", "production")),
+        ("Non-Prod", ("non prod", "nonprod", "non production")),
+        ("UAT", ("uat",)),
+        ("QA", ("qa", "quality assurance")),
+        ("Test", ("test", "tst")),
+        ("Stage", ("stage", "staging", "stg")),
+        ("Dev", ("dev", "development")),
+    )
+    for label, tokens in checks:
+        for token in tokens:
+            if re.search(r"(?<![a-z0-9])" + re.escape(token) + r"(?![a-z0-9])", text):
+                return label
+    # VM names commonly concatenate the lifecycle at the end, such as app01prod.
+    suffix_checks = (
+        ("DR", ("dr",)),
+        ("Prod", ("prod", "prd")),
+        ("Non-Prod", ("nonprod",)),
+        ("UAT", ("uat",)),
+        ("QA", ("qa",)),
+        ("Test", ("test", "tst")),
+        ("Stage", ("stage", "stg")),
+        ("Dev", ("dev",)),
+    )
+    machine_text = source_values[0] if source_values else ""
+    for label, suffixes in suffix_checks:
+        if any(re.search(re.escape(suffix) + r"\d*$", machine_text) for suffix in suffixes):
+            return label
+    return ""
+
+
+def rvtools_fields(source_headers):
+    fields = [
+        field
+        for field in canonical_fields_payload()
+        if field["key"] in RVTOOLS_FIELD_KEYS
+    ]
+    for field in fields:
+        source_header = source_headers.get(field["key"], "")
+        field["sourceHeader"] = source_header
+        if field["key"] == "application_details_number_of_cpu_cores_per_server":
+            field["cpuSourceLabel"] = "CPUs (vCPU)"
+        elif field["key"] == "application_details_memory_per_server_gb":
+            field["memorySourceLabel"] = source_header
+        elif field["key"] == "application_details_local_storage_gb":
+            field["storageSourceLabel"] = source_header
+    return fields
+
+
+def is_rvtools_table(frame):
+    headers = {normalize(column) for column in frame.columns}
+    return {"vm", "powerstate", "cpus", "memory"} <= headers
+
+
+def rvtools_disk_capacity_by_vm(path, sheet_names):
+    if "vDisk" not in sheet_names:
+        return {}, ""
+    disk = pd.read_excel(path, sheet_name="vDisk", dtype=object)
+    if "Capacity MiB" not in disk.columns:
+        return {}, ""
+    identity_column = "VM UUID" if "VM UUID" in disk.columns else "VM" if "VM" in disk.columns else ""
+    if not identity_column:
+        return {}, ""
+    capacity = pd.to_numeric(disk["Capacity MiB"], errors="coerce").fillna(0)
+    identities = disk[identity_column].map(clean_text)
+    totals = capacity.groupby(identities).sum()
+    return {
+        identity: compact_number(total_mib / 1024.0)
+        for identity, total_mib in totals.items()
+        if identity and total_mib > 0
+    }, identity_column
+
+
+def parse_rvtools_workbook(path, full_service_beta=False):
+    """Parse native RVTools exports and the compact seven-column RVTools extract.
+
+    Native RVTools stores RAM in MiB and VM disks on a separate vDisk sheet. This
+    adapter keeps one review row per non-template VM and prevents either unit from
+    passing through the generic spreadsheet heuristics.
+    """
+    excel_file = pd.ExcelFile(path)
+    sheet_names = visible_sheet_names(excel_file, path)
+    source_sheet = "vInfo" if "vInfo" in sheet_names else sheet_names[0]
+    frame = pd.read_excel(path, sheet_name=source_sheet, dtype=object)
+    if not is_rvtools_table(frame):
+        return None
+
+    native_export = source_sheet == "vInfo"
+    compact_export = not native_export and {
+        "vcpu", "storage"
+    } <= {normalize(column) for column in frame.columns}
+    if not (native_export or compact_export):
+        return None
+
+    disk_capacity, disk_identity_column = rvtools_disk_capacity_by_vm(path, sheet_names)
+    storage_source = "RVTools vDisk Capacity (GiB)" if disk_capacity else "Storage (GB)"
+    source_headers = {
+        "application_name": "",
+        "machine_name": "VM",
+        "environment": "Environment (RVTools lifecycle tokens)",
+        "application_details_operating_system": "OS according to the VMware Tools" if native_export else "OS",
+        "application_details_number_of_servers": "One VM per row",
+        "application_details_number_of_cpu_cores_per_server": "CPUs (vCPU)",
+        "application_details_memory_per_server_gb": "Memory (MiB)" if native_export else "Memory (MiB)",
+        "application_details_local_storage_gb": storage_source,
+    }
+    fields = rvtools_fields(source_headers)
+    rows = []
+    template_count = 0
+    powered_off_count = 0
+    storage_fallback_count = 0
+
+    for source_idx, source_row in frame.iterrows():
+        if normalize(source_row.get("Template")) == "true":
+            template_count += 1
+            continue
+        machine_name = clean_text(source_row.get("VM"))
+        if not machine_name:
+            continue
+
+        powerstate = normalize(source_row.get("Powerstate"))
+        if powerstate == "poweredoff":
+            powered_off_count += 1
+        source_cpus = to_number(source_row.get("CPUs"), 0)
+        memory_gb = to_number(source_row.get("Memory"), 0) / 1024.0
+
+        storage_gb = 0.0
+        if disk_capacity:
+            disk_identity = clean_text(source_row.get(disk_identity_column))
+            storage_gb = to_number(disk_capacity.get(disk_identity), 0)
+        elif compact_export:
+            storage_gb = to_number(source_row.get("Storage"), 0)
+        elif "Provisioned MiB" in frame.columns:
+            storage_gb = to_number(source_row.get("Provisioned MiB"), 0) / 1024.0
+            storage_fallback_count += 1
+
+        os_value = clean_text(
+            source_row.get("OS according to the VMware Tools")
+            or source_row.get("OS according to the configuration file")
+            or source_row.get("OS")
+        )
+        environment = rvtools_environment(
+            machine_name,
+            source_row.get("Folder"),
+            source_row.get("Resource pool"),
+            source_row.get("Path"),
+        )
+        rows.append({
+            "__id": f"rvtools-{source_idx + 2}",
+            "__sourceRow": source_idx + 2,
+            "__approved": True,
+            "application_name": "",
+            "machine_name": machine_name,
+            "environment": environment,
+            "application_details_operating_system": os_value,
+            "application_details_number_of_servers": 1,
+            "application_details_number_of_cpu_cores_per_server": compact_number(source_cpus / 2.0),
+            "application_details_memory_per_server_gb": compact_number(memory_gb),
+            "application_details_local_storage_gb": compact_number(storage_gb),
+        })
+
+    extraction_notes = [
+        "Detected an RVTools VM inventory and normalized CPU values using 2 vCPUs per OCPU.",
+        "Converted RVTools Memory values from MiB to GB.",
+    ]
+    if disk_capacity:
+        extraction_notes.append("Joined vDisk capacity to vInfo by VM UUID and summed all virtual disks per VM.")
+    elif storage_fallback_count:
+        extraction_notes.append("vDisk was unavailable; used Provisioned MiB as the storage fallback.")
+    if template_count:
+        extraction_notes.append(f"Excluded {template_count} RVTools template rows from review and pricing.")
+    if powered_off_count:
+        extraction_notes.append(
+            f"Retained {powered_off_count} powered-off VMs for migration review; they use the standard 730 hours until edited or unapproved."
+        )
+
+    return {
+        "fileName": Path(path).name,
+        "sheetName": source_sheet,
+        "sheets": excel_file.sheet_names,
+        "fields": fields,
+        "rows": rows,
+        "rateCard": build_rate_card(DEFAULT_SHAPE_KEY, full_service_beta),
+        "rateCards": all_shape_payloads(full_service_beta),
+        "fullServiceCatalog": price_catalog_payload(),
+        "selectedShape": shape_payload(DEFAULT_SHAPE_KEY, full_service_beta),
+        "metadata": {
+            "headerRow": 1,
+            "dataStartRow": 2,
+            "rowCount": len(rows),
+            "columnCount": len(fields),
+            "parser": "rvtools",
+            "intakeMode": INTAKE_MODE_ON_PREM,
+            "fullServiceBeta": bool(full_service_beta),
+            "aiAssisted": False,
+            "rvtoolsNativeExport": native_export,
+            "rvtoolsTemplateRowsExcluded": template_count,
+            "rvtoolsPoweredOffRowsRetained": powered_off_count,
+            "unitNormalizations": [],
+            "extractionNotes": extraction_notes,
+            "reviewSchema": list(FIXED_REVIEW_SCHEMA),
+        },
+    }
+
+
 def parse_workbook_rule_based(path, full_service_beta=False):
+    rvtools = parse_rvtools_workbook(path, full_service_beta)
+    if rvtools:
+        return rvtools
     excel_file = pd.ExcelFile(path)
     sheet = pick_sheet(excel_file)
     raw = pd.read_excel(path, sheet_name=sheet, header=None, dtype=object)
@@ -7838,6 +8063,11 @@ def parse_workbook(path, full_service_beta=False, intake_mode=INTAKE_MODE_ON_PRE
         baseline["metadata"]["aiAssisted"] = False
     except Exception as exc:
         baseline_error = exc
+    # RVTools has a documented multi-sheet schema and binary units. Its dedicated
+    # adapter is more authoritative than an LLM-selected single sheet, so do not let
+    # an otherwise valid AI plan replace the joined and normalized result.
+    if baseline and baseline.get("metadata", {}).get("parser") == "rvtools":
+        return baseline
     # If the deterministic rule-based parser confidently read the core sizing columns — CPU
     # (incl. a rationalized-cores column, treated as OCPU 1:1), memory, AND storage, each with
     # data — use it and skip the AI plan entirely. It's reliable for well-formed inventories,
