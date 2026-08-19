@@ -1,0 +1,20 @@
+{
+"r6a.48xlarge|US East (N. Virginia)": 0,
+"r6a.32xlarge|US East (N. Virginia)": 0,
+"m5a.4xlarge|US East (N. Virginia)": 0,
+"m6a.48xlarge|US East (N. Virginia)": 0,
+"c6a.48xlarge|US East (N. Virginia)": 0,
+"r8a.48xlarge|US East (N. Virginia)": 0,
+"m8a.4xlarge|US East (N. Virginia)": 0,
+"m8a.48xlarge|US East (N. Virginia)": 0,
+"c8a.48xlarge|US East (N. Virginia)": 0,
+"SKU|AWSCodeArtifact|USE1-TimedStorage-ByteHrs": 0,
+"SKU|AWSCodeArtifact|USE1-DataTransfer-Out-Bytes": 0,
+"SKU|AWSCodeArtifact|USE1-Requests": 0,
+"SKU|CodeBuild|USE1-Build-Min:Linux:g1.medium": 0,
+"SKU|AWSCodePipeline|USE1-activePipeline": 0,
+"SKU|AWSCodeCommit|USE1-User-Month": 0,
+"SKU|AWSCodeCommit|USE1-TimedStorage-ByteHrs": 0,
+"SKU|AmazonQ|USE1-QDevPro-User-Month": 0,
+"g1.medium|US East (N. Virginia)": 0
+}
