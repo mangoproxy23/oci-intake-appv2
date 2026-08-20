@@ -1294,13 +1294,6 @@
    "free": false
   },
   {
-   "aws": "Claude (Amazon Bedrock Edition)",
-   "awsNorm": "claude amazon bedrock edition",
-   "ociEquivalent": "Generative AI",
-   "group": "AI & Machine Learning",
-   "free": false
-  },
-  {
    "aws": "AWS WAF",
    "awsNorm": "aws waf",
    "ociEquivalent": "Web Application Firewall",
@@ -1448,29 +1441,8 @@
    "free": false
   },
   {
-   "aws": "Claude 3.5 Sonnet (Amazon Bedrock Edition)",
-   "awsNorm": "claude 3 5 sonnet amazon bedrock edition",
-   "ociEquivalent": "Generative AI",
-   "group": "AI & Machine Learning",
-   "free": false
-  },
-  {
    "aws": "SDXL V1.0 (Amazon Bedrock Edition)",
    "awsNorm": "sdxl v1 0 amazon bedrock edition",
-   "ociEquivalent": "Generative AI",
-   "group": "AI & Machine Learning",
-   "free": false
-  },
-  {
-   "aws": "Claude 3 Opus (Amazon Bedrock Edition)",
-   "awsNorm": "claude 3 opus amazon bedrock edition",
-   "ociEquivalent": "Generative AI",
-   "group": "AI & Machine Learning",
-   "free": false
-  },
-  {
-   "aws": "Claude 3 Sonnet (Amazon Bedrock Edition)",
-   "awsNorm": "claude 3 sonnet amazon bedrock edition",
    "ociEquivalent": "Generative AI",
    "group": "AI & Machine Learning",
    "free": false
@@ -1513,13 +1485,6 @@
   {
    "aws": "Amazon Bedrock",
    "awsNorm": "amazon bedrock",
-   "ociEquivalent": "Generative AI",
-   "group": "AI & Machine Learning",
-   "free": false
-  },
-  {
-   "aws": "Claude 3 Haiku (Amazon Bedrock Edition)",
-   "awsNorm": "claude 3 haiku amazon bedrock edition",
    "ociEquivalent": "Generative AI",
    "group": "AI & Machine Learning",
    "free": false
@@ -1854,13 +1819,6 @@
    "free": false
   },
   {
-   "aws": "Claude 3.5 Sonnet v2 (Amazon Bedrock Edition)",
-   "awsNorm": "claude 3 5 sonnet v2 amazon bedrock edition",
-   "ociEquivalent": "Generative AI",
-   "group": "AI & Machine Learning",
-   "free": false
-  },
-  {
    "aws": "BlueXP Connector - Manual installation",
    "awsNorm": "bluexp connector manual installation",
    "ociEquivalent": "*Marketplace/Third Party",
@@ -1900,13 +1858,6 @@
    "awsNorm": "crowdstrike falcon endpoint protection",
    "ociEquivalent": "*Marketplace/Third Party",
    "group": "Marketplace",
-   "free": false
-  },
-  {
-   "aws": "Claude 3.7 Sonnet (Amazon Bedrock Edition)",
-   "awsNorm": "claude 3 7 sonnet amazon bedrock edition",
-   "ociEquivalent": "Generative AI",
-   "group": "AI & Machine Learning",
    "free": false
   }
  ]
