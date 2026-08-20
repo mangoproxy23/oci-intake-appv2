@@ -36,6 +36,7 @@ from pypdf import PdfReader
 
 import bom_export
 import aws_pricing
+from large_import_reducer import LargeImportReductionError, reduce_large_import
 
 
 ROOT = Path(__file__).resolve().parent
@@ -682,6 +683,17 @@ def normalize_provider_hint(value):
     if text in {"gcp", "google", "google cloud", "google cloud platform"}:
         return "gcp"
     return PROVIDER_AUTO
+
+
+def normalize_large_import_kind(value):
+    text = normalize(value).replace("-", " ").replace("_", " ")
+    if text in {"on prem", "onprem", "inventory"}:
+        return "on_prem"
+    if text in {"aws", "amazon", "amazon web services"}:
+        return "aws"
+    if text in {"azure", "microsoft azure"}:
+        return "azure"
+    return ""
 
 
 def source_cloud_display(row_or_provider):
@@ -10626,7 +10638,7 @@ def aggregate_daily_bill_lines(bill_lines, headers, mappings):
     return out, orig_rows, counts
 
 
-def parse_cloud_bill(path, provider_hint=PROVIDER_AUTO, sheet_override=""):
+def parse_cloud_bill(path, provider_hint=PROVIDER_AUTO, sheet_override="", pre_reduced=False):
     suffix = Path(path).suffix.lower()
     if suffix == ".pdf":
         return parse_pdf_cloud_bill(path, provider_hint)
@@ -10697,13 +10709,26 @@ def parse_cloud_bill(path, provider_hint=PROVIDER_AUTO, sheet_override=""):
     az_metercat_idx = _hidx("metercategory")
     az_metersub_idx = _hidx("metersubcategory")
     az_consumed_idx = _hidx("consumedservice")
+    reducer_identity_idx = _hidx("resource_identity_status") if pre_reduced else None
+    reducer_count_idx = _hidx("source_row_count") if pre_reduced else None
+    reducer_first_date_idx = _hidx("first_usage_date") if pre_reduced else None
+    reducer_last_date_idx = _hidx("last_usage_date") if pre_reduced else None
+    if reducer_identity_idx is not None:
+        fields.append({
+            "key": "resource_identity_status",
+            "label": "Resource Identity",
+            "description": "Whether the large-file reducer found a usable source resource boundary.",
+            "important": True,
+            "sourceColumn": reducer_identity_idx + 1,
+            "sourceHeader": headers[reducer_identity_idx],
+        })
     rows = []
     rate_card = build_rate_card(DEFAULT_SHAPE_KEY, True)
     provider_label = detected_provider if detected_provider != "Unknown" else ""
     bill_lines = raw.iloc[data_start_idx:]
     source_line_count = len(bill_lines.index)
     agg_first_rows, agg_counts = None, None
-    if source_line_count >= CLOUD_BILL_AGGREGATE_MIN_ROWS:
+    if not pre_reduced and source_line_count >= CLOUD_BILL_AGGREGATE_MIN_ROWS:
         bill_lines, agg_first_rows, agg_counts = aggregate_daily_bill_lines(bill_lines, headers, mappings)
     for _pos in range(len(bill_lines.index)):
         values = bill_lines.iloc[_pos].tolist()
@@ -10721,6 +10746,14 @@ def parse_cloud_bill(path, provider_hint=PROVIDER_AUTO, sheet_override=""):
                 if 0 <= col_idx < len(values):
                     value = values[col_idx]
             row[field["key"]] = cloud_bill_value(field["key"], value)
+        if reducer_identity_idx is not None and reducer_identity_idx < len(values):
+            row["resource_identity_status"] = clean_text(values[reducer_identity_idx])
+        if reducer_count_idx is not None and reducer_count_idx < len(values):
+            row["__aggregatedLines"] = int(to_number(values[reducer_count_idx], 1) or 1)
+        if reducer_first_date_idx is not None and reducer_first_date_idx < len(values):
+            row["__firstUsageDate"] = clean_text(values[reducer_first_date_idx])
+        if reducer_last_date_idx is not None and reducer_last_date_idx < len(values):
+            row["__lastUsageDate"] = clean_text(values[reducer_last_date_idx])
         row["source_provider"] = row.get("source_provider") or provider_label
         row["source_currency"] = row.get("source_currency") or "USD"
         row["source_tags"] = summarize_source_tags(values, tag_columns, row.get("source_tags"))
@@ -10883,9 +10916,10 @@ def _reconcile_onprem_sizing(result, baseline):
     return result
 
 
-def parse_workbook(path, full_service_beta=False, intake_mode=INTAKE_MODE_ON_PREM, provider_hint=PROVIDER_AUTO, sheet_override=""):
+def parse_workbook(path, full_service_beta=False, intake_mode=INTAKE_MODE_ON_PREM,
+                   provider_hint=PROVIDER_AUTO, sheet_override="", pre_reduced=False):
     if intake_mode == INTAKE_MODE_CLOUD_BILL:
-        parsed = parse_cloud_bill(path, provider_hint, sheet_override)
+        parsed = parse_cloud_bill(path, provider_hint, sheet_override, pre_reduced=pre_reduced)
         metadata = parsed.setdefault("metadata", {})
         metadata["llmBillMappingNeeded"] = bool(metadata.get("unmappedCount"))
         if not metadata["llmBillMappingNeeded"]:
@@ -15099,6 +15133,7 @@ class IntakeHandler(BaseHTTPRequestHandler):
         content_type = self.headers.get("Content-Type", "")
         compressed_upload = content_type.startswith(("application/gzip", "application/x-gzip"))
         uploaded_bytes = None
+        uploaded_file_stream = None
         if compressed_upload:
             query = parse_qs(urlparse(self.path).query)
             intake_mode = normalize_intake_mode(
@@ -15120,6 +15155,10 @@ class IntakeHandler(BaseHTTPRequestHandler):
                     or (query.get("fullServiceBeta") or [""])[0]
                 ).lower()
                 in {"1", "true", "yes", "on"}
+            )
+            large_import_kind = normalize_large_import_kind(
+                self.headers.get("X-Large-Import-Kind")
+                or (query.get("largeImportKind") or [""])[0]
             )
             filename = Path(
                 unquote(
@@ -15169,8 +15208,14 @@ class IntakeHandler(BaseHTTPRequestHandler):
                 or clean_text(form.getvalue("fullServiceBeta")).lower()
                 in {"1", "true", "yes", "on"}
             )
+            large_import_kind = normalize_large_import_kind(
+                form.getvalue("largeImportKind")
+            )
             filename = clean_text(getattr(file_item, "filename", "")) or "upload.xlsx"
-            uploaded_bytes = file_item.file.read()
+            if large_import_kind:
+                uploaded_file_stream = file_item.file
+            else:
+                uploaded_bytes = file_item.file.read()
         else:
             self.send_error_json(
                 400,
@@ -15178,15 +15223,54 @@ class IntakeHandler(BaseHTTPRequestHandler):
             )
             return
 
-        allowed_suffixes = (".xlsx", ".xls", ".csv", ".tsv", ".pdf") if intake_mode == INTAKE_MODE_CLOUD_BILL else (".xlsx", ".xls", ".csv", ".tsv")
+        expected_mode = (
+            INTAKE_MODE_ON_PREM if large_import_kind == "on_prem"
+            else INTAKE_MODE_CLOUD_BILL
+        )
+        if large_import_kind and intake_mode != expected_mode:
+            self.send_error_json(
+                400,
+                "The selected large-file type does not match the intake mode.",
+            )
+            return
+        allowed_suffixes = ((".xlsx", ".csv", ".tsv") if large_import_kind
+                            else (".xlsx", ".xls", ".csv", ".tsv", ".pdf")
+                            if intake_mode == INTAKE_MODE_CLOUD_BILL
+                            else (".xlsx", ".xls", ".csv", ".tsv"))
         if not filename.lower().endswith(allowed_suffixes):
-            message = "Please upload a PDF, CSV, TSV, or Excel bill export." if intake_mode == INTAKE_MODE_CLOUD_BILL else "Please upload an Excel workbook or a CSV/TSV inventory export."
+            message = ("Please upload a supported large-file .xlsx, .csv, or .tsv export."
+                       if large_import_kind
+                       else "Please upload a PDF, CSV, TSV, or Excel bill export."
+                       if intake_mode == INTAKE_MODE_CLOUD_BILL
+                       else "Please upload an Excel workbook or a CSV/TSV inventory export.")
             self.send_error_json(400, message)
             return
 
         safe_name = re.sub(r"[^A-Za-z0-9_.-]+", "_", filename)
         saved_path = UPLOAD_DIR / f"{int(time.time())}_{safe_name}"
-        saved_path.write_bytes(uploaded_bytes)
+        if uploaded_file_stream is not None:
+            written = 0
+            upload_too_large = False
+            with saved_path.open("wb") as destination:
+                while True:
+                    chunk = uploaded_file_stream.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    written += len(chunk)
+                    if written > MAX_DECOMPRESSED_UPLOAD_BYTES:
+                        upload_too_large = True
+                        break
+                    destination.write(chunk)
+            if upload_too_large:
+                saved_path.unlink(missing_ok=True)
+                self.send_error_json(
+                    413,
+                    f"The upload exceeds {MAX_UPLOAD_MB_LABEL}. Raise it with "
+                    "OIA_MAX_UPLOAD_MB and restart if this machine has enough disk and memory.",
+                )
+                return
+        else:
+            saved_path.write_bytes(uploaded_bytes)
 
         # One of OUR exports dropped onto the inventory/bill uploader. Every Full BOM carries
         # the complete saved workflow in a hidden _workflow sheet, so the right answer is to
@@ -15194,7 +15278,7 @@ class IntakeHandler(BaseHTTPRequestHandler):
         # an inventory finds nothing and the upload reports "0 rows · No usable rows were
         # found". The file the user is holding does contain their whole estimate - refusing it
         # because it arrived at the wrong drop zone is a needless dead end.
-        if filename.lower().endswith(".xlsx"):
+        if filename.lower().endswith(".xlsx") and not large_import_kind:
             try:
                 saved_workflow = bom_export.read_workflow_state(str(saved_path))
             except Exception:
@@ -15210,12 +15294,51 @@ class IntakeHandler(BaseHTTPRequestHandler):
         # In cloud-bill mode, when the user hasn't forced a provider, guess from the
         # filename so parsing/mapping starts from the right cloud.
         filename_guess = guess_provider_from_filename(filename) if intake_mode == INTAKE_MODE_CLOUD_BILL else PROVIDER_AUTO
-        effective_hint = provider_hint if provider_hint != PROVIDER_AUTO else filename_guess
+        effective_hint = (large_import_kind if large_import_kind in {"aws", "azure"}
+                          else provider_hint if provider_hint != PROVIDER_AUTO
+                          else filename_guess)
 
         try:
-            parsed = parse_workbook(saved_path, full_service_beta, intake_mode, effective_hint, sheet_override)
+            reducer_audit = None
+            parse_path = saved_path
+            parse_sheet = sheet_override
+            if large_import_kind:
+                reduced_label = large_import_kind.replace("_", "-")
+                reduced_path = saved_path.with_name(
+                    f"{saved_path.stem}.large-{reduced_label}-reduced.csv"
+                )
+                reducer_audit = reduce_large_import(
+                    saved_path,
+                    reduced_path,
+                    large_import_kind,
+                    sheet_name=sheet_override,
+                )
+                parse_path = reduced_path
+                parse_sheet = ""
+            parsed = parse_workbook(
+                parse_path,
+                full_service_beta,
+                intake_mode,
+                effective_hint,
+                parse_sheet,
+                pre_reduced=large_import_kind in {"aws", "azure"},
+            )
             parsed["fileName"] = filename
             parsed["uploadedPath"] = str(saved_path)
+            if reducer_audit:
+                metadata = parsed.setdefault("metadata", {})
+                metadata["largeFileReduction"] = True
+                metadata["largeImportKind"] = large_import_kind
+                metadata["sourceImportMode"] = reducer_audit["sourceImportMode"]
+                metadata["reducerAudit"] = reducer_audit
+                metadata["rawSourcePath"] = str(saved_path)
+                metadata["reducedArtifactPath"] = reducer_audit["reducedFilePath"]
+                metadata.setdefault("extractionNotes", []).append(
+                    f"Large {large_import_kind.replace('_', '-')} preprocessor streamed "
+                    f"{reducer_audit['inputRows']:,} source rows into "
+                    f"{reducer_audit['outputRows']:,} parser-ready rows. The raw upload was "
+                    "retained as the audit source."
+                )
             # Warn when an already-built comparison/BOM workbook is dropped into cloud-bill
             # mode - its numbers are outputs, not a raw bill, so parsing them produces
             # garbage. Point the user at the "Convert an alternate OCI BOM" flow instead.
@@ -15246,6 +15369,8 @@ class IntakeHandler(BaseHTTPRequestHandler):
                     else "content"
                 )
             self.send_json(200, parsed)
+        except LargeImportReductionError as exc:
+            self.send_error_json(400, f"Could not preprocess large import: {exc}")
         except Exception as exc:
             self.send_error_json(500, f"Could not parse workbook: {exc}")
 

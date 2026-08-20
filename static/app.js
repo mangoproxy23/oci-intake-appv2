@@ -16,6 +16,7 @@ const state = {
   uploadReady: false,
   workflowMaxUnlockedStep: 0,
   intakeMode: "on_prem",
+  largeImportKind: "",
   providerHint: "auto",
   uploadMetadata: {},
   fullServiceBeta: false,
@@ -173,6 +174,7 @@ const CLOUD_BILL_PREVIEW_FIELD_RULES = [
   { label: "RAM (GB)", containsAny: [["ram"], ["memory"], ["memory gb"], ["ram gb"]] },
   { label: "Source Cost", containsAny: [["source cost"], ["source monthly cost"], ["cost"], ["unblended cost"]] },
   { label: "Currency", containsAny: [["currency"], ["billing currency"]] },
+  { label: "Resource Identity", containsAny: [["resource identity"]] },
   { label: "OCI Service", containsAny: [["oci service"], ["oci service category"], ["target service"]] },
   { label: "OCI Product", containsAny: [["oci product"], ["target product"], ["mapped sku"]] },
   { label: "Confidence", containsAny: [["mapping confidence"], ["confidence"], ["review status"]] },
@@ -205,11 +207,14 @@ const els = {
   dropZone: document.querySelector("#dropZone"),
   modeOnPrem: document.querySelector("#modeOnPrem"),
   modeCloudBill: document.querySelector("#modeCloudBill"),
+  modeLargeImport: document.querySelector("#modeLargeImport"),
   modeOtherOciBill: document.querySelector("#modeOtherOciBill"),
   modeEyebrow: document.querySelector("#modeEyebrow"),
   uploadHeading: document.querySelector("#uploadHeading"),
   uploadDescription: document.querySelector("#uploadDescription"),
   dropZoneHint: document.querySelector("#dropZoneHint"),
+  largeImportControl: document.querySelector("#largeImportControl"),
+  largeImportKind: document.querySelector("#largeImportKind"),
   providerControl: document.querySelector("#providerControl"),
   providerHint: document.querySelector("#providerHint"),
   uploadStatus: document.querySelector("#uploadStatus"),
@@ -1173,6 +1178,10 @@ function isCloudBillMode() {
   return state.intakeMode === "cloud_bill";
 }
 
+function isLargeImportMode() {
+  return Boolean(state.largeImportKind);
+}
+
 // Other OCI Bill: a finished OCI BOM from somewhere else (Oracle's cost estimator, a partner, an
 // older export of this app). It skips inventory parsing entirely - the file already carries OCI
 // SKUs, quantities and prices, so it goes straight to the converter and lands on the Shape page.
@@ -1444,38 +1453,55 @@ function previewFields() {
 
 function syncModeUi() {
   const cloudBill = isCloudBillMode();
+  const largeImport = isLargeImportMode();
+  const largeKind = state.largeImportKind;
   const otherBill = isOtherOciBillMode();
   if (typeof syncExistingInfraUi === "function") syncExistingInfraUi();
   state.fullServiceBeta = cloudBill;
-  els.modeOnPrem?.classList.toggle("is-selected", !cloudBill && !otherBill);
-  els.modeCloudBill?.classList.toggle("is-selected", cloudBill);
+  els.modeOnPrem?.classList.toggle("is-selected", !cloudBill && !otherBill && !largeImport);
+  els.modeCloudBill?.classList.toggle("is-selected", cloudBill && !largeImport);
+  els.modeLargeImport?.classList.toggle("is-selected", largeImport);
   els.modeOtherOciBill?.classList.toggle("is-selected", otherBill);
-  els.providerControl?.classList.toggle("is-hidden", !cloudBill);
+  els.largeImportControl?.classList.toggle("is-hidden", !largeImport);
+  els.providerControl?.classList.toggle("is-hidden", !cloudBill || largeImport);
   // OIC message packs only apply in cloud-bill mode (SQS/SNS/Transfer Family mapping).
   els.oicMessagePacksControl?.classList.toggle("is-hidden", !cloudBill);
   if (els.providerHint) {
     els.providerHint.value = state.providerHint;
+    els.providerHint.disabled = largeImport;
   }
+  if (els.largeImportKind && largeKind) els.largeImportKind.value = largeKind;
   // Cloud bill accepts several formats; Chrome can grey out CSV/TSV even when listed,
   // so don't filter at all here - the backend validates the file type on upload.
   // On-prem inventories also come as CSV/TSV exports (discovery tools, CMDB dumps), and
   // the backend parses those through the same header heuristics as an Excel sheet.
-  els.fileInput.accept = cloudBill ? "" : otherBill ? ".xlsx,.xls,.csv,.tsv,.json" : ".xlsx,.xls,.csv,.tsv";
-  els.modeEyebrow.textContent = cloudBill ? "Cloud Bill" : otherBill ? "Other OCI Bill" : "On-Prem Inventory";
-  els.uploadHeading.textContent = cloudBill
+  els.fileInput.accept = largeImport ? ".xlsx,.csv,.tsv" : cloudBill ? "" : otherBill ? ".xlsx,.xls,.csv,.tsv,.json" : ".xlsx,.xls,.csv,.tsv";
+  const largeKindLabel = largeKind === "on_prem" ? "On-Prem Inventory" : largeKind === "aws" ? "AWS Bill" : "Azure Enrollment";
+  els.modeEyebrow.textContent = largeImport ? `Very Large ${largeKindLabel}` : cloudBill ? "Cloud Bill" : otherBill ? "Other OCI Bill" : "On-Prem Inventory";
+  els.uploadHeading.textContent = largeImport
+    ? largeKind === "on_prem" ? "Stream Very Large Inventory" : "Reduce Very Large File"
+    : cloudBill
     ? "Upload Cloud Bill"
     : otherBill ? "Import Other OCI Bill" : "Upload Inventory";
-  els.uploadDescription.textContent = cloudBill
+  els.uploadDescription.textContent = largeImport
+    ? largeKind === "on_prem"
+      ? "The raw file is retained as the audit source. Relevant inventory columns are streamed into the parser without aggregating or merging any machine rows."
+      : "The raw file is retained as the audit source. Rows aggregate only when every available billing, SKU, price, resource, account, region, and environment boundary matches exactly. Missing resource identity remains visibly flagged."
+    : cloudBill
     ? "Upload an AWS, Azure, or GCP bill export. PDF invoices and CSV, TSV, or Excel exports are mapped to OCI-equivalent services and meters."
     : otherBill
     ? "Upload an existing BOM from the cost estimator tool, or other formats. Every OCI SKU and line item is recognized against the app's catalog, re-priced, and loaded live into your results - a BOM this app exported is restored in full instead."
     : state.openaiApiConnected
     ? "Drop an Excel workbook here. OpenAI can inspect the workbook, choose the inventory table, and normalize server/application fields for review."
     : "Drop an Excel workbook here. The local parser will choose the inventory table and normalize CPU, RAM, storage, environment, and application fields for review.";
-  els.dropZone.querySelector("strong").textContent = cloudBill
+  els.dropZone.querySelector("strong").textContent = largeImport
+    ? `Choose Very Large ${largeKindLabel}`
+    : cloudBill
     ? "Choose Bill Export"
     : otherBill ? "Choose BOM" : "Choose Spreadsheet";
-  els.dropZoneHint.textContent = cloudBill
+  els.dropZoneHint.textContent = largeImport
+    ? `or drag a very large ${largeKindLabel} XLSX, CSV, or TSV onto this upload area`
+    : cloudBill
     ? "or drag a PDF, CSV, TSV, or Excel bill export onto this upload area"
     : otherBill
     ? "Cost estimator proposal, a partner BOM, or an export from this app (.xlsx / .csv)"
@@ -1512,7 +1538,14 @@ function maybeWarnCloudBillInOnPrem(payload) {
 }
 
 function setIntakeMode(mode) {
-  state.intakeMode = normalizeIntakeMode(mode);
+  if (mode === "large_import") {
+    state.largeImportKind = els.largeImportKind?.value || state.largeImportKind || "azure";
+    state.intakeMode = state.largeImportKind === "on_prem" ? "on_prem" : "cloud_bill";
+    state.providerHint = state.largeImportKind === "on_prem" ? "auto" : state.largeImportKind;
+  } else {
+    state.largeImportKind = "";
+    state.intakeMode = normalizeIntakeMode(mode);
+  }
   state.providerHint = state.intakeMode === "cloud_bill" ? state.providerHint : "auto";
   clearIntakeStatuses();   // switching intake path - drop stale load/convert banners
   syncModeUi();
@@ -2513,6 +2546,9 @@ async function jsonRequestOptions(payload) {
 }
 
 async function compressedUploadRequest(file, sheetOverride = "") {
+  // The opt-in reducer is designed for local, disk-backed streaming. Multipart
+  // lets the server spool the raw upload instead of inflating a gzip body into RAM.
+  if (state.largeImportKind) return null;
   if (
     file.size < COMPRESSED_UPLOAD_THRESHOLD
     || typeof CompressionStream === "undefined"
@@ -2543,6 +2579,7 @@ async function compressedUploadRequest(file, sheetOverride = "") {
         "X-Intake-Mode": state.intakeMode,
         "X-Provider-Hint": state.providerHint,
         "X-Full-Service-Beta": state.fullServiceBeta ? "true" : "false",
+        "X-Large-Import-Kind": state.largeImportKind || "",
         // Header values must be latin-1; a sheet name can hold anything.
         ...(sheetOverride ? { "X-Sheet-Name": encodeURIComponent(sheetOverride) } : {}),
       },
@@ -2581,6 +2618,7 @@ async function uploadFile(file, sheetOverride = "") {
     body.append("intakeMode", state.intakeMode);
     body.append("providerHint", state.providerHint);
     body.append("fullServiceBeta", state.fullServiceBeta ? "true" : "false");
+    body.append("largeImportKind", state.largeImportKind || "");
     if (sheetOverride) body.append("sheetName", sheetOverride);
     const request = compressedRequest || {
       url: "/api/upload",
@@ -2624,13 +2662,20 @@ async function uploadFile(file, sheetOverride = "") {
     syncVendorForSelectedShape();
     state.uploadMetadata = payload.metadata || {};
     state.intakeMode = payload.metadata?.intakeMode || state.intakeMode;
+    state.largeImportKind = payload.metadata?.largeImportKind || state.largeImportKind;
     state.fullServiceBeta = state.intakeMode === "cloud_bill";
     ensureIdentityReviewFields();
     ensureHoursRunningReviewField();
     const docModeLabel = state.intakeMode === "cloud_bill"
       ? `${payload.metadata?.detectedProvider || "Cloud"} bill`
       : "On-prem inventory";
-    showSelectedDoc(payload.fileName, `${formatNumber(payload.rows.length)} rows · ${docModeLabel}`);
+    const reducerAudit = payload.metadata?.reducerAudit;
+    showSelectedDoc(
+      payload.fileName,
+      reducerAudit
+        ? `${formatNumber(reducerAudit.inputRows)} source rows → ${formatNumber(reducerAudit.outputRows)} parser-ready rows · ${state.largeImportKind === "on_prem" ? "on-prem inventory" : `${state.largeImportKind.toUpperCase()} bill`}`
+        : `${formatNumber(payload.rows.length)} rows · ${docModeLabel}`,
+    );
     if (els.inventoryNotice) els.inventoryNotice.hidden = !payload.metadata?.inventorySuspected;
     maybeWarnCloudBillInOnPrem(payload);
     // Warn if a finished comparison/BOM workbook was dropped into cloud-bill mode.
@@ -2683,7 +2728,11 @@ async function uploadFile(file, sheetOverride = "") {
     }
     unlockWorkflowStep("review");
     showUploadPage();
-    els.uploadStatus.textContent = "Spreadsheet ready. Continue to review.";
+    els.uploadStatus.textContent = reducerAudit
+      ? state.largeImportKind === "on_prem"
+        ? `Streaming verified: ${formatNumber(reducerAudit.inputRows)} inventory rows preserved; ${formatNumber(reducerAudit.columnsRetained?.length || 0)} relevant and audit columns retained. No machine rows were merged.`
+        : `Reduction verified: ${formatNumber(reducerAudit.inputRows)} input rows → ${formatNumber(reducerAudit.outputRows)} output rows; quantity and cost totals match. ${formatNumber(reducerAudit.rowsWithUnavailableResourceIdentity)} reduced rows have unavailable resource identity.`
+      : "Spreadsheet ready. Continue to review.";
     els.uploadStatus.style.color = "var(--success)";
     syncIntakeLayout();
     els.engineStatus.textContent = isCloudBillMode()
@@ -2728,6 +2777,7 @@ function makeBlankRow(prefix = "manual") {
 
 function initializeManualReviewTable() {
   state.intakeMode = "on_prem";
+  state.largeImportKind = "";
   state.providerHint = "auto";
   state.fullServiceBeta = false;
   state.fields = MANUAL_REVIEW_FIELDS.map((field) => ({
@@ -3079,6 +3129,7 @@ function collectWorkflowState() {
     version: 1,
     savedAt: new Date().toISOString(),
     intakeMode: state.intakeMode,
+    largeImportKind: state.largeImportKind,
     providerHint: state.providerHint,
     fullServiceBeta: state.fullServiceBeta,
     hideGpuPricing: state.hideGpuPricing,
@@ -3168,6 +3219,7 @@ async function applyWorkflowState(wf) {
     lastShapeByVendor: { amd: "e6-standard-ax" },
     existingInfraCost: 0,
     crossCloudTopTier: false,
+    largeImportKind: "",
     uploadReady: false,
     workflowMaxUnlockedStep: 0,
     uploadMetadata: {},
@@ -3195,7 +3247,7 @@ async function applyWorkflowState(wf) {
     resultSort: [],
   });
   const assign = [
-    "intakeMode", "providerHint", "fullServiceBeta", "hideGpuPricing",
+    "intakeMode", "largeImportKind", "providerHint", "fullServiceBeta", "hideGpuPricing",
     "hideWindowsPricing", "hideSqlPricing",
     "cpuUnit",
     "bomName", "ociDiscount", "rightsize", "autoMap", "autoTier", "oicMessagePacks",
@@ -5960,6 +6012,7 @@ els.selectedDocClear?.addEventListener("click", () => {
 });
 els.switchToOnPrem?.addEventListener("click", () => {
   state.intakeMode = "on_prem";
+  state.largeImportKind = "";
   state.providerHint = "auto";
   state.fullServiceBeta = false;
   syncModeUi();
@@ -6756,6 +6809,7 @@ els.steps.forEach((step) => {
 });
 els.modeOnPrem?.addEventListener("click", () => setIntakeMode("on_prem"));
 els.modeCloudBill?.addEventListener("click", () => setIntakeMode("cloud_bill"));
+els.modeLargeImport?.addEventListener("click", () => setIntakeMode("large_import"));
 els.modeOtherOciBill?.addEventListener("click", () => setIntakeMode("other_oci_bill"));
 els.providerHint?.addEventListener("change", () => {
   state.providerHint = els.providerHint.value || "auto";
@@ -6765,6 +6819,13 @@ els.providerHint?.addEventListener("change", () => {
   if (state.intakeMode === "cloud_bill" && state.lastUploadFile) {
     uploadFile(state.lastUploadFile);
   }
+});
+els.largeImportKind?.addEventListener("change", () => {
+  state.largeImportKind = els.largeImportKind.value || "azure";
+  state.intakeMode = state.largeImportKind === "on_prem" ? "on_prem" : "cloud_bill";
+  state.providerHint = state.largeImportKind === "on_prem" ? "auto" : state.largeImportKind;
+  syncModeUi();
+  if (state.lastUploadFile) uploadFile(state.lastUploadFile).catch(setUploadingError);
 });
 syncModeUi();
 syncIntakeLayout();

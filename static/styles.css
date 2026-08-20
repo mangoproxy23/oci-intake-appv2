@@ -616,6 +616,21 @@ textarea {
   line-height: 1.4;
 }
 
+.mode-card--compact {
+  align-self: center;
+  gap: 0;
+  padding: 7px 14px;
+}
+
+.mode-card--compact strong {
+  opacity: 0.25;
+}
+
+.mode-card[hidden],
+.provider-control[hidden] {
+  display: none !important;
+}
+
 .provider-control {
   display: grid;
   gap: 7px;
