@@ -25,9 +25,6 @@ uploads/*
 *.pdf
 *.csv
 
-# Local agent / editor config
-.claude/
-
 # Networking design artifacts and docs (not part of the app)
 *.docx
 *.drawio
