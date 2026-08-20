@@ -1381,9 +1381,11 @@ def add_cloud_comparison_sheets(wb, pricing, ramp=None, bom_name="", oci_discoun
         oci_prod = r.get("ociProduct") or "Needs review"
         group = _cloud_product_group(r.get("ociServiceCategory"), aws_svc, oci_prod)
         key = (group, aws_svc, oci_prod)
-        a = agg.setdefault(key, {"aws": 0.0, "oci": 0.0, "carry": False})
+        a = agg.setdefault(key, {"aws": 0.0, "oci": 0.0, "carry": False, "third": 0.0})
         a["aws"] += float(r.get("sourceMonthlyCost") or 0)
         a["oci"] += float(r.get("monthly") or 0)
+        # 3rd-party portion (e.g. direct-GitHub billing): never discounted.
+        a["third"] += float(r.get("thirdPartyMonthly") or 0)
         if (r.get("costAction") or "") == "carry":
             a["carry"] = True
 
@@ -1408,7 +1410,8 @@ def add_cloud_comparison_sheets(wb, pricing, ramp=None, bom_name="", oci_discoun
         if (r.get("costAction") or "") == "carry" or not r.get("monthly"):
             oci_monthly += m
         else:
-            oci_monthly += m * (1.0 - oci_discount)
+            _third = min(m, float(r.get("thirdPartyMonthly") or 0))
+            oci_monthly += _third + (m - _third) * (1.0 - oci_discount)
     if not rows:
         oci_monthly = float(totals.get("monthly") or 0)
 
@@ -1482,8 +1485,9 @@ def add_cloud_comparison_sheets(wb, pricing, ramp=None, bom_name="", oci_discoun
         _cloud_product_breakdown(pb, ordered, present_groups, bom_name, oci_discount,
                                  source_cloud=_src_cloud, estimated=_src_estimated)
     sm_total_row = _cloud_service_mapping_sheet(
-        wb.create_sheet("Service Mapping"), rows, oci_discount, extra_rows=sm_extra_rows)
-    _cloud_notes_sheet(wb.create_sheet("Notes + Assumptions"))
+        wb.create_sheet("Service Mapping"), rows, oci_discount, extra_rows=sm_extra_rows,
+        source_cloud=_src_cloud)
+    _cloud_notes_sheet(wb.create_sheet("Notes + Assumptions"), source_cloud=_src_cloud)
     if use_active:
         build_cloud_overview_sheet(
             wb.create_sheet("Overview"),
@@ -1581,10 +1585,10 @@ def _cloud_product_breakdown(ws, ordered, present_groups, bom_name, oci_discount
         return c
 
     # ---- title / banner block (row 2) ----
-    title = (bom_name.strip() if bom_name else "") or "AWS to OCI Bill Comparison"
+    title = (bom_name.strip() if bom_name else "") or f"{_cloudnm} to OCI Bill Comparison"
     b2 = banner("B2", title, _C_BLUE, font_color="FFFFFF")
     b2.border = Border(left=_THIN, top=_THIN, bottom=_THIN)
-    banner("C2", "AWS", _C_BLUE, font_color="FFFFFF")
+    banner("C2", _cloudnm, _C_BLUE, font_color="FFFFFF")
     ws.merge_cells("D2:G2")
     banner("D2", "USD", _C_GOLD, border_all=True)
     ws["D2"].number_format = _ACCT2
@@ -1646,9 +1650,15 @@ def _cloud_product_breakdown(ws, ordered, present_groups, bom_name, oci_discount
         else:
             data_cell("J", r, oci_cost, _ACCT2)
 
-        # Total - Discounted
+        # Total - Discounted. The 3rd-party share (direct-GitHub billing, licensing)
+        # is never discounted - only the OCI-billed remainder takes the discount.
+        third = round(float(v.get("third") or 0), 2)
         if carried:
             data_cell("K", r, f"=F{r}", _ACCT2)
+        elif third > 0:
+            data_cell("K", r,
+                      f'=IF(J{r}="FREE","FREE",(J{r}-{third})*(1-$J${discount_row})+{third})',
+                      _ACCT2)
         else:
             data_cell("K", r,
                       f'=IF(J{r}="FREE","FREE",J{r}*(1-$J${discount_row}))',
@@ -1862,37 +1872,48 @@ def _cloud_legend(ws, present_groups, first, last, total_row, start_row,
     build_table(a_hdr, "Annual", annual=True, month_lo=m_lo)
 
 
-_CLOUD_NOTES = [
-    ("Carry cost",
-     "Costs for services or service descriptions that lack a clear mapping, "
-     "have no direct equivalent, use different units of measure compared to "
-     "OCI pricing, or that raise questions for needing clarity from Solutions "
-     "Engineer are carried over to avoid overestimating potential savings on "
-     "the OCI side.\n(*Denoted with asterisk and blue text)"),
-    ("Discounting",
-     "An OCI discount (set in the app, next to the ramp graph) is applied to the "
-     "OCI list pricing: Total - Discounted = Total - List x (1 - discount). At a "
-     "0% discount the discounted OCI total equals the figure shown in the app. "
-     "Carried-cost and Marketplace items are excluded from the discount."),
-    ("Product Grouping",
-     "AWS services are grouped into the 11 OCI product groups using Oracle's "
-     "AWS->OCI service comparison mapping (e.g. EC2 and Compute Savings Plans "
-     "roll up to Compute, S3 and EBS to Storage, RDS to Database)."),
-    ("Marketplace + 3rd Party Services",
-     "Any AWS Marketplace item or third-party service represents a carried "
-     "cost and is assumed to be available in the OCI Marketplace or at the "
-     "same price currently charged by the third-party provider.\n"
-     "(*Denoted with asterisk and blue text)"),
-    ("Oracle Pricing Estimates",
-     "Please note that these figures are preliminary estimates only and do "
-     "not constitute a final Bill of Materials (BOM). The detailed migration "
-     "costs, strategic approach, final discount structure, and precise product "
-     "or service mappings to be thoroughly discussed and finalized between the "
-     "Oracle account team and the client."),
-]
+def _cloud_display_name(source_cloud):
+    return {"aws": "AWS", "azure": "Azure", "gcp": "GCP",
+            "onprem": "On-Prem"}.get(str(source_cloud or "aws").lower(), "AWS")
 
 
-def _cloud_service_mapping_sheet(ws, rows, oci_discount=0.0, extra_rows=None):
+def _cloud_notes(cloudnm="AWS"):
+    """Notes + Assumptions rows, named for the bill's ACTUAL source cloud - an
+    Azure bill's workbook must never talk about AWS services."""
+    example = (" (e.g. EC2 and Compute Savings Plans roll up to Compute, S3 and EBS "
+               "to Storage, RDS to Database)" if cloudnm == "AWS" else
+               " (e.g. compute instances roll up to Compute, object and block storage "
+               "to Storage, managed databases to Database)")
+    return [
+        ("Carry cost",
+         "Costs for services or service descriptions that lack a clear mapping, "
+         "have no direct equivalent, use different units of measure compared to "
+         "OCI pricing, or that raise questions for needing clarity from Solutions "
+         "Engineer are carried over to avoid overestimating potential savings on "
+         "the OCI side.\n(*Denoted with asterisk and blue text)"),
+        ("Discounting",
+         "An OCI discount (set in the app, next to the ramp graph) is applied to the "
+         "OCI list pricing: Total - Discounted = Total - List x (1 - discount). At a "
+         "0% discount the discounted OCI total equals the figure shown in the app. "
+         "Carried-cost and Marketplace items are excluded from the discount."),
+        ("Product Grouping",
+         f"{cloudnm} services are grouped into the 11 OCI product groups using Oracle's "
+         f"{cloudnm}->OCI service comparison mapping{example}."),
+        ("Marketplace + 3rd Party Services",
+         f"Any {cloudnm} Marketplace item or third-party service represents a carried "
+         "cost and is assumed to be available in the OCI Marketplace or at the "
+         "same price currently charged by the third-party provider.\n"
+         "(*Denoted with asterisk and blue text)"),
+        ("Oracle Pricing Estimates",
+         "Please note that these figures are preliminary estimates only and do "
+         "not constitute a final Bill of Materials (BOM). The detailed migration "
+         "costs, strategic approach, final discount structure, and precise product "
+         "or service mappings to be thoroughly discussed and finalized between the "
+         "Oracle account team and the client."),
+    ]
+
+
+def _cloud_service_mapping_sheet(ws, rows, oci_discount=0.0, extra_rows=None, source_cloud="aws"):
     """Per-line AWS -> OCI mapping detail (one row per priced bill line), so the
     workbook shows exactly how each source service was mapped and priced.
 
@@ -1908,7 +1929,8 @@ def _cloud_service_mapping_sheet(ws, rows, oci_discount=0.0, extra_rows=None):
     for c, w in widths.items():
         ws.column_dimensions[c].width = w
 
-    headers = ["Product Group", "AWS Service", "Source SKU / Meter", "Usage",
+    _cloudnm = _cloud_display_name(source_cloud)
+    headers = ["Product Group", f"{_cloudnm} Service", "Source SKU / Meter", "Usage",
                "Source Cost", "OCI Product", "OCI Cost", "Savings", "Status"]
     for i, h in enumerate(headers, start=2):  # start col B
         c = ws.cell(row=2, column=i, value=h)
@@ -1944,8 +1966,11 @@ def _cloud_service_mapping_sheet(ws, rows, oci_discount=0.0, extra_rows=None):
         m = float(row.get("monthly") or 0)
         if (row.get("costAction") or "") == "carry" or m == 0:
             return m
-        sql = float(row.get("sqlLicenseMonthly") or 0)   # licensing is never discounted
-        return (m - sql) * (1.0 - disc) + sql
+        # Licensing and 3rd-party (direct-GitHub) portions are never discounted.
+        sql = float(row.get("sqlLicenseMonthly") or 0)
+        third = float(row.get("thirdPartyMonthly") or 0)
+        nd = min(m, sql + third)
+        return (m - nd) * (1.0 - disc) + nd
 
     def _style_savings(cell, val, bold=False):
         cell.fill = _EGG_FILL
@@ -2062,17 +2087,18 @@ def _cloud_service_mapping_sheet(ws, rows, oci_discount=0.0, extra_rows=None):
     return total_row
 
 
-def _cloud_notes_sheet(ws):
+def _cloud_notes_sheet(ws, source_cloud="aws"):
+    _cloudnm = _cloud_display_name(source_cloud)
     ws.column_dimensions["A"].width = 86.71
     ws.column_dimensions["B"].width = 45.71
-    for coord, text in (("A1", "AWS Service"), ("B1", "Notes")):
+    for coord, text in (("A1", f"{_cloudnm} Service"), ("B1", "Notes")):
         c = ws[coord]
         c.value = text
         c.fill = _fill(_C_HDR)
         c.font = Font(name="Calibri", size=14, bold=True, color="FFFFFFFF")
         c.alignment = _CTR
     wrap_top = Alignment(wrap_text=True, vertical="top")
-    for i, (label, note) in enumerate(_CLOUD_NOTES, start=2):
+    for i, (label, note) in enumerate(_cloud_notes(_cloudnm), start=2):
         a = ws[f"A{i}"]
         a.value = label
         a.font = Font(name="Calibri", size=14, bold=True)

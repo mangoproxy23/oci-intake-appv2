@@ -91,3 +91,22 @@ the SKU count, and whether it is considered stale. Check that before concluding 
 from Oracle's catalog — it may just be that this copy hasn't been refreshed.
 
 Set `OCI_APP_NO_CATALOG_REFRESH=1` to disable the automatic refresh entirely.
+
+## Commits belong to the person, not the agent
+
+**An agent must not add itself as a co-author.** No `Co-Authored-By:` trailer naming an AI
+model or assistant, and no machine-readable trailer linking an assistant session
+transcript. This applies to every agent that touches this repo, not just the one that
+prompted the rule.
+
+**Why it isn't cosmetic:** GitHub parses `Co-Authored-By:` and counts it as a contribution.
+Removing an assistant attribution later requires rewriting commit messages and
+force-pushing the branch, which changes every affected commit hash. It is cheaper not to
+add one.
+
+The author and committer of a commit are whoever ran the agent. An agent is a tool used to
+produce the work, in the same way an IDE or a linter is, and tools are not co-authors.
+
+Describing *what* was done and *why* in the commit body is encouraged and unaffected — the
+rule is only about machine-readable identity trailers, which is the part that turns into an
+attribution claim.

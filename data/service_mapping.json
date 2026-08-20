@@ -764,6 +764,27 @@
     },
     {
       "keywords": [
+        "blob archive",
+        "archive lrs",
+        "archive grs",
+        "archive ragrs"
+      ],
+      "category": "Storage",
+      "ociProduct": "OCI Archive Storage"
+    },
+    {
+      "keywords": [
+        "blob cold",
+        "cold lrs",
+        "cold grs",
+        "cold ragrs",
+        "cold tier"
+      ],
+      "category": "Storage",
+      "ociProduct": "OCI Infrequent Access Storage"
+    },
+    {
+      "keywords": [
         "blob storage",
         "blob"
       ],
@@ -944,7 +965,8 @@
     },
     {
       "keywords": [
-        "entra",
+        "microsoft entra",
+        "entra id",
         "active directory"
       ],
       "category": "Security and Identity",
@@ -964,6 +986,13 @@
       ],
       "category": "Observability and Management",
       "ociProduct": "OCI Resource Manager"
+    },
+    {
+      "keywords": [
+        "standard data transfer out"
+      ],
+      "category": "Networking",
+      "ociProduct": "OCI Outbound Data Transfer"
     }
   ]
 }

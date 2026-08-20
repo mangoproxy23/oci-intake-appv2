@@ -1,7 +1,7 @@
 {
  "source": "OCI_PaaSIaaS_PriceList_20260611.pdf + Oracle Cost Estimator catalog (dataset ver 439, 2026-07-30)",
  "currency": "USD",
- "count": 982,
+ "count": 985,
  "items": [
   {
    "sku": "B88206",
@@ -7229,8 +7229,32 @@
    "desc": "OCI Resource Analytics",
    "serviceCategory": "Resource Analytics - Free Service",
    "source": "oracle-cost-estimator-catalog-2026-07-30"
+  },
+  {
+   "sku": "B112952",
+   "payg": 0.59,
+   "metric": "ECPU Per Hour",
+   "desc": "OCI Device Data FHIR Service - Base",
+   "serviceCategory": "Integration - Device Data FHIR Service",
+   "source": "oracle-cost-estimator-catalog ver 447"
+  },
+  {
+   "sku": "B112953",
+   "payg": 0.039,
+   "metric": "Gigabyte (GB) Storage Capacity Per Month",
+   "desc": "OCI Device Data FHIR Service - Additional Storage",
+   "serviceCategory": "Integration - Device Data FHIR Service",
+   "source": "oracle-cost-estimator-catalog ver 447"
+  },
+  {
+   "sku": "B113049",
+   "payg": 0.0807,
+   "metric": "ECPU Per Hour",
+   "desc": "Oracle Autonomous AI Vector Database - ECPU",
+   "serviceCategory": "Database - Autonomous AI Database",
+   "source": "oracle-cost-estimator-catalog ver 447"
   }
  ],
- "oracleCatalogVersion": "439",
- "oracleCatalogRefreshedUtc": "2026-07-30T03:24:04"
+ "oracleCatalogVersion": "447",
+ "oracleCatalogRefreshedUtc": "2026-08-10T17:05:39"
 }

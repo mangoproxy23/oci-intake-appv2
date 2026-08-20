@@ -42,6 +42,7 @@ HANDLED_OUTSIDE_ASSIGN = {
     "diagramOptions",     # merged against defaults, nested objects included
     "ramp",               # months/ceiling/points restored individually
     "uploadReady",        # derived from rows.length
+    "convertedPricing",   # hand-restored (validated, rows re-shared) before the assign list
 }
 
 # Export-only inputs: real user customizations, but not part of calculate_pricing(), so they

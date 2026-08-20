@@ -227,9 +227,10 @@
               <span>Approved</span>
               <strong id="approvedCount">0</strong>
             </div>
-            <div>
+            <div class="summary-sheet">
               <span>Default Sheet</span>
               <strong id="sheetName">-</strong>
+              <select id="sheetSelect" aria-label="Sheet to read from this workbook" hidden></select>
             </div>
           </div>
 
@@ -252,6 +253,9 @@
             <ul class="datacheck-list" id="dataCheckList"></ul>
             <p class="datacheck-note" id="dataCheckNote" hidden></p>
           </section>
+
+          <p class="sort-hint" id="sortHint">Click a column heading to sort. Shift-click another
+            heading to sort within the first - Environment, then Machine Name.</p>
 
           <div class="table-wrap" aria-label="Editable Inventory Table">
             <table id="reviewTable"></table>
@@ -338,6 +342,22 @@
                     title="Trim OCPU and RAM for the newer OCI generation: Ax shapes 15% OCPU / 20% RAM (doubling for each generation the source is behind), regular E6 a flat 10% / 15%.">Right-size</button>
           </div>
           <em id="sizingModeHint" class="sizing-mode-hint">Sizes match the source 1:1</em>
+        </div>
+        <div class="sizing-mode-row">
+          <span class="sizing-mode-label">MAPPING</span>
+          <div class="mode-switch mapping-switch" role="group" aria-label="Shape Mapping Mode">
+            <button type="button" class="mode-opt is-active" data-mapping="selected"
+                    title="Put every workload on the one shape selected above.">Selected shape</button>
+            <button type="button" class="mode-opt" data-mapping="auto"
+                    title="Like-for-like: map each workload onto the OCI shape of its OWN processor family - Intel to Intel, AMD to AMD, Arm to Arm - read from the source instance type (cloud bill) or the CPU / chipset column (on-prem inventory). Rows whose family can't be read fall back to the shape selected above; a per-row OCI Shape override always wins.">Auto (match family)</button>
+          </div>
+          <div class="mode-switch mapping-tier-switch" role="group" aria-label="Auto Mapping Tier" hidden>
+            <button type="button" class="mode-opt is-active" data-maptier="best"
+                    title="Match the source instance's chip era: an older AMD instance lands on E4/E5 rather than the newest E6.">Same generation</button>
+            <button type="button" class="mode-opt" data-maptier="top"
+                    title="Put every workload on the newest OCI shape for its family (E6 Ax / X12 Ax / A4 Ax).">Newest shape</button>
+          </div>
+          <em id="mappingModeHint" class="sizing-mode-hint">Every workload uses the shape selected above</em>
         </div>
         <div class="pricing-options" aria-label="Pricing Options">
           <label class="opt-chip" title="Remove GPU per-GPU-hour pricing from the estimate and the export (GPU shapes are still mapped). Use when the GPUs are already owned or licensed separately.">

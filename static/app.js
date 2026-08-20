@@ -1,6 +1,9 @@
 const state = {
   fields: [],
   rows: [],
+  // Ordered sort keys for the review table: [{key, direction}, ...], primary first.
+  // Empty means the spreadsheet's own row order.
+  reviewSort: [],
   rateCard: [],
   rateCards: [],
   fullServiceCatalog: [],
@@ -26,6 +29,13 @@ const state = {
   bomName: "",
   ociDiscount: 0,
   rightsize: false,
+  // Auto (like-for-like) shape mapping: map every workload onto the OCI shape of its OWN CPU
+  // family - Intel to Intel, AMD to AMD, Arm to Arm - instead of putting the whole estate on
+  // the one shape picked below. Off = every row uses the selected shape.
+  autoMap: false,
+  // "best" = equivalent generation to the source instance; "top" = newest OCI shape for that
+  // family. Only distinguishable when the source names an instance type (a cloud bill).
+  autoTier: "best",
   oicMessagePacks: 1,
   // Services the user added from the "Add OCI services" panel. Each: {id, catalogId, name,
   // group, sku, unit, basis, values, monthly}. Included in totals and both BOM exports.
@@ -40,6 +50,11 @@ const state = {
   catalog: { groups: [], results: [], group: "", query: "", groupsOpen: {} },
   shapeOverrides: {},
   costOverrides: {},
+  sqlPathOverrides: {},
+  ghPathOverrides: {},
+  awsDevOverrides: {},
+  fwPathOverrides: {},
+  redisPathOverrides: {},
   approvedFlags: {},
   flagMenuRow: null,
   hiddenSources: {},
@@ -52,10 +67,9 @@ const state = {
   openaiApiConfigured: false,
   openaiApiConnected: false,
   openaiModel: "",
-  resultSort: {
-    key: "document",
-    direction: "asc",
-  },
+  // Ordered sort keys for the results table: [{key, direction}], primary first.
+  // Empty means document order.
+  resultSort: [],
   ramp: {
     months: 12,
     ceiling: 0,
@@ -213,6 +227,7 @@ const els = {
   columnCount: document.querySelector("#columnCount"),
   approvedCount: document.querySelector("#approvedCount"),
   sheetName: document.querySelector("#sheetName"),
+  sheetSelect: document.querySelector("#sheetSelect"),
   addRow: document.querySelector("#addRow"),
   addColumn: document.querySelector("#addColumn"),
   addColumnForm: document.querySelector("#addColumnForm"),
@@ -248,6 +263,9 @@ const els = {
   bomName: document.querySelector("#bomName"),
   ociDiscount: document.querySelector("#ociDiscount"),
   sizingSwitch: document.querySelector(".sizing-switch"),
+  mappingSwitch: document.querySelector(".mapping-switch"),
+  mappingTierSwitch: document.querySelector(".mapping-tier-switch"),
+  mappingModeHint: document.querySelector("#mappingModeHint"),
   sizingModeHint: document.querySelector("#sizingModeHint"),
   oicMessagePacks: document.querySelector("#oicMessagePacks"),
   oicMessagePacksControl: document.querySelector("#oicMessagePacksControl"),
@@ -925,8 +943,13 @@ function ensureIdentityReviewFields() {
     (field) => field?.key !== "application_name"
       && isApplicationIdentityLabel(field?.sourceHeader || field?.label),
   );
+  // A column the server tagged as the server-name source counts too, so a header the
+  // phrase list above can't spell - an abbreviated one, or the misspelled "Enviornment
+  // Name" seen on a real discovery sheet - still fills the canonical machine_name column
+  // instead of leaving every row "Missing data".
   const machineSourceFields = state.fields.filter(
-    (field) => field?.key !== "machine_name" && isMachineIdentityLabel(field?.sourceHeader || field?.label),
+    (field) => field?.key !== "machine_name"
+      && (isMachineIdentityLabel(field?.sourceHeader || field?.label) || field?.machineSourceLabel),
   );
 
   // Older saved workflows mapped server/host columns into application_name.
@@ -1342,7 +1365,18 @@ const SIZING_MARKER_BY_LABEL = {
   "Storage (GB)": "storageSourceLabel",
 };
 
-function findField(rule) {
+// Identity columns the server tagged from the Data Check's looser needles, so an
+// abbreviated "Env" or a misspelled "Enviornment Name" fills Environment and Machine Name
+// instead of every row reading "Missing data" while the Data Check panel directly above
+// reports the column as present. Tried only AFTER the phrase rules, so a well-formed
+// header still wins, and skipped when an earlier rule already claimed the column.
+// (Machine Name is not here: ensureIdentityReviewFields() already copies a tagged column
+// into the canonical machine_name field, which the rule matches by key.)
+const IDENTITY_MARKER_BY_LABEL = {
+  "Environment": "environmentSourceLabel",
+};
+
+function findField(rule, claimed) {
   if (rule.key) {
     const keyedMatch = state.fields.find((field) => field?.key === rule.key);
     if (keyedMatch) return { ...keyedMatch, label: rule.label };
@@ -1365,7 +1399,19 @@ function findField(rule) {
     if (section && !label.trim().startsWith(section)) return false;
     return matchGroups.some((terms) => terms.every((term) => label.includes(` ${term} `) || label.includes(term)));
   });
-  return match ? { ...match, label: rule.label } : null;
+  if (match) return { ...match, label: rule.label };
+  const identityMarker = IDENTITY_MARKER_BY_LABEL[rule.label];
+  if (identityMarker) {
+    const tagged = state.fields.find(
+      (field) =>
+        field &&
+        field[identityMarker] &&
+        !(claimed && claimed.has(field.key)) &&
+        state.rows.some((row) => hasCellContent(row[field.key]))
+    );
+    if (tagged) return { ...tagged, label: rule.label };
+  }
+  return null;
 }
 
 function previewFields() {
@@ -1378,7 +1424,7 @@ function previewFields() {
   const fields = [];
   const seen = new Set();
   rules.forEach((rule) => {
-    const field = findField(rule);
+    const field = findField(rule, seen);
     if (field && !seen.has(field.key) && (rule.required || shouldShowField(field))) {
       fields.push(field);
       seen.add(field.key);
@@ -1408,7 +1454,9 @@ function syncModeUi() {
   }
   // Cloud bill accepts several formats; Chrome can grey out CSV/TSV even when listed,
   // so don't filter at all here - the backend validates the file type on upload.
-  els.fileInput.accept = cloudBill ? "" : otherBill ? ".xlsx,.xls,.csv,.tsv,.json" : ".xlsx,.xls";
+  // On-prem inventories also come as CSV/TSV exports (discovery tools, CMDB dumps), and
+  // the backend parses those through the same header heuristics as an Excel sheet.
+  els.fileInput.accept = cloudBill ? "" : otherBill ? ".xlsx,.xls,.csv,.tsv,.json" : ".xlsx,.xls,.csv,.tsv";
   els.modeEyebrow.textContent = cloudBill ? "Cloud Bill" : otherBill ? "Other OCI Bill" : "On-Prem Inventory";
   els.uploadHeading.textContent = cloudBill
     ? "Upload Cloud Bill"
@@ -1624,7 +1672,27 @@ function renderStats(meta = {}) {
 // CPU-unit interpretation. The parser stores the CPU column already halved
 // (raw vCPU / 2 = OCPU under the default vCPU assumption). "Already OCPUs" means the
 // source count is the OCPU count, so the review/pricing value is doubled back to the
-// raw count. "Auto" detects vCPU vs OCPU from the original header, defaulting to vCPU.
+// raw count. "Auto" detects vCPU vs OCPU. MUST mirror detect_cpu_unit() in app.py - if
+// these two disagree, the review table shows one core count and the BOM prices another.
+
+// Named virtualization platforms - see _VIRTUALIZATION_CUES in app.py for why the bare
+// token "vm" is not one.
+const VIRTUALIZATION_CUES = [
+  "vmware", "esx", "esxi", "vsphere", "vcenter", "rvtools",
+  "hyper v", "hyperv", "nutanix", "proxmox", "xenserver", "xen server",
+  "citrix hypervisor", "hypervisor", "oracle vm", "ovm", "virtual machine", "vmdk",
+  "datastore", "guest os", "vm host", "esx host",
+];
+
+function mentionsVirtualization() {
+  const hit = (text) =>
+    !!text && VIRTUALIZATION_CUES.some((cue) => new RegExp(`(?:^|[^a-z0-9])${cue}(?:[^a-z0-9]|$)`).test(text));
+  if ((state.fields || []).some((f) => hit(normalizeText(f?.sourceHeader || f?.label || "")))) return true;
+  return (state.rows || []).slice(0, 200).some((row) =>
+    Object.entries(row || {}).some(([key, value]) => !key.startsWith("__") && hit(normalizeText(value))),
+  );
+}
+
 function resolvedCpuUnit() {
   if (state.cpuUnit === "vcpu" || state.cpuUnit === "ocpu") return state.cpuUnit;
   const f = (state.fields || []).find((x) => x && x.cpuSourceLabel);
@@ -1634,7 +1702,11 @@ function resolvedCpuUnit() {
   // Physical cores are OCPUs 1:1 (CPU cores per server, physical cores, rationalized cores),
   // so treat a "core" column as OCPUs, not halved like vCPUs. Mirror server detect_cpu_unit.
   if (src.includes("core")) return "ocpu";
-  return "vcpu";
+  // Halving now needs a positive reason. An on-prem sheet counts physical cores and 1 OCPU
+  // = 1 physical core, so an ambiguous "CPUs" column is OCPUs; only a named hypervisor says
+  // the figure came from a guest VM and is therefore vCPUs.
+  if (mentionsVirtualization()) return "vcpu";
+  return "ocpu";
 }
 function cpuDisplayMult() {
   return resolvedCpuUnit() === "ocpu" ? 2 : 1;
@@ -1651,7 +1723,12 @@ function updateCpuUnitHint() {
   if (state.cpuUnit === "auto" && (state.fields || []).some((f) => f && f.cpuSourceLabel)) {
     const r = resolvedCpuUnit();
     els.cpuUnitDetected.textContent =
-      "Auto-detected: " + (r === "ocpu" ? "already OCPUs" : "vCPUs (halved for OCI)");
+      "Auto-detected: " +
+      (r === "ocpu"
+        ? "physical cores / OCPUs (1:1, not halved)"
+        : mentionsVirtualization()
+        ? "vCPUs (halved for OCI — this sheet names a hypervisor)"
+        : "vCPUs (halved for OCI)");
     els.cpuUnitDetected.hidden = false;
   } else {
     els.cpuUnitDetected.hidden = true;
@@ -1670,6 +1747,69 @@ const DATA_CHECK_CONSEQUENCE = {
   environment: "the Environment column stays blank",
   application: "the Applications sheet and Master Application column stay empty",
 };
+
+// The "Default Sheet" tile doubles as the sheet picker. pick_sheet() scores the sheets and
+// is usually right, but it is a heuristic on someone else's workbook - when it lands on the
+// wrong tab the only recourse used to be editing the file and uploading again. Reads as a
+// plain tile value until the workbook actually offers an alternative.
+function renderSheetPicker(payload) {
+  const select = els.sheetSelect;
+  const label = els.sheetName;
+  if (!select || !label) return;
+  // Hidden sheets are excluded server-side; the fallbacks cover a CSV or a PDF bill, which
+  // report a single pseudo-sheet.
+  const sheets = (payload?.visibleSheets || payload?.sheets || []).filter(Boolean);
+  const current = payload?.sheetName || "";
+  label.title = "";
+  // A confirmed RVTools export is always read by the RVTools parser, from vInfo plus vDisk,
+  // whatever sheet is named - so a picker here would be a control that silently does nothing.
+  // Say why instead of offering it. (See parse_workbook_rule_based() in app.py.)
+  if (payload?.metadata?.parser === "rvtools") {
+    select.hidden = true;
+    label.hidden = false;
+    label.title =
+      "RVTools export: read by the RVTools parser from vInfo, with disk capacity summed from "
+      + "vDisk. The sheet cannot be changed - the generic reader would take memory in MiB as GB "
+      + "and lose the disk totals.";
+    return;
+  }
+  if (sheets.length < 2 || !state.lastUploadFile) {
+    select.hidden = true;
+    label.hidden = false;
+    return;
+  }
+  select.innerHTML = sheets
+    .map((name) => `<option value="${escapeHtml(name)}"${name === current ? " selected" : ""}>${escapeHtml(name)}</option>`)
+    .join("");
+  select.title = `Reading "${current}". Pick another sheet in this workbook to parse it instead.`;
+  select.disabled = false;
+  label.hidden = true;
+  select.hidden = false;
+}
+
+async function reparseWithSheet(sheetName) {
+  const file = state.lastUploadFile;
+  if (!file || !sheetName) return;
+  if (els.sheetSelect) els.sheetSelect.disabled = true;
+  try {
+    // Other OCI Bill has its own converter (and its own per-sheet totals), so route there;
+    // on-prem and cloud-bill both re-enter the normal upload path with the override.
+    if (isOtherOciBillMode()) {
+      await convertBomFromFile(file, sheetName);
+      return;
+    }
+    await uploadFile(file, sheetName);
+    // uploadFile() ends on the Upload step, which is right for a fresh drop but not here:
+    // the picker lives on Review, so stay there and show the newly parsed sheet.
+    if (state.uploadReady) showReviewPage();
+  } catch (error) {
+    setUploadingError(error);
+  } finally {
+    if (els.sheetSelect) els.sheetSelect.disabled = false;
+  }
+}
+
+els.sheetSelect?.addEventListener("change", (event) => reparseWithSheet(event.target.value));
 
 function renderDataCheck(check) {
   const panel = document.getElementById("dataCheck");
@@ -1714,7 +1854,9 @@ function removeReviewRow(row) {
   state.rows.splice(idx, 1);
   // Drop any per-row state keyed by this row's id so it doesn't linger.
   if (id) {
-    [state.selectedRows, state.approvedFlags, state.shapeOverrides, state.costOverrides]
+    [state.selectedRows, state.approvedFlags, state.shapeOverrides, state.costOverrides,
+     state.sqlPathOverrides, state.ghPathOverrides, state.awsDevOverrides,
+     state.fwPathOverrides, state.redisPathOverrides]
       .forEach((map) => { if (map && typeof map === "object") delete map[id]; });
   }
   // Sizing changed - invalidate the estimate so Price re-runs on the reduced set.
@@ -1934,11 +2076,16 @@ function buildReviewRowEl(row, rowIndex, fields) {
 
 function renderTable() {
   const fields = previewFields();
+  ensureRowSequence();
+  // A column that has since been removed (sheet switch, column delete) must not leave the
+  // table claiming a sort it is no longer applying.
+  const visibleKeys = new Set(fields.map((field) => field?.key));
+  state.reviewSort = (state.reviewSort || []).filter((s) => s && visibleKeys.has(s.key));
   const rowEntries = reviewRowEntries(fields);
   const thead = document.createElement("thead");
   const headRow = document.createElement("tr");
   headRow.append(headerCell("Approve"));
-  fields.forEach((field) => headRow.append(headerCell(field.label)));
+  fields.forEach((field) => headRow.append(headerCell(field.label, field)));
   if (osColumnVisible()) headRow.append(headerCell("OS"));
   thead.append(headRow);
 
@@ -2007,14 +2154,149 @@ function focusReviewField(fieldKey) {
   });
 }
 
-function headerCell(label) {
+function headerCell(label, field) {
   const th = document.createElement("th");
   th.scope = "col";
   th.textContent = label;
   if (label.toLowerCase().includes("ocpu")) {
     th.title = "Uploaded spreadsheet CPU values are assumed to be vCPUs and converted using 2 vCPUs = 1 OCPU.";
   }
+  if (field?.key) makeHeaderSortable(th, label, field.key);
   return th;
+}
+
+// ---- Sorting the review table ------------------------------------------------------
+// Clicking a column header reorders state.rows itself, not just the view, so the BOM,
+// the export and the architecture diagram all come out in the order on screen. Safe to
+// reorder in place: per-row state (approvals, overrides, selections) is keyed by
+// row.__id, and rowIndex is re-derived from the array on every render.
+
+// Original file order, so a third click can put it back. Stamped on first render, when
+// the rows are still in the order the spreadsheet had them.
+function ensureRowSequence() {
+  (state.rows || []).forEach((row, index) => {
+    if (row && row.__seq === undefined) row.__seq = index;
+  });
+}
+
+function compareReviewCells(a, b) {
+  const numeric = (value) => {
+    const text = String(value).replace(/[$,%\s]/g, "");
+    return text === "" ? NaN : Number(text);
+  };
+  const an = numeric(a);
+  const bn = numeric(b);
+  if (Number.isFinite(an) && Number.isFinite(bn)) return an - bn;
+  // numeric:true so "APP2" sorts after "APP10"'s neighbours sensibly and DB1 < DB2 < DB10.
+  return String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: "base" });
+}
+
+// Multi-key: compare on the primary column, and only where it ties fall through to the
+// next one. That is what "Environment, then Machine Name" means - the second key orders
+// rows WITHIN each environment rather than re-sorting the whole table.
+function sortReviewRows(sortKeys) {
+  ensureRowSequence();
+  const seq = (row) => (row?.__seq ?? 0);
+  const keys = (sortKeys || []).filter((s) => s && s.key && s.direction);
+  if (!keys.length) {
+    state.rows.sort((ra, rb) => seq(ra) - seq(rb));
+    return;
+  }
+  state.rows.sort((ra, rb) => {
+    for (const { key, direction } of keys) {
+      const a = ra[key];
+      const b = rb[key];
+      const aBlank = !hasCellContent(a);
+      const bBlank = !hasCellContent(b);
+      // Blanks sink to the bottom in BOTH directions - flipping the sort shouldn't bury
+      // the rows that still need filling in under a screen of empties.
+      if (aBlank !== bBlank) return aBlank ? 1 : -1;
+      if (aBlank && bBlank) continue; // both empty here: let the next key decide
+      const cmp = compareReviewCells(a, b);
+      if (cmp) return direction === "desc" ? -cmp : cmp;
+    }
+    return seq(ra) - seq(rb); // stable: rows equal on every key keep file order
+  });
+}
+
+function reviewSortEntry(fieldKey) {
+  return (state.reviewSort || []).find((s) => s && s.key === fieldKey) || null;
+}
+
+function applyReviewSort(sortKeys) {
+  state.reviewSort = sortKeys;
+  sortReviewRows(sortKeys);
+  renderTable();
+}
+
+function makeHeaderSortable(th, label, fieldKey) {
+  const chain = state.reviewSort || [];
+  const rank = chain.findIndex((s) => s && s.key === fieldKey);
+  const active = rank >= 0 ? chain[rank].direction : null;
+  th.classList.add("is-sortable");
+  if (active) th.classList.add(active === "asc" ? "is-sorted-asc" : "is-sorted-desc");
+  // aria-sort is single-valued by spec, so only the primary column advertises it; the
+  // full chain is spelled out in the title, which is also the accessible description.
+  th.setAttribute(
+    "aria-sort",
+    rank === 0 ? (active === "asc" ? "ascending" : "descending") : "none",
+  );
+  th.tabIndex = 0;
+  const chainText = chain.length > 1
+    ? " Sorting by " + chain.map((s, i) => `${i + 1}. ${fieldLabelForKey(s.key)} ${s.direction === "desc" ? "Z→A" : "A→Z"}`).join(", ") + "."
+    : "";
+  th.title = (active === "asc"
+    ? `Sorted by ${label}, A→Z. Click to reverse.`
+    : active === "desc"
+    ? `Sorted by ${label}, Z→A. Click to restore the spreadsheet's order.`
+    : `Sort rows by ${label}.`)
+    + ` Shift-click to add ${label} as a further tie-breaker instead of replacing the sort.`
+    + chainText;
+
+  const marker = document.createElement("span");
+  marker.className = "sort-marker";
+  marker.setAttribute("aria-hidden", "true");
+  marker.textContent = active === "asc" ? "▲" : active === "desc" ? "▼" : "↕";
+  // Only worth numbering once more than one column is in play.
+  if (active && chain.length > 1) {
+    const badge = document.createElement("sup");
+    badge.className = "sort-rank";
+    badge.textContent = String(rank + 1);
+    marker.append(badge);
+  }
+  th.append(marker);
+
+  const activate = (additive) => {
+    const current = (state.reviewSort || []).map((s) => ({ ...s }));
+    const at = current.findIndex((s) => s.key === fieldKey);
+    if (additive) {
+      // Shift-click builds the chain: add as the next tie-breaker, then reverse it, then
+      // drop just this key and leave the rest of the chain intact.
+      if (at === -1) current.push({ key: fieldKey, direction: "asc" });
+      else if (current[at].direction === "asc") current[at].direction = "desc";
+      else current.splice(at, 1);
+      applyReviewSort(current);
+      return;
+    }
+    // Plain click sorts by this column ALONE, cycling asc -> desc -> the file's order.
+    // Clicking a column that was only part of a chain restarts from it, ascending.
+    const wasOnlyKey = at === 0 && current.length === 1;
+    const next = wasOnlyKey ? (active === "asc" ? "desc" : active === "desc" ? null : "asc") : "asc";
+    applyReviewSort(next ? [{ key: fieldKey, direction: next }] : []);
+  };
+
+  th.addEventListener("click", (event) => activate(event.shiftKey));
+  th.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      activate(event.shiftKey);
+    }
+  });
+}
+
+function fieldLabelForKey(key) {
+  const field = (state.fields || []).find((f) => f?.key === key);
+  return field?.label || key;
 }
 
 function clearFillPreview() {
@@ -2144,7 +2426,27 @@ function startCellFill(event) {
 
 const PROVIDER_NAME_TO_VALUE = { aws: "aws", azure: "azure", gcp: "gcp" };
 const COMPRESSED_UPLOAD_THRESHOLD = 3.5 * 1024 * 1024;
+// Vercel's request gateway rejects bodies over ~4.5 MB, so this is the safe default until
+// /api/health reports what the server actually accepts. A local `python app.py` has no
+// gateway in front of it and advertises its decompression guard instead (512 MB by
+// default, OIA_MAX_UPLOAD_MB overrides) - the limits are the SERVER'S facts, not the
+// browser's; never hardcode a bigger number here.
 const MAX_COMPRESSED_UPLOAD_BYTES = 4 * 1000 * 1000;
+
+function maxCompressedUploadBytes() {
+  return Number(state.uploadLimits?.maxCompressedBytes) || MAX_COMPRESSED_UPLOAD_BYTES;
+}
+
+function maxDecompressedUploadBytes() {
+  return Number(state.uploadLimits?.maxDecompressedBytes) || 0;
+}
+
+function uploadLimitAdvice() {
+  // On the deployed app the ceiling is the platform gateway; running locally lifts it.
+  return (state.uploadLimits?.gateway || "vercel") === "vercel"
+    ? " Reduce the export to the columns and date range you need, or run the app locally (python app.py), which accepts much larger files (512 MB by default, OIA_MAX_UPLOAD_MB to raise it)."
+    : ` This server accepts up to ${Math.round(maxCompressedUploadBytes() / 1e6)} MB - reduce the file or split it.`;
+}
 
 async function jsonRequestOptions(payload) {
   const serialized = JSON.stringify(payload);
@@ -2163,9 +2465,10 @@ async function jsonRequestOptions(payload) {
   }
   const compressedStream = body.stream().pipeThrough(new CompressionStream("gzip"));
   const compressedBody = await new Response(compressedStream).blob();
-  if (compressedBody.size > MAX_COMPRESSED_UPLOAD_BYTES) {
+  if (compressedBody.size > maxCompressedUploadBytes()) {
     throw new Error(
-      "This workflow remains too large after compression. Reduce the bill date range and try again.",
+      `This workflow is still ${(compressedBody.size / 1e6).toFixed(1)} MB after compression.`
+      + uploadLimitAdvice(),
     );
   }
   return {
@@ -2175,18 +2478,25 @@ async function jsonRequestOptions(payload) {
   };
 }
 
-async function compressedUploadRequest(file) {
+async function compressedUploadRequest(file, sheetOverride = "") {
   if (
     file.size < COMPRESSED_UPLOAD_THRESHOLD
     || typeof CompressionStream === "undefined"
   ) {
     return null;
   }
+  if (maxDecompressedUploadBytes() && file.size > maxDecompressedUploadBytes()) {
+    throw new Error(
+      `This file is ${(file.size / 1e6).toFixed(0)} MB; the server's hard limit is `
+      + `${Math.round(maxDecompressedUploadBytes() / 1e6)} MB. Split the file or trim it down.`,
+    );
+  }
   const compressedStream = file.stream().pipeThrough(new CompressionStream("gzip"));
   const compressedBody = await new Response(compressedStream).blob();
-  if (compressedBody.size > MAX_COMPRESSED_UPLOAD_BYTES) {
+  if (compressedBody.size > maxCompressedUploadBytes()) {
     throw new Error(
-      "This file remains too large after compression. Reduce the export to the billing columns and date range you need, then upload it again.",
+      `This file is still ${(compressedBody.size / 1e6).toFixed(1)} MB after compression.`
+      + uploadLimitAdvice(),
     );
   }
   return {
@@ -2199,6 +2509,8 @@ async function compressedUploadRequest(file) {
         "X-Intake-Mode": state.intakeMode,
         "X-Provider-Hint": state.providerHint,
         "X-Full-Service-Beta": state.fullServiceBeta ? "true" : "false",
+        // Header values must be latin-1; a sheet name can hold anything.
+        ...(sheetOverride ? { "X-Sheet-Name": encodeURIComponent(sheetOverride) } : {}),
       },
       body: compressedBody,
     },
@@ -2216,12 +2528,12 @@ function showSelectedDoc(name, sub) {
   if (els.selectedDocSub) els.selectedDocSub.textContent = sub || "";
 }
 
-async function uploadFile(file) {
+async function uploadFile(file, sheetOverride = "") {
   if (!file) return;
   // Other OCI Bill mode: the file is already a priced OCI BOM, not a raw inventory or bill,
   // so the inventory parser would make nonsense of it. Route the whole drop zone (and the file
   // picker, which shares this entry point) to the converter instead.
-  if (isOtherOciBillMode()) return convertBomFromFile(file);
+  if (isOtherOciBillMode()) return convertBomFromFile(file, sheetOverride);
   clearIntakeStatuses();   // starting a fresh upload - drop any load/convert banners
   resetWorkflowProgress();
   state.lastUploadFile = file;
@@ -2229,12 +2541,13 @@ async function uploadFile(file) {
   setUploadLoading(true, file.name);
 
   try {
-    const compressedRequest = await compressedUploadRequest(file);
+    const compressedRequest = await compressedUploadRequest(file, sheetOverride);
     const body = new FormData();
     body.append("file", file);
     body.append("intakeMode", state.intakeMode);
     body.append("providerHint", state.providerHint);
     body.append("fullServiceBeta", state.fullServiceBeta ? "true" : "false");
+    if (sheetOverride) body.append("sheetName", sheetOverride);
     const request = compressedRequest || {
       url: "/api/upload",
       options: {
@@ -2242,10 +2555,13 @@ async function uploadFile(file) {
         body,
       },
     };
+    // A big inventory takes longer to ship and parse than the old fixed 100 s: allow
+    // ~4 s per MB on top, so a 100 MB local upload doesn't die as a fake timeout.
+    const uploadTimeoutMs = 100000 + Math.ceil((file.size / 1e6) * 4000);
     const { response, payload } = await fetchJson(
       request.url,
       request.options,
-      100000,
+      uploadTimeoutMs,
     );
     if (!response.ok) {
       throw new Error(payload.error || "Upload failed.");
@@ -2319,6 +2635,7 @@ async function uploadFile(file) {
     els.sheetMeta.textContent = payload.fileName;
     els.sheetMeta.title = `Sheet "${payload.sheetName}" • ${parserLabel}${modeLabel}${grain} • data begins on row ${payload.metadata.dataStartRow}`;
     els.sheetName.textContent = payload.sheetName;
+    renderSheetPicker(payload);
     renderDataCheck(payload.dataCheck);
     renderRateCard();
     renderProcessorPicker();
@@ -2738,6 +3055,8 @@ function collectWorkflowState() {
     bomName: state.bomName,
     ociDiscount: state.ociDiscount,
     rightsize: state.rightsize,
+    autoMap: state.autoMap,
+    autoTier: state.autoTier,
     oicMessagePacks: state.oicMessagePacks,
     selectedShape: state.selectedShape,
     selectedVendor: state.selectedVendor,
@@ -2760,6 +3079,11 @@ function collectWorkflowState() {
     convertedPricing: state.pricing?.converted ? state.pricing : null,
     shapeOverrides: state.shapeOverrides,
     costOverrides: state.costOverrides,
+    sqlPathOverrides: state.sqlPathOverrides,
+    ghPathOverrides: state.ghPathOverrides,
+    awsDevOverrides: state.awsDevOverrides,
+    fwPathOverrides: state.fwPathOverrides,
+    redisPathOverrides: state.redisPathOverrides,
     approvedFlags: state.approvedFlags,
     hiddenSources: state.hiddenSources,
     selectedRows: state.selectedRows,
@@ -2797,6 +3121,8 @@ async function applyWorkflowState(wf) {
     bomName: "",
     ociDiscount: 0,
     rightsize: false,
+    autoMap: false,
+    autoTier: "best",
     oicMessagePacks: 1,
     selectedShape: "e6-standard-ax",
     selectedVendor: "amd",
@@ -2814,17 +3140,23 @@ async function applyWorkflowState(wf) {
     pricing: null,
     shapeOverrides: {},
     costOverrides: {},
+    sqlPathOverrides: {},
+    ghPathOverrides: {},
+    awsDevOverrides: {},
+    fwPathOverrides: {},
+    redisPathOverrides: {},
     approvedFlags: {},
     hiddenSources: {},
     selectedRows: {},
     columnPrefs: {},
-    resultSort: { key: "document", direction: "asc" },
+    resultSort: [],
   });
   const assign = [
     "intakeMode", "providerHint", "fullServiceBeta", "hideGpuPricing",
     "hideWindowsPricing", "hideSqlPricing",
     "cpuUnit",
-    "bomName", "ociDiscount", "rightsize", "oicMessagePacks", "selectedShape", "existingInfraCost",
+    "bomName", "ociDiscount", "rightsize", "autoMap", "autoTier", "oicMessagePacks",
+    "selectedShape", "existingInfraCost",
     // Pricing inputs: these MUST be restored, or a re-imported BOM re-prices differently from
     // the one that was exported. hoursPerMonth/hoursOverride used to be saved and then thrown
     // away by a hard reset below.
@@ -2832,7 +3164,8 @@ async function applyWorkflowState(wf) {
     "selectedVendor", "lastShapeByVendor", "crossCloudTopTier", "uploadMetadata",
     "workflowMaxUnlockedStep",
     "showMissingOnly", "extraServices", "fields", "rows",
-    "shapeOverrides", "costOverrides",
+    "shapeOverrides", "costOverrides", "sqlPathOverrides", "ghPathOverrides", "awsDevOverrides",
+    "fwPathOverrides", "redisPathOverrides",
     "approvedFlags", "hiddenSources", "selectedRows", "columnPrefs", "resultSort",
   ];
   assign.forEach((k) => { if (wf[k] !== undefined) state[k] = wf[k]; });
@@ -2878,17 +3211,18 @@ async function applyWorkflowState(wf) {
       ? state.lastShapeByVendor
       : {};
   [
-    "shapeOverrides", "costOverrides", "approvedFlags", "hiddenSources",
-    "selectedRows", "columnPrefs",
+    "shapeOverrides", "costOverrides", "sqlPathOverrides", "ghPathOverrides", "awsDevOverrides",
+    "fwPathOverrides", "redisPathOverrides", "approvedFlags", "hiddenSources", "selectedRows", "columnPrefs",
   ].forEach((key) => {
     if (!state[key] || typeof state[key] !== "object" || Array.isArray(state[key])) {
       state[key] = {};
     }
   });
-  if (!state.resultSort || typeof state.resultSort !== "object") {
-    state.resultSort = { key: "document", direction: "asc" };
-  }
+  // Tolerates both shapes: a pre-multi-sort workflow saved a single {key, direction}.
+  state.resultSort = normalizeResultSort(state.resultSort);
   state.cpuUnit = ["auto", "vcpu", "ocpu"].includes(state.cpuUnit) ? state.cpuUnit : "auto";
+  state.autoMap = !!state.autoMap;
+  state.autoTier = state.autoTier === "top" ? "top" : "best";
   // Validate the restored hours rather than discarding them: a saved BOM that was priced on a
   // custom hours/month must re-import at that same figure, or the reopened workbook disagrees
   // with the one the customer already has.
@@ -2932,6 +3266,7 @@ async function applyWorkflowState(wf) {
   if (els.ociDiscount) els.ociDiscount.value = String(Number(state.ociDiscount || 0));
   if (typeof syncExistingInfraUi === "function") syncExistingInfraUi();
   if (typeof syncSizingModeUi === "function") syncSizingModeUi();
+  if (typeof syncMappingModeUi === "function") syncMappingModeUi();
   if (typeof syncOptChips === "function") syncOptChips();
   if (els.oicMessagePacks) els.oicMessagePacks.value = state.oicMessagePacks || 1;
   syncModeUi();
@@ -3717,11 +4052,20 @@ function pricingInputs() {
     cpuUnit: state.cpuUnit,
     shapeOverrides: state.shapeOverrides,
     costOverrides: state.costOverrides,
+    sqlPathOverrides: state.sqlPathOverrides,
+    ghPathOverrides: state.ghPathOverrides,
+    awsDevOverrides: state.awsDevOverrides,
+    fwPathOverrides: state.fwPathOverrides,
+    redisPathOverrides: state.redisPathOverrides,
     hoursPerMonth: state.hoursPerMonth,
     hoursOverride: state.hoursOverride,
     oicMessagePacks: state.oicMessagePacks,
     // Gen-gap sizing trim. Off = map every workload 1:1 with the source.
     rightsize: !!state.rightsize,
+    // Like-for-like shape mapping (Intel -> Intel, AMD -> AMD, Arm -> Arm) instead of putting
+    // the whole estate on the single selected shape.
+    auto: !!state.autoMap,
+    autoTier: state.autoTier === "top" ? "top" : "best",
   };
 }
 
@@ -4400,32 +4744,48 @@ function compareSortValues(left, right, direction = "asc") {
   }) * multiplier;
 }
 
+// state.resultSort is an ORDERED list of {key, direction}, primary first; empty means
+// document order. Saved workflows from before multi-column sort hold a single
+// {key, direction} object (with key "document" meaning unsorted), so accept both.
+function normalizeResultSort(value) {
+  const list = Array.isArray(value) ? value : value && typeof value === "object" ? [value] : [];
+  return list
+    .filter((s) => s && typeof s.key === "string" && s.key && s.key !== "document")
+    .map((s) => ({ key: s.key, direction: s.direction === "desc" ? "desc" : "asc" }));
+}
+
 function activeResultSort(columns) {
-  // "document" (the default) means keep the original upload/order - no column sort.
-  if (state.resultSort.key === "document") return { column: null, direction: "asc" };
-  const requestedColumn = columns.find((column) => column.key === state.resultSort.key);
-  if (!requestedColumn) return { column: null, direction: "asc" };
-  return { column: requestedColumn, direction: state.resultSort.direction === "asc" ? "asc" : "desc" };
+  return normalizeResultSort(state.resultSort)
+    .map((s) => ({ column: columns.find((c) => c.key === s.key), direction: s.direction }))
+    .filter((s) => s.column);
 }
 
 function sortResultRows(rows, columns) {
-  const { column: activeColumn, direction } = activeResultSort(columns);
-  if (!activeColumn) return rows.slice();
+  const sorts = activeResultSort(columns);
+  if (!sorts.length) return rows.slice();
   return rows
     .map((row, index) => ({ row, index }))
     .sort((left, right) => {
-      const comparison = compareSortValues(
-        activeColumn.sortValue(left.row),
-        activeColumn.sortValue(right.row),
-        direction,
-      );
-      return comparison || left.index - right.index;
+      // Each key only breaks ties left unresolved by the one before it, so "Env then
+      // Machine Name" orders machines WITHIN an environment.
+      for (const { column, direction } of sorts) {
+        const comparison = compareSortValues(
+          column.sortValue(left.row),
+          column.sortValue(right.row),
+          direction,
+        );
+        if (comparison) return comparison;
+      }
+      return left.index - right.index;
     })
     .map((item) => item.row);
 }
 
 function renderSortableHead(columns) {
-  const { column: activeColumn, direction } = activeResultSort(columns);
+  const sorts = activeResultSort(columns);
+  const chainText = sorts.length > 1
+    ? " Sorting by " + sorts.map((s, i) => `${i + 1}. ${s.column.label} ${s.direction === "desc" ? "Z→A" : "A→Z"}`).join(", ") + "."
+    : "";
   return `
     <thead>
       <tr>
@@ -4434,13 +4794,24 @@ function renderSortableHead(columns) {
             if (column.selector) {
               return `<th class="select-col"><input type="checkbox" id="selectAllRows" aria-label="Select All Rows"/></th>`;
             }
-            const active = activeColumn?.key === column.key;
-            const ariaSort = active ? (direction === "asc" ? "ascending" : "descending") : "none";
+            const rank = sorts.findIndex((s) => s.column.key === column.key);
+            const direction = rank >= 0 ? sorts[rank].direction : null;
+            // aria-sort is single-valued by spec: only the primary advertises it, and the
+            // whole chain is spelled out in the title.
+            const ariaSort = rank === 0 ? (direction === "asc" ? "ascending" : "descending") : "none";
+            const title = (direction
+              ? `Sorted by ${column.label}, ${direction === "asc" ? "A→Z" : "Z→A"}.`
+              : `Sort rows by ${column.label}.`)
+              + ` Shift-click to add it as a further tie-breaker instead of replacing the sort.`
+              + chainText;
+            const badge = direction && sorts.length > 1
+              ? `<sup class="sort-rank">${rank + 1}</sup>`
+              : "";
             return `
-              <th class="${active ? `is-sorted is-${direction}` : "is-sortable"}" aria-sort="${ariaSort}">
-                <button type="button" class="sort-header" data-result-sort="${escapeHtml(column.key)}">
+              <th class="${direction ? `is-sorted is-${direction}` : "is-sortable"}" aria-sort="${ariaSort}">
+                <button type="button" class="sort-header" data-result-sort="${escapeHtml(column.key)}" title="${escapeHtml(title)}">
                   <span>${escapeHtml(column.label)}</span>
-                  <i aria-hidden="true"></i>
+                  <i aria-hidden="true"></i>${badge}
                 </button>
               </th>
             `;
@@ -4533,11 +4904,31 @@ function applyBulkCostAction(value) {
   return priceRows({ keepView: true });
 }
 
+// A row whose size fits no OCI shape at all - the mapping can't be delivered as it stands.
+function isImpossibleRow(row) {
+  return (row?.sizeCheck?.status || "") === "impossible";
+}
+
+// Impossible mappings are the rows that need a decision before the BOM can go out, so they are
+// PINNED to the top of the table in every mode - a column sort re-orders within the two groups
+// rather than burying them again. Stable, so everything else keeps the order it already had
+// (the cloud-bill branch pre-orders by flag, then by cost on the bill).
+function impossibleFirst(rows) {
+  return rows
+    .map((row, index) => ({ row, index }))
+    .sort(
+      (a, b) =>
+        (isImpossibleRow(b.row) ? 1 : 0) - (isImpossibleRow(a.row) ? 1 : 0) ||
+        a.index - b.index,
+    )
+    .map((item) => item.row);
+}
+
 function renderResultTableFromColumns(rows, columns) {
   renderColumnPicker(columns);
   const visible = columns.filter((c) => !isColumnHidden(c.key));
   const cols = visible.length ? visible : columns;
-  const sortedRows = sortResultRows(rows, cols);
+  const sortedRows = impossibleFirst(sortResultRows(rows, cols));
   const body = sortedRows
     .map((row) => `
       <tr>
@@ -4583,6 +4974,140 @@ function convertedShapeSelectHtml(row) {
   return ` <select class="cell-select converted-shape-select" data-converted-shape="${escapeHtml(String(row.rowId))}" title="Re-map this server's VM to a different OCI shape (re-prices its compute)">${opts}</select>`;
 }
 
+// Azure SQL DTU rows: pooled-conversion path dropdown. Default is SQL Server on
+// OCI VMs license-included; BYOL drops the license line; the ATP paths replatform
+// onto consolidated Autonomous. Same formatting as the per-row shape selects.
+// Carry-over-source-cost is ALWAYS the last option in every mapping dropdown
+// (VM shape selectors excluded by design).
+const SQL_DTU_PATH_OPTIONS = [
+  ["sql_vm_li", "SQL Server DB on OCI (license-included)"],
+  ["sql_vm_byol", "SQL Server DB on OCI (BYOL)"],
+  ["atp_list", "Autonomous ATP (list)"],
+  ["atp_byol", "Autonomous ATP (BYOL)"],
+  ["sql_carry", "Carry over source cost"],
+];
+// vCore-model SQL rows: real cores (no DTU proxy). License-meter rows only choose
+// between absorbed-into-conversion and carry.
+const SQL_VCORE_PATH_OPTIONS = [
+  ["sqlv_vm_li", "SQL Server DB on OCI (license-included)"],
+  ["sqlv_vm_byol", "SQL Server DB on OCI (BYOL)"],
+  ["sqlv_atp_list", "Autonomous ATP (list)"],
+  ["sqlv_atp_byol", "Autonomous ATP (BYOL)"],
+  ["sqlv_carry", "Carry over source cost"],
+];
+function sqlPathSelectHtml(row) {
+  let options = null;
+  let cur = null;
+  let title = "";
+  if (row.sqlDtuPath) {
+    options = SQL_DTU_PATH_OPTIONS;
+    cur = state.sqlPathOverrides[row.rowId] || row.sqlDtuPath;
+    title = "Pooled DTU conversion target for this row (re-prices it)";
+  } else if (row.sqlVcorePath && row.sqlVcoreKind !== "license") {
+    // License-meter rows are automatic (absorbed into the compute row's license
+    // line, or auto-carried when every compute row is carried) - no dropdown.
+    options = SQL_VCORE_PATH_OPTIONS;
+    cur = state.sqlPathOverrides[row.rowId] || row.sqlVcorePath;
+    title = "vCore SQL conversion target for this row (re-prices it)";
+  } else {
+    return "";
+  }
+  const opts = options
+    .map(([v, l]) => `<option value="${v}" ${v === cur ? "selected" : ""}>${escapeHtml(l)}</option>`)
+    .join("");
+  return ` <select class="cell-select sql-path-select" data-sql-path-row="${escapeHtml(String(row.rowId))}" title="${title}">${opts}</select>`;
+}
+
+// Direct-GitHub migration rows: per-kind option dropdown (security scope, base plan,
+// artifacts home). Kinds with a single path (Copilot, AI credits) get no dropdown.
+const GH_PATH_OPTIONS = {
+  security: [
+    ["gh_sec_both", "Code Security + Secret Protection (both)"],
+    ["gh_sec_code", "Code Security only"],
+    ["gh_sec_secret", "Secret Protection only"],
+  ],
+  base: [
+    ["gh_base_team", "GitHub Team (base)"],
+    ["gh_base_enterprise", "GitHub Enterprise Cloud"],
+  ],
+  artifacts: [
+    ["gh_art_packages", "GitHub Packages"],
+    ["gh_art_oci", "OCI Artifact Registry"],
+  ],
+  ai_credits: [
+    ["gh_ai_pooled", "Included Copilot seat pool"],
+    ["gh_ai_passthrough", "Azure-rate pass-through"],
+  ],
+};
+// Carry over source cost is appended LAST to every GitHub mapping dropdown.
+Object.values(GH_PATH_OPTIONS).forEach((list) => list.push(["gh_carry", "Carry over source cost"]));
+function ghPathSelectHtml(row) {
+  const options = GH_PATH_OPTIONS[row.ghPathKind];
+  if (!options) return "";
+  const cur = state.ghPathOverrides[row.rowId] || row.ghPath || options[0][0];
+  const opts = options
+    .map(([v, l]) => `<option value="${v}" ${v === cur ? "selected" : ""}>${escapeHtml(l)}</option>`)
+    .join("");
+  return ` <select class="cell-select gh-path-select" data-gh-path-row="${escapeHtml(String(row.rowId))}" title="Direct-GitHub mapping option for this row (re-prices it)">${opts}</select>`;
+}
+
+// AWS developer-services rows: per-kind mapping dropdown, only where a REAL choice
+// exists (build compute, artifact storage, artifact egress). Absorbed-$0 meters and
+// decision/vendor carries are automatic - no dropdown.
+const AWS_DEV_PATH_OPTIONS = {
+  build: [["awsdev_build", "OCI DevOps Managed Build"]],
+  artifact_storage: [["awsdev_art_storage", "OCI Artifact Registry"]],
+  artifact_egress: [["awsdev_egress", "OCI Outbound Data Transfer"]],
+  // Storage Gateway throughput meters: upload = free OCI ingest, download = egress.
+  sgw_upload: [["awsdev_sgw_ingress", "OCI ingest (free inbound)"]],
+  sgw_download: [["awsdev_egress", "OCI Outbound Data Transfer"]],
+};
+// Carry over source cost is appended LAST to every AWS dev-services dropdown.
+Object.values(AWS_DEV_PATH_OPTIONS).forEach((list) => list.push(["awsdev_carry", "Carry over source cost"]));
+// Carry over source cost is appended LAST to every AWS dev-services mapping dropdown.
+Object.values(AWS_DEV_PATH_OPTIONS).forEach((list) => list.push(["awsdev_carry", "Carry over source cost"]));
+// Azure Firewall -> OCI Network Firewall: one-regional (default, built-in HA) /
+// two independent firewalls / carry last. Data-processing rows are automatic.
+const AZ_FW_PATH_OPTIONS = [
+  ["fw_one_regional", "OCI Network Firewall (one regional, HA built-in)"],
+  ["fw_two", "OCI Network Firewall (two independent)"],
+  ["fw_carry", "Carry over source cost"],
+];
+// Azure Redis -> OCI Cache: 3-node HA default / single-node (explicit exception) /
+// carry last.
+const AZ_REDIS_PATH_OPTIONS = [
+  ["redis_ha", "OCI Cache (3-node HA)"],
+  ["redis_single", "OCI Cache (single node, no HA)"],
+  ["redis_carry", "Carry over source cost"],
+];
+function azRedisPathSelectHtml(row) {
+  if (!row.azRedisPath) return "";
+  const cur = state.redisPathOverrides[row.rowId] || row.azRedisPath;
+  const opts = AZ_REDIS_PATH_OPTIONS
+    .map(([v, l]) => `<option value="${v}" ${v === cur ? "selected" : ""}>${escapeHtml(l)}</option>`)
+    .join("");
+  return ` <select class="cell-select az-redis-path-select" data-az-redis-path-row="${escapeHtml(String(row.rowId))}" title="OCI Cache mapping option for this row (re-prices it)">${opts}</select>`;
+}
+
+function azFwPathSelectHtml(row) {
+  if (row.azFwKind !== "azfw_deployment") return "";
+  const cur = state.fwPathOverrides[row.rowId] || row.azFwPath || "fw_one_regional";
+  const opts = AZ_FW_PATH_OPTIONS
+    .map(([v, l]) => `<option value="${v}" ${v === cur ? "selected" : ""}>${escapeHtml(l)}</option>`)
+    .join("");
+  return ` <select class="cell-select az-fw-path-select" data-az-fw-path-row="${escapeHtml(String(row.rowId))}" title="Network Firewall mapping option for this row (re-prices it)">${opts}</select>`;
+}
+
+function awsDevPathSelectHtml(row) {
+  const options = AWS_DEV_PATH_OPTIONS[row.awsDevKind];
+  if (!options) return "";
+  const cur = state.awsDevOverrides[row.rowId] || row.awsDevPath || options[0][0];
+  const opts = options
+    .map(([v, l]) => `<option value="${v}" ${v === cur ? "selected" : ""}>${escapeHtml(l)}</option>`)
+    .join("");
+  return ` <select class="cell-select aws-dev-path-select" data-aws-dev-path-row="${escapeHtml(String(row.rowId))}" title="AWS developer-services mapping option for this row (re-prices it)">${opts}</select>`;
+}
+
 function round2(n) {
   return Math.round((Number(n) || 0) * 100) / 100;
 }
@@ -4609,27 +5134,110 @@ function recomputeConvertedTotals(pricing) {
 function applyShapeToVm(row, shape) {
   if (!row || !row.isConvertedCompute || !shape) return;
   const hours = Number(row.computeHours || 730);
-  const ocpu = Number(row.originalOcpus || row.specs?.ocpus || 0);
-  const mem = Number(row.originalMemoryGb || row.specs?.memoryGb || 0);
+  const specOcpu = Number(row.originalOcpus || row.specs?.ocpus || 0);
+  const specMem = Number(row.originalMemoryGb || row.specs?.memoryGb || 0);
+  // Bare metal is a dedicated physical machine at one fixed size, so a VM re-mapped onto one
+  // bills that box in full - not its own OCPU/RAM at bare-metal rates. Exactly ONE box: a
+  // converted row is a single VM, and a VM cannot be spread across two machines. When it does
+  // not fit, the row is flagged rather than rounded up into a number nobody can buy.
+  let ocpu = specOcpu;
+  let mem = specMem;
+  let servers = 0;
+  let overflows = false;
+  const bmOcpu = Number(shape.bmOcpu || 0);
+  const bmMem = Number(shape.bmMemoryGb || 0);
+  if (shape.bareMetal && bmOcpu > 0 && (specOcpu > 0 || specMem > 0)) {
+    servers = 1;
+    ocpu = bmOcpu;
+    mem = bmMem;
+    overflows = specOcpu > bmOcpu || (bmMem > 0 && specMem > bmMem);
+  }
+  // A flex shape has a hard per-VM ceiling, and a VM cannot be provisioned past it - billing
+  // 288 OCPU on a 94-OCPU shape is a number nobody can buy. Cap the billed size at the
+  // shape's maximum (mirror of the server's cap) and keep the spec'd size for the "(was N)"
+  // note. The size flag below still judges the SPEC'D size, so the row stays flagged until a
+  // shape that actually fits is chosen.
+  let capped = false;
+  const fxOcpu = Number(shape.maxOcpu || 0);
+  const fxMem = Number(shape.maxMemGb || 0);
+  if (!shape.bareMetal && (specOcpu > 0 || specMem > 0)) {
+    if (fxOcpu > 0 && ocpu > fxOcpu) { ocpu = fxOcpu; capped = true; }
+    if (fxMem > 0 && mem > fxMem) { mem = fxMem; capped = true; }
+  }
   const cRate = Number(shape.computeRate || 0);
   const mRate = Number(shape.memoryRate || 0);
   const ocpuMonthly = round2(ocpu * hours * cRate);
   const memMonthly = round2(mem * hours * mRate);
   const lbl = shape.shortLabel || shape.label;
+  const bmNote = servers
+    ? ` Bare metal is a dedicated physical machine, so ${shape.label} `
+      + `(${bmOcpu} OCPU / ${bmMem} GB) is billed at its full fixed size for a VM spec'd at `
+      + `${specOcpu} OCPU / ${specMem} GB.`
+      + (overflows
+        ? ` This VM does NOT fit the box - a VM cannot span two machines. Choose a larger shape or split it.`
+        : "")
+    : "";
+  const capNote = capped
+    ? ` Capped at ${shape.label}'s maximum (${fxOcpu} OCPU / ${fxMem} GB per VM): a flex VM `
+      + `cannot be provisioned past its shape's limit, so the spec'd ${specOcpu} OCPU / `
+      + `${specMem} GB is billed at the capped size. Pick a larger shape (or bare metal) to `
+      + `fit the full size.`
+    : "";
+  const sizeNote = bmNote || capNote;
   row.lineItems = [
     { sku: shape.computeSku || "", description: `OCI Compute ${lbl} - OCPU`, quantity: ocpu,
       unit: "OCPU Per Hour", rate: cRate, monthly: ocpuMonthly,
-      mapping: `Re-mapped to ${shape.label}: ${ocpu} OCPU x ${hours} hrs x $${cRate}/OCPU-hr.` },
+      mapping: `Re-mapped to ${shape.label}: ${ocpu} OCPU x ${hours} hrs x $${cRate}/OCPU-hr.${sizeNote}` },
     { sku: shape.memorySku || "", description: `OCI Compute ${lbl} - Memory`, quantity: mem,
       unit: "Gigabyte Per Hour", rate: mRate, monthly: memMonthly,
-      mapping: `Re-mapped to ${shape.label}: ${mem} GB x ${hours} hrs x $${mRate}/GB-hr.` },
+      mapping: `Re-mapped to ${shape.label}: ${mem} GB x ${hours} hrs x $${mRate}/GB-hr.${sizeNote}` },
   ];
   row.monthly = round2(ocpuMonthly + memMonthly);
   row.annual = round2(row.monthly * 12);
   row.shapeUsed = shape;
   row.specs.ocpus = ocpu;
   row.specs.memoryGb = mem;
-  row.ociProduct = `OCI Compute VM - ${lbl} (${ocpu} OCPU / ${mem} GB)`;
+  row.specs.specOcpus = specOcpu;
+  row.specs.specMemoryGb = specMem;
+  row.bareMetalServers = servers;
+  row.sizeCapped = capped ? { maxOcpu: fxOcpu, maxMemGb: fxMem } : null;
+  // Mirror the server's oci_size_check: a VM larger than the box is an impossible mapping, and
+  // the results table pins impossible rows to the top until they are dealt with.
+  if (servers) {
+    row.sizeCheck = overflows
+      ? { status: "impossible", shape: shape.label,
+          message: `This workload does not fit ${shape.label} (${bmOcpu} OCPU / ${bmMem} GB). `
+            + `Bare metal is a single physical machine - one VM cannot span two boxes. `
+            + `Choose a larger shape, or split the workload.` }
+      : { status: "ok", shape: shape.label };
+  } else if (capped) {
+    // Flex overflow, judged on the SPEC'D size (the cap changes what is billed, not the
+    // flag): a larger flex shape that fits keeps the LARGER SHAPE badge, a bare-metal box
+    // that fits keeps BARE METAL, and a VM too big for every shape is impossible.
+    const flexAlt = (state.rateCards || []).find((s) =>
+      !s.bareMetal && s.key !== shape.key && s.processorVendor === shape.processorVendor
+      && Number(s.maxOcpu || 0) >= specOcpu && Number(s.maxMemGb || 0) >= specMem);
+    const bmAlt = (state.rateCards || []).find((s) =>
+      s.bareMetal && s.processorVendor === shape.processorVendor
+      && Number(s.bmOcpu || 0) >= specOcpu && Number(s.bmMemoryGb || 0) >= specMem);
+    row.sizeCheck = (bmAlt || flexAlt)
+      ? { status: "baremetal", shape: bmAlt ? bmAlt.label : null,
+          flexAlt: flexAlt
+            ? { shape: flexAlt.label, maxOcpu: Number(flexAlt.maxOcpu || 0), maxMem: Number(flexAlt.maxMemGb || 0) }
+            : null,
+          message: `${specOcpu} OCPU / ${specMem} GB exceeds ${shape.label} `
+            + `(${fxOcpu} OCPU / ${fxMem} GB) and is billed at the cap.`
+            + (flexAlt ? ` It fits the larger flex shape ${flexAlt.label} (${flexAlt.maxOcpu} OCPU / ${flexAlt.maxMemGb} GB).` : "")
+            + (bmAlt ? ` Bare metal ${bmAlt.label} (${bmAlt.bmOcpu} OCPU / ${bmAlt.bmMemoryGb} GB) also fits.` : "") }
+      : { status: "impossible", shape: shape.label,
+          message: `${specOcpu} OCPU / ${specMem} GB exceeds ${shape.label} and every OCI shape `
+            + `for this CPU vendor. Split the workload.` };
+  } else {
+    row.sizeCheck = { status: "ok", shape: shape.label };
+  }
+  row.ociProduct = servers
+    ? `OCI Bare Metal - ${lbl} (${ocpu} OCPU / ${mem} GB)`
+    : `OCI Compute VM - ${lbl} (${ocpu} OCPU / ${mem} GB)`;
   if (row.fullServiceMapping) row.fullServiceMapping.ociProduct = row.ociProduct;
 }
 
@@ -4691,7 +5299,19 @@ function computeShapeBadge(row) {
   if (ocpus <= 0) return "";
   const shape = row.shapeUsed?.shortLabel || row.shapeUsed?.label;
   if (!shape) return "";
-  return ` <span class="shape-map-badge" title="OCI shape mapped for this compute line">${escapeHtml(shape)}</span>`;
+  // A bare-metal line bills whole physical servers, so the badge names how many. This table
+  // has no OCPU column, so the billed size and the spec'd size are spelled out beside it.
+  const servers = Number(row.bareMetalServers || 0);
+  const label = servers > 1 ? `${servers} x ${shape}` : shape;
+  const badge = ` <span class="shape-map-badge" title="OCI shape mapped for this compute line">${escapeHtml(label)}</span>`;
+  const cap = row.sizeCapped;
+  if (!servers && !cap) return badge;
+  const spec = Number(row.specs?.specOcpus || 0);
+  const size = `${formatNumber(ocpus)} OCPU billed${spec && spec !== ocpus ? ` (was ${formatNumber(spec)})` : ""}`;
+  const why = servers
+    ? `Bare metal is billed as a whole physical server: ${servers} x ${row.shapeUsed?.label || shape}.`
+    : `Capped at the maximum of ${row.shapeUsed?.label || shape} (${formatNumber(cap.maxOcpu)} OCPU / ${formatNumber(cap.maxMemGb)} GB per VM) - a flex VM cannot be provisioned past its shape's limit. Pick a larger shape (or bare metal) to fit the full size.`;
+  return `${badge} <span class="spec-was" title="${escapeHtml(why)}">${escapeHtml(size)}</span>`;
 }
 
 function mappingFlagBadge(row) {
@@ -4699,7 +5319,7 @@ function mappingFlagBadge(row) {
     return ` <span class="size-flag size-flag-removed" title="Removed from both sides of the BOM">REMOVED</span>`;
   }
   if (row.costAction === "carry") {
-    return ` <span class="size-flag size-flag-carried" title="OCI cost set equal to the source AWS cost">CARRIED OVER</span>`;
+    return ` <span class="size-flag size-flag-carried" title="OCI cost set equal to the source ${escapeHtml(cloudDisplayName())} cost">CARRIED OVER</span>`;
   }
   if (state.approvedFlags[row.rowId]) {
     return ` <span class="size-flag size-flag-approved" title="Mapping approved">✓ approved</span>`;
@@ -4718,7 +5338,7 @@ function costActionSelectHtml(row) {
   const cur = row.costAction || "estimate";
   const opts = [
     ["estimate", "Use OCI estimate"],
-    ["carry", "Carry over AWS cost"],
+    ["carry", `Carry over ${cloudDisplayName()} cost`],
     ["remove", "Remove from BOM"],
   ].map(([v, l]) => `<option value="${v}" ${v === cur ? "selected" : ""}>${l}</option>`).join("");
   return `<select class="cell-select cost-action-select" data-cost-row="${escapeHtml(String(row.rowId))}">${opts}</select>`;
@@ -4731,15 +5351,42 @@ function applyCostOverride(rowId, value) {
   priceRows({ keepView: true });
 }
 
+// "(was 288)" - the size the workload asked for, shown small beside the size it is actually
+// billed at. They differ when the row was put on bare metal: a bare-metal shape is a whole
+// physical box, so the row bills the server's OCPU/RAM, not the workload's.
+function wasNote(row, billedKey, specKey, unit = "") {
+  const specs = row?.specs || {};
+  const billed = Number(specs[billedKey] || 0);
+  const spec = Number(specs[specKey]);
+  if (!Number.isFinite(spec) || spec <= 0) return "";
+  if (Math.abs(spec - billed) < 0.0001) return "";
+  const servers = Number(row.bareMetalServers || 0);
+  const box = row.shapeUsed?.label || "bare metal";
+  const cap = row.sizeCapped;
+  const why = servers
+    ? `Billed at the full fixed size of ${servers > 1 ? `${servers} x ` : ""}${box} - bare metal is a dedicated physical machine. Spec'd size was ${formatNumber(spec)}${unit}.`
+    : cap
+      ? `Capped at the maximum of ${box} (${formatNumber(cap.maxOcpu)} OCPU / ${formatNumber(cap.maxMemGb)} GB per VM) - a flex VM cannot be provisioned past its shape's limit. Spec'd size was ${formatNumber(spec)}${unit}. Pick a larger shape (or bare metal) to fit the full size.`
+      : `Spec'd size was ${formatNumber(spec)}${unit}.`;
+  return ` <span class="spec-was" title="${escapeHtml(why)}">(was ${formatNumber(spec)}${unit})</span>`;
+}
+
 function sizeFlagBadge(row) {
   const badges = [];
   const check = row.sizeCheck || {};
+  const servers = Number(row.bareMetalServers || 0);
   if (check.status === "impossible") {
     badges.push(` <span class="size-flag size-flag-impossible" title="${escapeHtml(check.message || "")}">IMPOSSIBLE</span>`);
+  } else if (servers > 0) {
+    // "BARE METAL" means the row IS on bare metal - mapped there by hand or by Auto mode and
+    // billed as whole physical boxes - never a suggestion about where it might need to go.
+    const box = row.shapeUsed?.label || "bare metal";
+    const why = `Mapped to ${servers > 1 ? `${servers} x ` : ""}${box} - a dedicated physical server per VM, billed at its full fixed size.`;
+    badges.push(` <span class="size-flag size-flag-baremetal" title="${escapeHtml(why)}">BARE METAL</span>`);
   } else if (check.status === "baremetal") {
-    // A workload that fits a larger flex shape isn't truly bare metal - label it so, and reserve
-    // the "BARE METAL" badge (which now bills a full physical server) for genuine overflow.
-    const label = check.flexAlt ? "LARGER SHAPE" : "BARE METAL";
+    // Not mapped to bare metal - the row overflows its selected flex shape and is billed at
+    // the cap. LARGER SHAPE: a bigger flex shape fits it. OVERSIZED: only bare metal would.
+    const label = check.flexAlt ? "LARGER SHAPE" : "OVERSIZED";
     badges.push(` <span class="size-flag size-flag-baremetal" title="${escapeHtml(check.message || "")}">${label}</span>`);
   }
   if (Array.isArray(row.lineItems) && row.lineItems.some((li) => li && li.isGpu)) {
@@ -4779,7 +5426,16 @@ function renderResultsTable(rows, fullServiceBeta = false, cloudBill = false, co
         key: "ociTarget",
         label: "OCI Target",
         sortValue: (row) => row.fullServiceMapping?.ociProduct || row.lineItems?.[0]?.description || "Needs review",
-        render: (row) => escapeHtml(row.fullServiceMapping?.ociProduct || row.lineItems?.[0]?.description || "Needs review") + computeShapeBadge(row) + mappingFlagBadge(row),
+        render: (row) => escapeHtml(row.fullServiceMapping?.ociProduct || row.lineItems?.[0]?.description || "Needs review") + computeShapeBadge(row) + mappingFlagBadge(row) + sqlPathSelectHtml(row) + ghPathSelectHtml(row) + awsDevPathSelectHtml(row) + azFwPathSelectHtml(row) + azRedisPathSelectHtml(row),
+      },
+      {
+        key: "shape",
+        label: "OCI Shape",
+        sortValue: (row) => row.shapeUsed?.label || "",
+        // Same per-row shape alteration as on-prem mode, for rows priced as VMs.
+        render: (row) => (row.shapeUsed && Number(row.specs?.ocpus || 0) > 0)
+          ? `${familySelectHtml(row)} ${shapeSelectHtml(row)}`
+          : "-",
       },
       {
         key: "usage",
@@ -4826,15 +5482,28 @@ function renderResultsTable(rows, fullServiceBeta = false, cloudBill = false, co
     // Left-sidebar source-service filter (built from ALL rows so you can re-check).
     renderSourceFilter(rows);
     const filtered = rows.filter((r) => !state.hiddenSources[rowSourceName(r)]);
-    // Default order: flagged ("may not be optimal") rows on top, then everything
-    // by total cost on the bill (source cost) descending.
+    // Default order: flagged-for-review rows on top, GROUPED by source service;
+    // groups ordered by their total cost on the bill (source cost) descending,
+    // rows within a group by source cost descending. Unflagged rows follow, by
+    // source cost descending.
     const billCost = (r) => Number(r.sourceMonthlyCost || 0);
-    const ordered = filtered.slice().sort((a, b) => {
-      const fa = flagActive(a) ? 1 : 0;
-      const fb = flagActive(b) ? 1 : 0;
-      if (fa !== fb) return fb - fa;
+    const flagged = filtered.filter((r) => flagActive(r));
+    const unflagged = filtered.filter((r) => !flagActive(r));
+    const groupTotals = new Map();
+    flagged.forEach((r) => {
+      const g = rowSourceName(r);
+      groupTotals.set(g, (groupTotals.get(g) || 0) + billCost(r));
+    });
+    flagged.sort((a, b) => {
+      const ga = rowSourceName(a);
+      const gb = rowSourceName(b);
+      if (ga !== gb) {
+        return (groupTotals.get(gb) || 0) - (groupTotals.get(ga) || 0) || ga.localeCompare(gb);
+      }
       return billCost(b) - billCost(a);
     });
+    unflagged.sort((a, b) => billCost(b) - billCost(a));
+    const ordered = flagged.concat(unflagged);
     renderResultTableFromColumns(ordered, columns);
     syncBulkBar();
     return;
@@ -4924,13 +5593,13 @@ function renderResultsTable(rows, fullServiceBeta = false, cloudBill = false, co
       key: "ocpus",
       label: "OCPUs",
       sortValue: (row) => Number(row.specs?.ocpus || 0),
-      render: (row) => formatNumber(row.specs?.ocpus),
+      render: (row) => formatNumber(row.specs?.ocpus) + wasNote(row, "ocpus", "specOcpus"),
     },
     {
       key: "memory",
       label: "Memory",
       sortValue: (row) => Number(row.specs?.memoryGb || 0),
-      render: (row) => `${formatNumber(row.specs?.memoryGb)} GB`,
+      render: (row) => `${formatNumber(row.specs?.memoryGb)} GB${wasNote(row, "memoryGb", "specMemoryGb", " GB")}`,
     },
     {
       key: "storage",
@@ -4981,8 +5650,22 @@ if (els.resultsTable) {
     const button = event.target.closest("[data-result-sort]");
     if (!button) return;
     const key = button.dataset.resultSort;
-    const direction = state.resultSort.key === key && state.resultSort.direction === "asc" ? "desc" : "asc";
-    state.resultSort = { key, direction };
+    const current = normalizeResultSort(state.resultSort);
+    const at = current.findIndex((s) => s.key === key);
+    if (event.shiftKey) {
+      // Build the chain: add as the next tie-breaker, reverse it, then drop just this key.
+      if (at === -1) current.push({ key, direction: "asc" });
+      else if (current[at].direction === "asc") current[at].direction = "desc";
+      else current.splice(at, 1);
+      state.resultSort = current;
+    } else {
+      // Sort by this column alone, cycling asc -> desc -> back to document order.
+      const wasOnlyKey = at === 0 && current.length === 1;
+      const next = wasOnlyKey
+        ? (current[0].direction === "asc" ? "desc" : null)
+        : "asc";
+      state.resultSort = next ? [{ key, direction: next }] : [];
+    }
     rerenderResultsTable();
   });
   // Editable shape / shape-family dropdowns -> set per-row override and re-price.
@@ -4995,6 +5678,39 @@ if (els.resultsTable) {
     const costSel = event.target.closest("select[data-cost-row]");
     if (costSel) {
       applyCostOverride(costSel.dataset.costRow, costSel.value);
+      return;
+    }
+    // Azure SQL DTU conversion-path dropdown -> per-row override and re-price.
+    const sqlSel = event.target.closest("select[data-sql-path-row]");
+    if (sqlSel) {
+      state.sqlPathOverrides[sqlSel.dataset.sqlPathRow] = sqlSel.value;
+      priceRows({ keepView: true });
+      return;
+    }
+    // Direct-GitHub mapping dropdown -> per-row override and re-price.
+    const ghSel = event.target.closest("select[data-gh-path-row]");
+    if (ghSel) {
+      state.ghPathOverrides[ghSel.dataset.ghPathRow] = ghSel.value;
+      priceRows({ keepView: true });
+      return;
+    }
+    // AWS developer-services mapping dropdown -> per-row override and re-price.
+    const azRedisSel = event.target.closest("select[data-az-redis-path-row]");
+    if (azRedisSel) {
+      state.redisPathOverrides[azRedisSel.dataset.azRedisPathRow] = azRedisSel.value;
+      priceRows({ keepView: true });
+      return;
+    }
+    const azFwSel = event.target.closest("select[data-az-fw-path-row]");
+    if (azFwSel) {
+      state.fwPathOverrides[azFwSel.dataset.azFwPathRow] = azFwSel.value;
+      priceRows({ keepView: true });
+      return;
+    }
+    const awsDevSel = event.target.closest("select[data-aws-dev-path-row]");
+    if (awsDevSel) {
+      state.awsDevOverrides[awsDevSel.dataset.awsDevPathRow] = awsDevSel.value;
+      priceRows({ keepView: true });
       return;
     }
     // Per-row selection checkbox.
@@ -5239,6 +5955,53 @@ if (els.sizingSwitch) {
     state.rightsize = next;
     syncSizingModeUi();
     // Sizing changes the OCPU/RAM behind every line, so the existing estimate is stale.
+    repriceIfEstimated();
+  });
+}
+
+// Auto (like-for-like) shape mapping. This lived on the shape page before and is back: it maps
+// each workload onto its OWN processor family's OCI shape (Intel -> Intel, AMD -> AMD, Arm ->
+// Arm) instead of putting the whole estate on the single shape selected above. The family comes
+// from the source instance type on a cloud bill, or the CPU / chipset column on an on-prem
+// inventory, so it works in every intake mode. A per-row OCI Shape override still wins.
+function syncMappingModeUi() {
+  const auto = !!state.autoMap;
+  const tier = state.autoTier === "top" ? "top" : "best";
+  document.querySelectorAll(".mapping-switch .mode-opt").forEach((b) => {
+    b.classList.toggle("is-active", (b.dataset.mapping === "auto") === auto);
+  });
+  document.querySelectorAll(".mapping-tier-switch .mode-opt").forEach((b) => {
+    b.classList.toggle("is-active", b.dataset.maptier === tier);
+  });
+  if (els.mappingTierSwitch) els.mappingTierSwitch.hidden = !auto;
+  if (els.mappingModeHint) {
+    els.mappingModeHint.textContent = !auto
+      ? "Every workload uses the shape selected above"
+      : tier === "top"
+        ? "Each workload maps to the newest OCI shape for its own CPU family"
+        : "Each workload maps to the OCI shape matching its own CPU family and generation";
+  }
+}
+if (els.mappingSwitch) {
+  els.mappingSwitch.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-mapping]");
+    if (!btn) return;
+    const next = btn.dataset.mapping === "auto";
+    if (next === !!state.autoMap) return;
+    state.autoMap = next;
+    syncMappingModeUi();
+    // Mapping changes which shape (and therefore which rate) every line prices on.
+    repriceIfEstimated();
+  });
+}
+if (els.mappingTierSwitch) {
+  els.mappingTierSwitch.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-maptier]");
+    if (!btn) return;
+    const next = btn.dataset.maptier === "top" ? "top" : "best";
+    if (next === state.autoTier) return;
+    state.autoTier = next;
+    syncMappingModeUi();
     repriceIfEstimated();
   });
 }
@@ -6804,6 +7567,7 @@ fetch("/api/health")
   .then((payload) => {
     state.rateCards = payload.rateCards || [];
     state.bareMetalShapes = payload.bareMetalShapes || {};
+    state.uploadLimits = payload.uploadLimits || null;
     state.fullServiceCatalog = payload.fullServiceCatalog || [];
     state.openaiApiEnabled = Boolean(payload.openaiApiEnabled);
     state.openaiApiConfigured = Boolean(payload.openaiApiConfigured);

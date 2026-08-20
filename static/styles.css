@@ -910,6 +910,46 @@ textarea {
   line-height: 1.2;
 }
 
+/* The tile's `display: block` rules outrank the `hidden` attribute's UA `display: none`,
+   so without this the static label and the picker both render, one under the other. */
+.summary-sheet [hidden] {
+  display: none;
+}
+
+/* Sheet picker. Reads as the same bold tile value as its neighbours until you hover it -
+   it only becomes a control when the workbook actually has another sheet to offer. */
+.summary-sheet select {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+  padding: 0 22px 0 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.2;
+  cursor: pointer;
+  appearance: none;
+  text-overflow: ellipsis;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0h10L5 6z' fill='%236b6257'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 4px center;
+}
+
+.summary-sheet select:hover,
+.summary-sheet select:focus-visible {
+  background-color: #fff;
+  outline: 1px solid var(--line);
+}
+
+.summary-sheet select:disabled {
+  cursor: progress;
+  opacity: 0.6;
+}
+
 .table-wrap {
   height: calc(100vh - 332px);
   min-height: 386px;
@@ -944,6 +984,46 @@ th {
   font-size: 12px;
   line-height: 1.25;
   font-weight: 760;
+}
+
+/* Sortable review-table headers. A click cycles A→Z, Z→A, then back to file order. */
+th.is-sortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+th.is-sortable:hover,
+th.is-sortable:focus-visible {
+  background: #3c4a52;
+  outline: none;
+}
+
+th .sort-marker {
+  float: right;
+  margin-left: 8px;
+  font-size: 10px;
+  opacity: 0.35;
+}
+
+th.is-sorted-asc .sort-marker,
+th.is-sorted-desc .sort-marker {
+  opacity: 1;
+}
+
+/* Rank badge: which key this column is in a multi-column sort. Shown only when more than
+   one column is in play, so a single sort stays uncluttered. */
+.sort-rank {
+  margin-left: 2px;
+  font-size: 9px;
+  font-weight: 700;
+  vertical-align: super;
+  line-height: 1;
+}
+
+.sort-hint {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--muted, #6b6257);
 }
 
 th:first-child,
@@ -1759,6 +1839,20 @@ td input[type="checkbox"] {
   border-radius: 9px;
   vertical-align: middle;
   letter-spacing: 0;
+}
+
+/* "(was 288)" beside a size the app changed - today only bare metal, where the row bills the
+   whole physical server rather than the workload's own OCPU/RAM. Deliberately quiet: the
+   billed figure is the number that matters, this is the receipt for it. */
+.spec-was {
+  display: inline-block;
+  margin-left: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--muted);
+  white-space: nowrap;
+  vertical-align: middle;
+  cursor: help;
 }
 
 .discount-input-wrap .discount-suffix {
@@ -3872,6 +3966,10 @@ td input[type="checkbox"] {
   border-top-color: var(--sand);
 }
 
+.detail-table .sort-header .sort-rank {
+  color: var(--sand);
+}
+
 .detail-table th:first-child,
 .detail-table td:first-child {
   position: sticky;
@@ -5368,6 +5466,11 @@ td input[type="checkbox"] {
   font-size: 12px;
   font-style: normal;
 }
+/* The Auto tier choice only means anything while Auto mapping is on, so it sits inline with
+   the mapping switch and is hidden (not disabled) the rest of the time. */
+.mapping-tier-switch[hidden] { display: none; }
+/* Keep the two SIZING/MAPPING labels the same width so their switches line up in a column. */
+.shape-estimate-options .sizing-mode-label { min-width: 58px; }
 
 /* The Shape hero holds only the title now. Fixing the heading's measure keeps "Choose the OCI
    Shape for This Estimate" breaking in exactly the same place no matter what else changes. */

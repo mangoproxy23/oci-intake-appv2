@@ -1329,6 +1329,7 @@ def _add_product_group_topics(wb, pricing):
     Overview, and add a detail sheet for every group that has cost and doesn't already have
     a dedicated sheet (Compute/Storage/Networking/Security KMS already exist)."""
     import bom_export
+    _cloudnm = bom_export._cloud_display_name((pricing or {}).get("sourceCloud"))
     groups = _aggregate_product_groups(pricing)
     ctr = Alignment(horizontal="center", vertical="center")
     hdr_font = Font(name="Calibri", size=12, bold=True, color="FFFFFFFF")
@@ -1352,8 +1353,8 @@ def _add_product_group_topics(wb, pricing):
         ws2.column_dimensions["D"].width = 18
         ws2["A1"] = f"{grp} - OCI mapped services"
         ws2["A1"].font = Font(name="Calibri", size=14, bold=True)
-        for c, txt in ((1, "AWS Service"), (2, "OCI Product"),
-                       (3, "AWS Monthly"), (4, "OCI Monthly")):
+        for c, txt in ((1, f"{_cloudnm} Service"), (2, "OCI Product"),
+                       (3, f"{_cloudnm} Monthly"), (4, "OCI Monthly")):
             cell = ws2.cell(3, c)
             cell.value = txt
             cell.font = hdr_font
