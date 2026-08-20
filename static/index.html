@@ -121,7 +121,18 @@
                 <strong>Other OCI Bill</strong>
                 <span>Upload an existing BOM from the cost estimator tool, or other formats.</span>
               </button>
+              <button id="modeLargeImport" class="mode-card mode-card--compact" type="button" data-mode="large_import" title="Recommended for files over 64 MB. Streams very large on-prem inventories, AWS bills, and Azure enrollments to limit memory use." hidden>
+                <strong>Very Large File Import</strong>
+              </button>
             </div>
+            <label id="largeImportControl" class="provider-control is-hidden" for="largeImportKind" hidden>
+              <span>Very Large File Type</span>
+              <select id="largeImportKind">
+                <option value="on_prem">On-Prem Inventory</option>
+                <option value="aws">AWS Bill</option>
+                <option value="azure" selected>Azure Enrollment</option>
+              </select>
+            </label>
             <label id="providerControl" class="provider-control is-hidden" for="providerHint">
               <span>Provider Detection</span>
               <select id="providerHint">

@@ -36,6 +36,7 @@ from pypdf import PdfReader
 
 import bom_export
 import aws_pricing
+from large_import_reducer import LargeImportReductionError, reduce_large_import
 
 
 ROOT = Path(__file__).resolve().parent
@@ -249,7 +250,7 @@ CANONICAL_INVENTORY_FIELDS = [
         "key": "environment",
         "label": "Environment",
         "description": "Environment such as prod, dev, qa, test, uat, disaster recovery, or staging.",
-        "aliases": ["environment", "env", "tier", "stage", "lifecycle"],
+        "aliases": ["environment", "env", "tier", "stage", "lifecycle", "cost center", "cost centre", "costcenter", "resource group", "resourcegroup"],
     },
     {
         "key": "application_details",
@@ -682,6 +683,17 @@ def normalize_provider_hint(value):
     if text in {"gcp", "google", "google cloud", "google cloud platform"}:
         return "gcp"
     return PROVIDER_AUTO
+
+
+def normalize_large_import_kind(value):
+    text = normalize(value).replace("-", " ").replace("_", " ")
+    if text in {"on prem", "onprem", "inventory"}:
+        return "on_prem"
+    if text in {"aws", "amazon", "amazon web services"}:
+        return "aws"
+    if text in {"azure", "microsoft azure"}:
+        return "azure"
+    return ""
 
 
 def source_cloud_display(row_or_provider):
@@ -1655,7 +1667,17 @@ _DATA_CHECK_SIGNALS = [
     ("server",      "Server / VM name",   [["vm", "name"], ["vm"], ["server", "name"], ["machine", "name"],
                                            ["machine", "id"],
                                            ["host", "name"], ["hostname"], ["name"]]),
-    ("environment", "Environment",        [["environment"], ["env"]]),
+    # Cost-center columns often encode the environment (Chris's ruling
+    # 2026-08-19: "for the environment name field we can use the cost center
+    # column") - accepted as the LAST fallback so a real environment/env column
+    # always wins.
+    # Cost-center and resource-group columns often encode the environment
+    # (Chris's rulings 2026-08-19) - accepted as fallbacks IN THIS ORDER, so a
+    # real environment/env column always wins, then cost center, then resource
+    # group.
+    ("environment", "Environment",        [["environment"], ["env"], ["cost", "center"],
+                                           ["cost", "centre"], ["costcenter"],
+                                           ["resource", "group"], ["resourcegroup"]]),
     ("application", "Application",        [["application"], ["app", "name"], ["app"]]),
 ]
 
@@ -2897,6 +2919,13 @@ def parse_workbook_rule_based(path, full_service_beta=False, sheet_override=""):
             "columnCount": len(fields),
             "parser": "rule-based",
             "intakeMode": INTAKE_MODE_ON_PREM,
+            # Scan the first few raw rows, not just the detected header row: on a
+            # bill export the rule-based header detection often lands on a DATA
+            # row, while the real billing headers sit on row 0.
+            "cloudBillSuspected": next(
+                (p for p in (looks_like_cloud_bill_headers(
+                    [clean_text(v) for v in raw.iloc[i].tolist()])
+                    for i in range(min(6, len(raw.index)))) if p), ""),
             "fullServiceBeta": bool(full_service_beta),
             "unitNormalizations": unit_normalizations,
             "extractionNotes": [item["message"] for item in unit_normalizations],
@@ -3619,6 +3648,32 @@ def unique_headers(values):
     return headers
 
 
+# Distinctive billing-export header tokens (Azure EA/MCA + AWS CUR + GCP). Four
+# or more in one sheet means the "on-prem inventory" is almost certainly a cloud
+# bill dropped into the wrong mode (Chris's ruling 2026-08-19: confirm with the
+# user instead of silently parsing it as servers).
+CLOUD_BILL_HEADER_TOKENS = (
+    "metercategory", "metername", "metersubcategory", "meterregion",
+    "subscriptionname", "billingcurrency", "chargetype", "paygprice",
+    "pricingmodel", "billingperiodstartdate", "effectiveprice", "unblendedcost",
+    "blendedcost", "usagetype", "lineitemtype", "productcode", "billingaccountname",
+    "usagequantity", "payeraccountid", "linkedaccountid", "blendedrate",
+)
+
+
+def looks_like_cloud_bill_headers(labels):
+    """Provider display name when the header row looks like a cloud bill export
+    (>=4 distinctive billing tokens), else ''. Used by the on-prem parser to ask
+    the user before treating a bill as a server inventory."""
+    toks = {normalize(l).replace(" ", "") for l in (labels or [])}
+    # Containment, not equality: AWS CUR headers carry prefixes ("lineItem/UsageType").
+    hits = sum(1 for t in CLOUD_BILL_HEADER_TOKENS if any(t in tok for tok in toks))
+    if hits < 4:
+        return ""
+    provider, _conf = detect_cloud_provider(list(labels or []))
+    return provider if provider != "Unknown" else "Cloud"
+
+
 def detect_cloud_provider(headers, sample_rows=None, provider_hint=PROVIDER_AUTO):
     provider_names = {"aws": "AWS", "azure": "Azure", "gcp": "GCP"}
     hint = normalize_provider_hint(provider_hint)
@@ -3677,6 +3732,17 @@ def infer_cloud_bill_mappings(headers, detected_provider):
                 best_idx = idx
                 best_score = score
         minimum_score = 64 if field["key"] in {"resource_ocpus", "resource_memory_gb"} else 48
+        # Enrollment-format exports (Detail_Enrollment_*.xlsx) carry BOTH
+        # ConsumedService ("Microsoft.KeyVault" namespaces) and MeterCategory
+        # ("Key Vault"); exact-match scoring is length-weighted so ConsumedService
+        # (15 chars) silently outscored MeterCategory (13) and every dedicated
+        # Azure handler missed (Chris 2026-08-19). MeterCategory is the service
+        # vocabulary the whole mapping stack speaks - prefer it when present.
+        if field["key"] == "source_service":
+            _mc = next((i for i, h in enumerate(headers)
+                        if normalize(h).replace(" ", "") == "metercategory"), None)
+            if _mc is not None and best_idx is not None                     and normalize(headers[best_idx]).replace(" ", "") == "consumedservice":
+                best_idx, best_score = _mc, max(best_score, minimum_score)
         if best_idx is not None and best_score >= minimum_score:
             mappings[field["key"]] = {
                 "canonicalKey": field["key"],
@@ -5000,6 +5066,10 @@ def oci_size_check(shape_key, ocpus, memory_gb, vm_ocpus=None, vm_memory_gb=None
             "bmMaxOcpu": bm["maxOcpu"],
             "bmMaxMem": bm["maxMem"],
             "flexAlt": flex_alt,
+            # Badly mis-sized (Chris 2026-08-19): the workload needs >20% more CPU
+            # or RAM than the selected shape's maximum -> RED badge, not amber.
+            "severe": bool((max_ocpu and ocpus > max_ocpu * 1.2)
+                           or (max_mem and memory_gb > max_mem * 1.2)),
             "message": message,
         }
     biggest = (OCI_VENDOR_TIERS.get(vendor) or [{}])[-1]
@@ -6821,6 +6891,37 @@ def _dropdown_carry_items(row, note=""):
 AZ_SQL_DTU_FLAG = "Pooled DTU conversion - review required"
 
 
+def _sql_vm_windows_item(ocpu_hours, license_included, include_windows):
+    """Windows Server OS license line for the SQL-on-OCI-VM paths. ASSUMPTION (Chris's
+    ruling, 2026-08-19): the SQL databases land on WINDOWS VMs, so the OS license
+    (B88318, $0.092/OCPU-hr) is added on the license-included path. On BYOL the OS
+    entitlement is assumed customer-brought alongside the SQL licenses. thirdParty=True
+    keeps licensing outside the OCI discount (the export's Windows/SQL convention);
+    the hide-Windows-pricing toggle zeroes it."""
+    if license_included and include_windows:
+        return {
+            "sku": WINDOWS_LICENSE_SKU, "description": "Windows Server OS license (per OCPU-hr)",
+            "quantity": round(ocpu_hours, 2), "unit": "OCPU-hour", "rate": WINDOWS_LICENSE_RATE,
+            "monthly": money(ocpu_hours * WINDOWS_LICENSE_RATE),
+            "mapping": ("ASSUMPTION: SQL Server runs on WINDOWS VMs, so the Windows "
+                        "Server OS license is included at ${}/OCPU-hr (B88318). If the "
+                        "target is SQL Server on Linux, remove this line - it is an "
+                        "assumption, not billed usage. The Windows licensing toggle "
+                        "hides it.".format(WINDOWS_LICENSE_RATE)),
+            "ociServiceUsage": True, "thirdParty": True,
+        }
+    note = ("Windows Server OS license hidden by the Windows licensing toggle "
+            "(ASSUMPTION: Windows VMs)." if license_included else
+            "ASSUMPTION: Windows VMs; on the BYOL path the customer's Windows "
+            "entitlement (Azure Hybrid Benefit-style) is assumed to travel with the "
+            "SQL licenses - validate. $0 here.")
+    return {
+        "sku": WINDOWS_LICENSE_SKU, "description": "Windows Server OS license (per OCPU-hr)",
+        "quantity": round(ocpu_hours, 2), "unit": "OCPU-hour", "rate": 0.0, "monthly": 0.0,
+        "mapping": note, "ociServiceUsage": True,
+    }
+
+
 # Azure SQL DTU-model tiers: DTUs per billed database-day unit. Word-boundary
 # matched (substring matching read "S12 DTUs" as S1 and priced 3,000 DTU as 20).
 _AZ_SQL_DTU_TIERS = {
@@ -6867,7 +6968,7 @@ def _is_azure_sql_dtu_row(row):
     return _azure_sql_dtu_per_unit(row.get("__meterName") or row.get("source_product")) > 0
 
 
-def price_azure_sql_dtu_row(row, path=None):
+def price_azure_sql_dtu_row(row, path=None, include_windows=True):
     """Price an Azure SQL DTU/eDTU-model bill row on the pooled conversion.
     Returns (line_items, label, category, sku, carried) or None."""
     if not _is_azure_sql_dtu_row(row):
@@ -6943,6 +7044,7 @@ def price_azure_sql_dtu_row(row, path=None):
                         "mobility (validate eligibility per Microsoft Product Terms)."),
             "ociServiceUsage": True,
         })
+    items.append(_sql_vm_windows_item(ocpu_hours, path == "sql_vm_li", include_windows))
     return items, label, "Database", AZ_SQL_VM_OCPU_SKU, False
 
 
@@ -6993,7 +7095,7 @@ def _is_azure_sql_vcore_license_row(row):
     return "sql license" in blob
 
 
-def price_azure_sql_vcore_row(row, path=None, compute_rows_carried=False):
+def price_azure_sql_vcore_row(row, path=None, compute_rows_carried=False, include_windows=True):
     """Price an Azure SQL vCore-model bill row (compute or license meter).
     Returns (line_items, label, category, kind) or None; kind is "compute" or
     "license" - only compute rows get a dropdown. compute_rows_carried: every vCore
@@ -7086,6 +7188,8 @@ def price_azure_sql_vcore_row(row, path=None, compute_rows_carried=False):
                         "eligibility). No 744-hour minimum on BYOL."),
             "ociServiceUsage": True,
         })
+    # Windows bills per OCPU-hour with the compute (no Marketplace 744-hr minimum).
+    items.append(_sql_vm_windows_item(ocpu_hours, path == "sqlv_vm_li", include_windows))
     return items, label, "Database", "compute"
 
 
@@ -7333,6 +7437,143 @@ def price_github_direct_row(row, path=None, copilot_pool=None):
 # Every handled row is flagged for review; rows with a REAL alternative (build compute,
 # artifact storage, artifact egress) get a per-row dropdown with carry always last.
 AWS_DEV_FLAG = "AWS developer services mapping - review required"
+# ---- Azure services included at no charge on OCI (Chris approved 2026-08-19: -------
+# "VPN, VNet, Update Manager, and registry fundamentals"). AUTOMATIC treatments - the
+# free mapping is a fact of OCI's billing model, not a choice, so no dropdown (the
+# Cost Action column still allows a manual carry). Every row is flagged for review.
+AZ_INCLUDED_FLAG = "Included-on-OCI mapping - review required"
+OCIR_STORAGE_SKU, OCIR_STORAGE_RATE = "B91628", 0.0255   # OCIR storage = Object Storage
+
+
+def price_azure_included_row(row, transfer_pools=None):
+    """$0 (or Object-Storage-priced) treatments for Azure services whose OCI
+    equivalents carry no charge, plus inter-region traffic CONVERTED onto the OCI
+    outbound-data-transfer zone pools (Chris's ruling 2026-08-19, overriding
+    doc #6's carry guardrail). Returns (line_items, label, category) or None."""
+    svc = normalize(row.get("source_service"))
+    meter = normalize(row.get("__meterName") or row.get("source_product"))
+    qty = to_number(row.get("usage_quantity"), 0)
+    src = to_number(row.get("source_monthly_cost"), 0)
+
+    def inter_region_converted():
+        """Inter-region GB metered against the origin zone's 10 TB/month free
+        pool, overage at the zone rate - never carried (ruling 2026-08-19)."""
+        topo = (" TOPOLOGY ASSUMPTION (disclaimed): billed as if the OCI design "
+                "mirrors the source's multi-region layout; a single-region OCI "
+                "landing makes this traffic intra-region = $0 (intra-region "
+                "movement is free on OCI). Source charge ${:,.2f}/mo."
+                .format(src))
+        items = oci_service_usage_items(
+            "OCI Outbound Data Transfer", qty, transfer_pools,
+            row.get("source_region"), row.get("__usageType"),
+            usage_unit=row.get("usage_unit"),
+            meter_text=" ".join(filter(None, [clean_text(row.get("source_service")),
+                                              clean_text(row.get("__meterName"))])))
+        if items:
+            items[0]["mapping"] = ("Inter-region traffic converted to OCI "
+                                   "Outbound Data Transfer (zone pool + "
+                                   "over-10TB zone rate). "
+                                   + items[0].get("mapping", "") + topo)
+            return (items, "OCI Outbound Data Transfer (inter-region)",
+                    "Networking")
+        return free("OCI Outbound Data Transfer (inter-region)", "Networking",
+                    "Inter-region traffic with no billable quantity this month."
+                    + topo)
+
+    def free(label, cat, note):
+        return ([{
+            "sku": "", "description": label, "quantity": round(qty, 4),
+            "unit": clean_text(row.get("usage_unit")), "rate": 0.0, "monthly": 0.0,
+            "mapping": note + " Source charge ${:,.2f}/mo goes to $0.".format(src),
+            "ociServiceUsage": True,
+        }], label, cat)
+
+    # Bandwidth inter-region meters -> converted onto the zone pools (ruling
+    # 2026-08-19; ordinary internet egress is priced by the generic fallback).
+    # "Inter-Region" lives in the METER SUBCATEGORY ("Intra Continent Data
+    # Transfer Out" / "Inter Continent ... To Any"), not the meter name.
+    _ir_blob = normalize(" ".join(clean_text(row.get(k)) for k in
+                                  ("__meterName", "__meterSub", "source_product")))
+    if svc == "bandwidth" and ("inter-region" in _ir_blob or "inter region" in _ir_blob
+                               or "inter continent" in _ir_blob):
+        return inter_region_converted()
+
+    # Virtual WAN + VPN Gateway -> $0 (doc #10, 2026-08-19, formalizing the wave-13
+    # approval). Bill facts verified: VpnGw1AZ 1,488 hrs $312.48; S2S Scale Unit
+    # 1,529.66 hrs $552.21 (~2.06 x 500 Mbps units); S2S Connection Unit 3,056.6 hrs
+    # $152.83 (~4.1 connection-month equivalents); Standard Hub Unit 45.16 hrs
+    # $11.29 - total $1,028.81. Oracle-verified: Site-to-Site VPN has "no per-hour
+    # connection fee or per-byte data processing fee"; the DRG has no meter;
+    # intra-region transfer is free. Status: mapped_to_zero_with_architecture_
+    # validation - a direct charge-model mapping, NOT a claim that every VWAN
+    # feature is free. Egress is already counted on the Bandwidth rows.
+    if svc in ("virtual wan", "vpn gateway"):
+        vwan_note = (
+            "OCI Site-to-Site VPN and the Dynamic Routing Gateway carry no hourly, "
+            "per-tunnel, or per-connection charge; VWAN hub/scale/connection units "
+            "and VPN gateway hours have no OCI meter (doc #10: direct charge-model "
+            "mapping, not free-everything). ARCHITECTURE VALIDATION required - "
+            "design: DRG attached to the target VCNs, IPSec connections to the "
+            "on-prem CPEs, DRG route tables/route distribution replacing "
+            "virtual-hub routing. Capacity: validate aggregate VPN throughput "
+            "(source ran ~2 scale units = ~1 Gbps), CPE/tunnel redundancy, BGP "
+            "routing, encryption overhead, and the ~4 site-to-site connection "
+            "equivalents. NOT included in this $0: FastConnect (port-hour + "
+            "provider charges), Network Firewall, load balancers, NAT, "
+            "point-to-site/client VPN, inter-region transfer, and public internet "
+            "egress - price those against their own OCI SKUs if selected.")
+        if "hub" in meter:
+            return free("OCI DRG route tables / VCN transit (included)",
+                        "Networking", vwan_note)
+        return free("OCI VPN Connect / DRG (included)", "Networking", vwan_note)
+
+    # Virtual Network: private endpoints, reserved public IPs, Private Link data
+    # processing, and intra-region traffic are all free on OCI. Inter-region traffic
+    # is NOT (doc #6 guardrail) - carried. Unknown meters safe-fail to carry.
+    if svc == "virtual network":
+        if ("inter-region" in _ir_blob or "inter region" in _ir_blob
+                or "global peering" in _ir_blob):
+            return inter_region_converted()
+        if any(k in meter for k in ("private endpoint", "public ip", "ip address",
+                                    "intra-region", "intra region", "data processed",
+                                    "peering")):
+            return free("OCI Virtual Cloud Network (included)", "Networking",
+                        "Private endpoints, reserved public IPv4 addresses, Private "
+                        "Link data processing, local peering, and intra-region "
+                        "traffic carry no charge on OCI.")
+        return (_dropdown_carry_items(row, "Unrecognized Virtual Network meter - "
+                                           "carried at source."),
+                "Virtual Network meter (carried)", "Networking")
+
+    # Azure Update Manager -> OS Management Hub: included with OCI instances.
+    if "update manager" in svc:
+        return free("OCI OS Management Hub (included)", "Observability and Management",
+                    "OS Management Hub patch/update management is included for OCI "
+                    "instances at no charge.")
+
+    # Container Registry: OCIR has NO per-registry fee (Basic/Standard/Premium
+    # unit-days have no OCI meter); stored images bill as Object Storage.
+    if svc == "container registry":
+        if "data stored" in meter:
+            gb = qty
+            return ([{
+                "sku": OCIR_STORAGE_SKU, "description": "OCI Container Registry storage (Object Storage GB-mo)",
+                "quantity": round(gb, 4), "unit": "GB per month", "rate": OCIR_STORAGE_RATE,
+                "monthly": money(gb * OCIR_STORAGE_RATE),
+                "mapping": "OCIR stored images bill at Object Storage rates - no "
+                           "separate registry storage meter.",
+                "ociServiceUsage": True,
+            }], "OCI Container Registry (Object Storage rates)", "Other Services")
+        if "registry unit" in meter:
+            return free("OCI Container Registry (no registry fee)", "Other Services",
+                        "OCIR has no per-registry or per-tier fee; Basic/Standard/"
+                        "Premium registry unit-days have no OCI meter.")
+        return (_dropdown_carry_items(row, "Unrecognized Container Registry meter - "
+                                           "carried at source."),
+                "Container Registry meter (carried)", "Other Services")
+    return None
+
+
 # ---- Azure Redis -> OCI Cache with Redis 7.0 (Chris's doc #7, 2026-08-19) -----------
 # One logical cache -> one OCI Cache cluster (NOT a consolidation estimate). OCI Cache
 # facts verified against Oracle docs 2026-08-19: Redis 7.0 engine available (also
@@ -7439,6 +7680,1042 @@ def price_azure_redis_row(row, path=None):
             "ociServiceUsage": True,
         })
     return items, AZ_REDIS_PATHS[path], "Database", path
+
+
+
+# ---- Azure PostgreSQL Flexible Server -> OCI Database with PostgreSQL (doc #8,
+# 2026-08-19). Bill facts verified: 14,916 vCore-hours / $1,346.76 for the single
+# "General Purpose Dsv3 Series Compute - 1 vCore" meter; NO ResourceId in the export,
+# so the server topology (20 x 1-vCore vs 10 x 2-vCore vs a changing mix) is UNKNOWN.
+# Default = the doc's selected 2:1 consolidation assumption (1 OCI OCPU = 2 vCPUs ->
+# vCore-hours / 2), $730.88/mo; the boundary-preserving 1:1 model ($1,461.77/mo) is
+# the higher-cost dropdown alternative; carry is last. Rates cetools-verified live
+# (USD PAYG): B99060 $0.098/OCPU-hr compute; B99062 $0.072/GB-month Database
+# Optimized Storage. Storage rows are AUTOMATIC (1:1 GB-month, no real choice) - they
+# were previously mispriced at generic $0.0255/GB storage rates. Backup-storage rows
+# keep their existing Object Storage mapping (doc excludes them; OCI PG backups
+# consume Object Storage).
+OCI_PG_SKU, OCI_PG_RATE = "B99060", 0.098            # OCPU-hr, cetools USD PAYG
+OCI_PG_STORAGE_SKU, OCI_PG_STORAGE_RATE = "B99062", 0.072  # GB-month, cetools USD PAYG
+AZ_PG_FLAG = "PostgreSQL conversion - review required"
+AZ_PG_DEFAULT_PATH = "pg_2to1"
+AZ_PG_PATHS = {
+    "pg_2to1": "OCI Database with PostgreSQL (2:1 vCore consolidation)",
+    "pg_boundary": "OCI Database with PostgreSQL (1 OCPU per vCore - preserve server boundaries)",
+    "pg_carry": "Carried over source cost (by selection)",
+}
+AZ_PG_VALIDATE_NOTE = (
+    "VALIDATE before a production BOM: Azure resource inventory (server name, region, "
+    "current vCores, days active - billing hours are NOT a server count); per-server "
+    "storage, backup retention, HA/zone-redundancy, replicas, extensions, and "
+    "PostgreSQL version; CPU/memory/connections/IOPS peak-hour telemetry to confirm "
+    "consolidation is feasible; target OCI region and HA objective. EXCLUDES backup "
+    "storage, volume-performance units, HA/replicas, and network egress.")
+
+
+def _is_azure_postgres_row(row):
+    return "postgres" in normalize(row.get("source_service"))
+
+
+def price_azure_postgres_row(row, path=None):
+    """Price an Azure Database for PostgreSQL Flexible Server bill row on OCI
+    Database with PostgreSQL. Returns (line_items, label, category, kind, path)
+    or None. kind 'pg_compute' rows drive the dropdown; 'pg_storage' is automatic."""
+    if not _is_azure_postgres_row(row):
+        return None
+    blob = normalize(" ".join(clean_text(row.get(k)) for k in
+                              ("__meterName", "source_product", "__azureProduct")))
+    unit = normalize(row.get("usage_unit")).replace(" ", "")
+    qty = to_number(row.get("usage_quantity"), 0)
+    # Attached-database storage (NOT backup): OCI Database Optimized Storage 1:1.
+    if unit in ("1gb/month", "gb/month", "gbmonth", "1gbmonth") and "backup" not in blob:
+        if qty <= 0:
+            return None
+        return ([{
+            "sku": OCI_PG_STORAGE_SKU,
+            "description": "OCI Database Optimized Storage (GB/month)",
+            "quantity": round(qty, 2), "unit": "GB-month", "rate": OCI_PG_STORAGE_RATE,
+            "monthly": money(qty * OCI_PG_STORAGE_RATE),
+            "mapping": ("PostgreSQL-attached storage bills at Database Optimized "
+                        "Storage (B99062, $0.072/GB-month, cetools-verified) - not "
+                        "generic block/object rates. OCI PG storage scales "
+                        "dynamically (pay for use, not provisioned). "
+                        + AZ_PG_VALIDATE_NOTE),
+            "ociServiceUsage": True,
+        }], "OCI Database with PostgreSQL - Optimized Storage", "Database",
+            "pg_storage", "auto")
+    # vCore compute meter (hours). Anything else PostgreSQL (backup storage etc.)
+    # keeps its existing mapping.
+    if unit not in ("1hour", "hour", "hours") or not ("compute" in blob or "vcore" in blob):
+        return None
+    if path not in AZ_PG_PATHS:
+        path = AZ_PG_DEFAULT_PATH
+    if path == "pg_carry":
+        return (_dropdown_carry_items(row), AZ_PG_PATHS[path], "Database",
+                "pg_compute", path)
+    if qty <= 0:
+        return ([], AZ_PG_PATHS[path], "Database", "pg_compute", path)
+    ocpu_hours = qty / 2.0 if path == "pg_2to1" else qty
+    topo = (("DISCLAIMER - the 2:1 vCore-to-OCPU consolidation (1 OCI OCPU = 2 vCPUs) "
+             "is a TOPOLOGY ASSUMPTION, not a fact established by the bill: the "
+             "export has no ResourceId, so the usage could be many small servers or "
+             "few large ones. OCI PostgreSQL has a 1-OCPU minimum per DB system, and "
+             "consolidation changes DB-system count, isolation, maintenance windows, "
+             "extension compatibility, connection capacity, HA design, and outage "
+             "blast radius. Use the boundary-preserving option if consolidation is "
+             "not approved.") if path == "pg_2to1" else
+            ("Boundary-preserving model: 1 OCPU per source vCore-hour, so no server "
+             "consolidation is assumed. Costs twice the 2:1 consolidation default; "
+             "sizes each DB system at its Azure vCore count."))
+    basis = (f"{qty:,.0f} Azure vCore-hours -> {ocpu_hours:,.0f} OCI OCPU-hours x "
+             f"${OCI_PG_RATE}/OCPU-hr (B99060, cetools-verified). {topo} "
+             + AZ_PG_VALIDATE_NOTE)
+    return ([{
+        "sku": OCI_PG_SKU, "description": "OCI Database with PostgreSQL - X86 (OCPU-hr)",
+        "quantity": round(ocpu_hours, 2), "unit": "OCPU-hour", "rate": OCI_PG_RATE,
+        "monthly": money(ocpu_hours * OCI_PG_RATE),
+        "mapping": basis, "ociServiceUsage": True,
+    }], AZ_PG_PATHS[path], "Database", "pg_compute", path)
+
+
+# ---- Azure App Service -> CARRY at source with a RED architecture-review flag
+# (Chris's ruling 2026-08-19). ~$2.9k/mo of multi-tenant PaaS (Basic/Standard/
+# Premium plans, Free/Dev-Test, SSL connections, Static Web Apps) with no direct
+# OCI charge-model equivalent: picking the OCI landing zone (VM compute, OKE,
+# Container Instances, OCI Functions, API Gateway/Object Storage for static sites)
+# is an ARCHITECTURE DECISION, not a meter mapping. Until that design is approved,
+# every App Service row carries at source. AUTOMATIC (no dropdown - carry is the
+# ruling, not a choice). This also stops the generic pricers mispricing three rows
+# (Standard Plan $595.20/mo was priced $37.94; Premium v2 $54.31 -> $18.97; Static
+# Web Standard $12.70 -> $0.04 - the misprice-as-capacity family again).
+# ---- Remaining-services register (doc #13 + Chris's per-service rulings,
+# 2026-08-19). One handler for the walkthrough decisions; ONE generic dropdown
+# channel (regPathOverrides) drives every kind that has a real choice. Rates
+# cetools-verified LIVE (USD PAYG): LB base B93030 $0.0113/hr, LB bandwidth
+# B93031 $0.0001/Mbps-hr, WAF instance B94579 $5/mo (first free), WAF requests
+# B94277 $0.6/1M after 10M free (validation only - no request meter in the
+# AppGW bill), Streaming B90938 $0.025/GB put-or-get + B90939 $0.0002/GB-hr,
+# Logging B92593 $0.05/GB (10 GB/mo free pool), Monitoring ingestion B90925
+# $0.0025/1M datapoints (first 500M free), Notifications email B90941 $0.02/1K
+# (first 1K free), Archive B91633 $0.0026/GB-mo, OKE Enhanced B96545
+# $0.10/cluster-hr (note only), GenAI: Grok 4.2 B111910 $1.25/M in + B111911
+# $0.20/M cached + B112076 $2.50/M out; gpt-oss-120b B112004 $0.15/M in +
+# B112005 $0.60/M out; Cohere Embed B108079 $0.001/10K (= $0.10/M).
+AZ_REG_FLAG = "Remaining-services register - review required"
+OCI_LB_BASE_SKU, OCI_LB_BASE_RATE = "B93030", 0.0113
+OCI_LB_BW_SKU, OCI_LB_BW_RATE = "B93031", 0.0001
+OCI_WAF_INST_SKU, OCI_WAF_INST_RATE = "B94579", 5.0
+OCI_STREAM_GB_SKU, OCI_STREAM_GB_RATE = "B90938", 0.025
+OCI_STREAM_STORE_SKU, OCI_STREAM_STORE_RATE = "B90939", 0.0002
+OCI_LOGGING_SKU, OCI_LOGGING_RATE = "B92593", 0.05
+OCI_MON_INGEST_SKU, OCI_MON_INGEST_RATE = "B90925", 0.0025   # per 1M datapoints
+OCI_MON_FREE_DATAPOINTS_M = 500.0                            # 500M free / month
+OCI_NOTIFY_EMAIL_SKU, OCI_NOTIFY_EMAIL_RATE = "B90941", 0.02  # per 1K, first 1K free
+OCI_ARCHIVE_SKU, OCI_ARCHIVE_RATE = "B91633", 0.0026
+AZ_APPGW_MBPS_PER_CU = 2.22       # Azure's own capacity-unit throughput approximation
+AZ_EH_KB_PER_EVENT = 1.0          # ASSUMPTION, disclaimed on the row
+AZ_LB_MBPS_HRS_PER_GB = 8.0 * 1024.0 / 3600.0   # 1 GB moved = 2.2756 Mbps-hours
+# GenAI substitution rates ($ per 1M tokens): frontier -> xAI Grok 4.2;
+# mini -> OpenAI gpt-oss-120b (no cached tier - cached bills as input);
+# embeddings -> Cohere Embed.
+AZ_FDRY_RATES = {
+    "frontier": {"in": ("B111910", 1.25), "cached": ("B111911", 0.20), "out": ("B112076", 2.50),
+                 "label": "xAI Grok 4.2"},
+    "mini": {"in": ("B112004", 0.15), "cached": ("B112004", 0.15), "out": ("B112005", 0.60),
+             "label": "OpenAI gpt-oss-120b"},
+    "embed": {"in": ("B108079", 0.10), "cached": ("B108079", 0.10), "out": ("B108079", 0.10),
+              "label": "Cohere Embed"},
+}
+AZ_REG_DEFAULTS = {"reg_appgw_fixed": "appgw_convert", "reg_appgw_cu": "appgw_convert",
+                   "reg_eh_tu": "eh_carry", "reg_eh_ingress": "eh_carry",
+                   "reg_fdry": "fdry_carry",
+                   "reg_lb_rules": "lb_convert", "reg_lb_data": "lb_convert"}
+AZ_REG_CARRY_PATHS = {"appgw_carry", "eh_carry", "fdry_carry", "lb_carry"}
+# Carry-only register services -> (label-direction, required inputs note).
+AZ_REG_CARRY_DIRECTIONS = {
+    "front door": ("OCI WAF Edge + regional LB; CDN/acceleration decision",
+                   "Need caching behavior, global routing, origin health/failover, "
+                   "private-link, WAF/bot features, and performance/SLA requirement. "
+                   "A global Front Door deployment is NOT a regional LB equivalent."),
+    "logic apps": ("Oracle Integration (OIC)",
+                   "Azure action count is NOT OIC billable-message count (OIC bills "
+                   "trigger/payload-aware messages in hourly packs). Need workflow "
+                   "inventory, triggers, payload size, adapters, connector class, "
+                   "concurrency, retries, retention."),
+    "container apps": ("OCI Container Instances (OKE only if K8s features required)",
+                       "Active/idle billing does not equal OCI running allocation. "
+                       "Need replicas/min replicas, revisions, vCPU/GiB per revision, "
+                       "HTTP scaling, jobs, VNet, ingress, Dapr, persistent storage. "
+                       "Candidate compute: OCPUs = active vCPUs / 2, memory in GiB, "
+                       "x target min replicas x runtime hours."),
+    "signalr": ("WebSocket runtime on Container Instances/OKE + LB (+ Redis pub-sub)",
+                "No managed SignalR SKU on OCI - runtime architecture replacement. "
+                "Need concurrent connections, msgs/sec, payload, fan-out/groups, "
+                "sticky sessions, backplane dependency, global routing."),
+}
+
+
+def _azure_register_kind(row):
+    svc = normalize(row.get("source_service"))
+    meter = normalize(row.get("__meterName") or row.get("source_product"))
+    if "application gateway" in svc:
+        if "capacity unit" in meter:
+            return "reg_appgw_cu"
+        if "fixed cost" in meter:
+            return "reg_appgw_fixed"
+        return "reg_carry"
+    if "front door" in svc or "logic apps" in svc or "signalr" in svc \
+            or "container apps" in svc:
+        return "reg_carry"
+    if "event hubs" in svc:
+        if "throughput unit" in meter:
+            return "reg_eh_tu"
+        if "ingress" in meter:
+            return "reg_eh_ingress"
+        return "reg_carry"
+    if "foundry models" in svc:
+        return "reg_fdry" if "token" in meter else "reg_carry"
+    if svc == "load balancer":
+        if "rules" in meter:
+            return "reg_lb_rules"
+        if "data processed" in meter:
+            return "reg_lb_data"
+        return "reg_carry"
+    if "azure monitor" in svc or "insight and analytics" in svc:
+        if "web test" in meter:
+            return "reg_monitor_carry"
+        if ("logs data ingestion" in meter or "logs data processed" in meter):
+            return "reg_mon_logs"
+        if "metrics ingestion" in meter:
+            return "reg_mon_metrics"
+        if "alert" in meter:
+            return "reg_mon_alerts"
+        if "data archive" in meter:
+            return "reg_mon_archive"
+        if "email" in meter:
+            return "reg_mon_emails"
+        return "reg_monitor_carry"
+    if "defender" in svc:
+        if any(k in meter for k in ("cspm", "resource manager", "posture")):
+            return "reg_defender_cloudguard"
+        return "reg_carry"
+    if "kubernetes service" in svc:
+        return "reg_aks_sla" if "uptime sla" in meter else None
+    if svc == "storage":
+        if "geo-replication" in meter or "geo replication" in meter:
+            return "reg_carry"
+        if "additional io" in meter and "queue" in normalize(
+                " ".join(clean_text(row.get(k)) for k in ("__meterName", "__meterSub", "source_product"))):
+            return "reg_carry"
+        if "hierarchical namespace" in meter \
+                and to_number(row.get("source_monthly_cost"), 0) <= 0:
+            return "reg_storage_hns"
+        return None
+    return None
+
+
+def _reg_carry(row, direction, note, label=None):
+    return (_dropdown_carry_items(row, note),
+            label or f"Carried (register) -> {direction}", "Other Services")
+
+
+def _fdry_bucket_and_dir(meter):
+    """(bucket, direction) for a Foundry token meter."""
+    m = normalize(meter)
+    bucket = ("embed" if "embedding" in m
+              else "mini" if "mini" in m else "frontier")
+    if any(k in m for k in ("opt", "outp", "output")):
+        d = "out"
+    elif " cd " in f" {m} " or "cached" in m:
+        d = "cached"
+    else:
+        d = "in"
+    return bucket, d
+
+
+def price_azure_register_row(row, path=None, ctx=None):
+    """Doc #13 register. Returns (items, label, category, kind, path, level) or
+    None. level '' = yellow default, 'orange' = converted with assumptions;
+    carried rows go red automatically (carry-trumps at row output)."""
+    kind = _azure_register_kind(row)
+    if kind is None:
+        return None
+    ctx = ctx or {}
+    svc = normalize(row.get("source_service"))
+    qty = to_number(row.get("usage_quantity"), 0)
+    src = to_number(row.get("source_monthly_cost"), 0)
+    if kind in AZ_REG_DEFAULTS and path not in ("appgw_convert", "appgw_carry",
+                                                "eh_carry", "eh_streaming",
+                                                "fdry_carry", "fdry_genai",
+                                                "lb_convert", "lb_carry"):
+        path = AZ_REG_DEFAULTS[kind]
+    # ---- carry-only register rows -------------------------------------------
+    if kind == "reg_carry":
+        direction, need = next(
+            ((d, n) for k, (d, n) in AZ_REG_CARRY_DIRECTIONS.items() if k in svc),
+            ("see register", "Carried per the remaining-services register."))
+        if "defender" in svc:
+            direction = "workload security-control design (DB/storage/server Defender)"
+            need = ("Per-node Defender for Servers/DB/Storage workload protection - "
+                    "carry until a comparable OCI security-control design is "
+                    "selected. Confirm threat protections, scope, compliance, "
+                    "SIEM/SOC integration, third-party products. (No CSPM/Resource-"
+                    "Manager meters in this bill - the Cloud Guard $0 branch fires "
+                    "only on those.)")
+        if "event hubs" in svc:
+            direction, need = ("OCI Streaming / Kafka-compatible architecture",
+                               "Event count is not data volume. Need avg/peak in+out "
+                               "MB/s, payloads, retention, partitions, consumer "
+                               "groups, capture, Kafka/API dependency.")
+        if "foundry" in svc:
+            direction, need = ("OCI Generative AI (per-model substitution)",
+                               "Non-token Foundry meter - carried.")
+        if "storage" in svc:
+            direction, need = ("Object Storage replication/requests design",
+                               "Geo-replication transfer and queue additional-IO "
+                               "have no direct OCI meter; revisit with the "
+                               "replication/queue design.")
+        if "application gateway" in svc:
+            direction, need = ("OCI Flexible LB + WAF",
+                               "Unrecognized Application Gateway meter - carried.")
+        return _reg_carry(row, direction,
+                          f"Carried per the remaining-services register (doc #13). "
+                          f"OCI direction: {direction}. REQUIRED BEFORE PRICING: "
+                          f"{need}") + (kind, "auto", "")
+    if kind == "reg_monitor_carry":
+        return _reg_carry(row, "OCI APM Synthetic Monitoring (design pending)",
+                          "Web tests / residual Monitor meters carried pending a "
+                          "synthetic-monitoring and observability design (doc #13 "
+                          "split rule).") + (kind, "auto", "")
+    # ---- App Gateway ---------------------------------------------------------
+    if kind in ("reg_appgw_fixed", "reg_appgw_cu"):
+        if path == "appgw_carry":
+            return _reg_carry(row, "OCI Flexible LB + WAF",
+                              "Carried by selection. Need hourly peak Mbps, "
+                              "listeners, routes, TLS, exposure, WAF policy/bot "
+                              "rules, backend topology.") + (kind, path, "")
+        if kind == "reg_appgw_fixed":
+            waf_pool = ctx.get("waf_instance_pool")
+            months = qty / 744.0
+            free_inst = min(waf_pool[0], months) if isinstance(waf_pool, list) else 0.0
+            if isinstance(waf_pool, list):
+                waf_pool[0] -= free_inst
+            waf_monthly = max(0.0, months - free_inst) * OCI_WAF_INST_RATE
+            note = (f"App Gateway WAF-v2 fixed hours -> OCI Flexible Load Balancer "
+                    f"base + OCI WAF policy. {qty:,.0f} gateway-hours x "
+                    f"${OCI_LB_BASE_RATE}/hr ({OCI_LB_BASE_SKU}); WAF "
+                    f"{months:,.2f} instance-months x ${OCI_WAF_INST_RATE}/mo "
+                    f"({OCI_WAF_INST_SKU}, first instance free"
+                    + (f" - {free_inst:,.2f} free here" if free_inst > 0 else "")
+                    + f"). WAF REQUESTS not priceable from this bill (no request "
+                    f"meter): {OCI_WAF_REQ_NOTE}")
+            return ([{
+                "sku": OCI_LB_BASE_SKU, "description": "Load Balancer Base (hours)",
+                "quantity": round(qty, 2), "unit": "LB-hour", "rate": OCI_LB_BASE_RATE,
+                "monthly": money(qty * OCI_LB_BASE_RATE),
+                "mapping": note, "ociServiceUsage": True,
+            }, {
+                "sku": OCI_WAF_INST_SKU, "description": "Web Application Firewall - Instance",
+                "quantity": round(months, 2), "unit": "instance-month",
+                "rate": OCI_WAF_INST_RATE, "monthly": money(waf_monthly),
+                "mapping": note, "ociServiceUsage": True,
+            }], "OCI Flexible Load Balancer + WAF (approximate)",
+                "Networking", kind, path, "orange")
+        mbps_hours = qty * AZ_APPGW_MBPS_PER_CU
+        return ([{
+            "sku": OCI_LB_BW_SKU, "description": "Load Balancer Bandwidth (Mbps-hr)",
+            "quantity": round(mbps_hours, 2), "unit": "Mbps-hour",
+            "rate": OCI_LB_BW_RATE, "monthly": money(mbps_hours * OCI_LB_BW_RATE),
+            "mapping": (f"{qty:,.0f} capacity-unit-hours x {AZ_APPGW_MBPS_PER_CU} "
+                        f"Mbps/CU (AZURE'S OWN THROUGHPUT APPROXIMATION - a CU also "
+                        f"covers connections and TLS handshakes, so this is a sizing "
+                        f"convention, DISCLAIMED) x ${OCI_LB_BW_RATE}/Mbps-hr "
+                        f"({OCI_LB_BW_SKU}). Validate against hourly peak Mbps "
+                        f"before committing."),
+            "ociServiceUsage": True,
+        }], "OCI Flexible Load Balancer + WAF (approximate)",
+            "Networking", kind, path, "orange")
+    # ---- Event Hubs ----------------------------------------------------------
+    if kind in ("reg_eh_tu", "reg_eh_ingress"):
+        if path != "eh_streaming":
+            return _reg_carry(row, "OCI Streaming / Kafka-compatible architecture",
+                              "Carried (register default): event count is not data "
+                              "volume; the streaming option prices an ASSUMED 1 KB "
+                              "average event. Need avg/peak MB/s in+out, payloads, "
+                              "retention, partitions, consumer groups, Kafka "
+                              "dependency.") + (kind, path, "")
+        if kind == "reg_eh_tu":
+            return ([{
+                "sku": "", "description": "Provisioned throughput units (absorbed)",
+                "quantity": round(qty, 2), "unit": "TU-hour", "rate": 0.0,
+                "monthly": 0.0,
+                "mapping": ("OCI Streaming bills per GB moved, not provisioned "
+                            "throughput units - TU-hours are absorbed into the "
+                            "per-GB pricing on the ingress rows. APPROXIMATE "
+                            "conversion, validate peak MB/s vs OCI partition "
+                            "limits."),
+                "ociServiceUsage": True,
+            }], "OCI Streaming (approximate)", "Other Services", kind, path, "orange")
+        gb = qty * 1_000_000 / 1_048_576.0 * AZ_EH_KB_PER_EVENT  # 1M-event units -> GB
+        put_get = gb * 2 * OCI_STREAM_GB_RATE
+        store = (gb / 31.0) * 744.0 * OCI_STREAM_STORE_RATE     # ~24h retention
+        return ([{
+            "sku": OCI_STREAM_GB_SKU, "description": "Streaming - PUT or GET (GB)",
+            "quantity": round(gb * 2, 2), "unit": "GB", "rate": OCI_STREAM_GB_RATE,
+            "monthly": money(put_get),
+            "mapping": (f"{qty:,.1f}M events x ASSUMED {AZ_EH_KB_PER_EVENT:g} KB "
+                        f"average payload (DISCLAIMED - every KB of average size "
+                        f"adds ~${gb * 2 * OCI_STREAM_GB_RATE:,.0f}/mo) = "
+                        f"{gb:,.0f} GB in + {gb:,.0f} GB consumed x "
+                        f"${OCI_STREAM_GB_RATE}/GB ({OCI_STREAM_GB_SKU})."),
+            "ociServiceUsage": True,
+        }, {
+            "sku": OCI_STREAM_STORE_SKU, "description": "Streaming - Storage (GB-hr)",
+            "quantity": round(gb / 31.0 * 744.0, 2), "unit": "GB-hour",
+            "rate": OCI_STREAM_STORE_RATE, "monthly": money(store),
+            "mapping": "~24h retention of the assumed daily volume.",
+            "ociServiceUsage": True,
+        }], "OCI Streaming (approximate)", "Other Services", kind, path, "orange")
+    # ---- Foundry Models ------------------------------------------------------
+    if kind == "reg_fdry":
+        if path != "fdry_genai":
+            return _reg_carry(row, "OCI Generative AI (per-model substitution)",
+                              "Carried (register default). Token dimensions are "
+                              "preserved on this row - select the GenAI option to "
+                              "price per-meter (frontier->Grok 4.2, mini->gpt-oss-"
+                              "120b, embeddings->Cohere Embed); never blend a "
+                              "Foundry dollar total into one OCI price."
+                              ) + (kind, path, "")
+        bucket, d = _fdry_bucket_and_dir(row.get("__meterName") or row.get("source_product"))
+        sku, rate = AZ_FDRY_RATES[bucket][d]
+        unit = normalize(row.get("usage_unit")).replace(" ", "")
+        millions = qty if "1m" in unit else qty / 1000.0
+        return ([{
+            "sku": sku,
+            "description": f"OCI GenAI - {AZ_FDRY_RATES[bucket]['label']} ({d} tokens)",
+            "quantity": round(millions, 4), "unit": "1M tokens", "rate": rate,
+            "monthly": money(millions * rate),
+            "mapping": (f"MODEL SUBSTITUTION (approved option, not equivalence): "
+                        f"{clean_text(row.get('__meterName'))} -> "
+                        f"{AZ_FDRY_RATES[bucket]['label']} at ${rate}/1M {d} tokens "
+                        f"({sku}, cetools-verified). Token counts carried 1:1 from "
+                        f"the bill; validate model quality/latency/context fit and "
+                        f"OCI regional availability before committing."),
+            "ociServiceUsage": True,
+        }], f"OCI Generative AI ({AZ_FDRY_RATES[bucket]['label']})",
+            "Other Services", kind, path, "orange")
+    # ---- Load Balancer (yellow when converted, Chris's choice) ---------------
+    if kind in ("reg_lb_rules", "reg_lb_data"):
+        if path == "lb_carry":
+            return _reg_carry(row, "OCI Flexible Load Balancer",
+                              "Carried by selection. Need min/peak Mbps, listeners, "
+                              "backend count, TLS, persistence, exposure.") \
+                + (kind, path, "")
+        if kind == "reg_lb_rules":
+            return ([{
+                "sku": OCI_LB_BASE_SKU, "description": "Load Balancer Base (hours)",
+                "quantity": round(qty, 2), "unit": "LB-hour",
+                "rate": OCI_LB_BASE_RATE, "monthly": money(qty * OCI_LB_BASE_RATE),
+                "mapping": (f"APPROXIMATION: {qty:,.0f} Azure rule-hours treated as "
+                            f"OCI LB base-hours x ${OCI_LB_BASE_RATE}/hr "
+                            f"({OCI_LB_BASE_SKU}). Azure bills per RULE, so this is "
+                            f"an UPPER BOUND - the real OCI LB count is lower if "
+                            f"rules consolidate onto fewer load balancers. Validate "
+                            f"listener/LB inventory."),
+                "ociServiceUsage": True,
+            }], "OCI Flexible Load Balancer (approximate)", "Networking",
+                kind, path, "")
+        mbps_hours = qty * AZ_LB_MBPS_HRS_PER_GB
+        return ([{
+            "sku": OCI_LB_BW_SKU, "description": "Load Balancer Bandwidth (Mbps-hr)",
+            "quantity": round(mbps_hours, 2), "unit": "Mbps-hour",
+            "rate": OCI_LB_BW_RATE, "monthly": money(mbps_hours * OCI_LB_BW_RATE),
+            "mapping": (f"{qty:,.0f} GB processed spread evenly = "
+                        f"{mbps_hours:,.0f} Mbps-hours x ${OCI_LB_BW_RATE}/Mbps-hr "
+                        f"({OCI_LB_BW_SKU}). Even-spread APPROXIMATION - peaky "
+                        f"traffic raises the configured-bandwidth floor; validate "
+                        f"peak Mbps."),
+            "ociServiceUsage": True,
+        }], "OCI Flexible Load Balancer (approximate)", "Networking",
+            kind, path, "")
+    # ---- Azure Monitor split -------------------------------------------------
+    if kind == "reg_mon_logs":
+        pool = ctx.get("logging_pool")
+        free = min(pool[0], qty) if isinstance(pool, list) else 0.0
+        if isinstance(pool, list):
+            pool[0] -= free
+        return ([{
+            "sku": OCI_LOGGING_SKU, "description": "OCI Logging (GB ingested)",
+            "quantity": round(qty, 2), "unit": "GB", "rate": OCI_LOGGING_RATE,
+            "monthly": money(max(0.0, qty - free) * OCI_LOGGING_RATE),
+            "mapping": (f"Monitor log ingestion -> OCI Logging at "
+                        f"${OCI_LOGGING_RATE}/GB ({OCI_LOGGING_SKU}); first "
+                        f"10 GB/month free bill-wide"
+                        + (f" ({free:,.1f} GB free here)" if free > 0 else "")
+                        + ". Validate retention window (OCI Logging stores 30 days; "
+                        "longer retention -> archive rows)."),
+            "ociServiceUsage": True,
+        }], "OCI Logging", "Observability and Management", kind, "auto", "orange")
+    if kind == "reg_mon_metrics":
+        dp_m = qty * 10.0   # meter unit is 10M samples
+        pool = ctx.get("monitor_dp_pool")
+        free = min(pool[0], dp_m) if isinstance(pool, list) else 0.0
+        if isinstance(pool, list):
+            pool[0] -= free
+        return ([{
+            "sku": OCI_MON_INGEST_SKU, "description": "Monitoring - Ingestion (1M datapoints)",
+            "quantity": round(dp_m, 2), "unit": "1M datapoints",
+            "rate": OCI_MON_INGEST_RATE,
+            "monthly": money(max(0.0, dp_m - free) * OCI_MON_INGEST_RATE),
+            "mapping": (f"{dp_m:,.0f}M metric samples -> OCI Monitoring ingestion "
+                        f"at ${OCI_MON_INGEST_RATE}/1M ({OCI_MON_INGEST_SKU}); "
+                        f"first {OCI_MON_FREE_DATAPOINTS_M:,.0f}M/month free"
+                        + (f" ({free:,.0f}M free here)" if free > 0 else "")
+                        + ". Validate custom-metric namespaces and cardinality."),
+            "ociServiceUsage": True,
+        }], "OCI Monitoring", "Observability and Management", kind, "auto", "orange")
+    if kind == "reg_mon_alerts":
+        return ([{
+            "sku": "", "description": "OCI Alarms (no per-rule fee)",
+            "quantity": round(qty, 2), "unit": clean_text(row.get("usage_unit")),
+            "rate": 0.0, "monthly": 0.0,
+            "mapping": ("OCI Alarms carry no per-rule monthly fee - alarm "
+                        "evaluation bills as Monitoring RETRIEVAL (B90926 "
+                        "$0.0015/1M datapoints, first 500M free), typically <$1 at "
+                        "this rule count. VALIDATE alarm query volume and "
+                        "notification fan-out after the alarm design."),
+            "ociServiceUsage": True,
+        }], "OCI Monitoring - Alarms (included)", "Observability and Management",
+            kind, "auto", "orange")
+    if kind == "reg_mon_archive":
+        return ([{
+            "sku": OCI_ARCHIVE_SKU, "description": "Archive Storage (GB/month)",
+            "quantity": round(qty, 2), "unit": "GB-month", "rate": OCI_ARCHIVE_RATE,
+            "monthly": money(qty * OCI_ARCHIVE_RATE),
+            "mapping": (f"Monitor data archive -> OCI Archive Storage at "
+                        f"${OCI_ARCHIVE_RATE}/GB-month ({OCI_ARCHIVE_SKU}). "
+                        f"Validate retrieval expectations (archive restore takes "
+                        f"hours; 90-day minimum retention)."),
+            "ociServiceUsage": True,
+        }], "OCI Archive Storage", "Observability and Management", kind, "auto",
+            "orange")
+    if kind == "reg_mon_emails":
+        thousands = qty / 1000.0
+        pool = ctx.get("email_pool")
+        free = min(pool[0], thousands) if isinstance(pool, list) else 0.0
+        if isinstance(pool, list):
+            pool[0] -= free
+        return ([{
+            "sku": OCI_NOTIFY_EMAIL_SKU, "description": "Notifications - Email (per 1K)",
+            "quantity": round(thousands, 2), "unit": "1K emails",
+            "rate": OCI_NOTIFY_EMAIL_RATE,
+            "monthly": money(max(0.0, thousands - free) * OCI_NOTIFY_EMAIL_RATE),
+            "mapping": (f"Alert emails -> OCI Notifications email delivery at "
+                        f"${OCI_NOTIFY_EMAIL_RATE}/1K ({OCI_NOTIFY_EMAIL_SKU}); "
+                        f"first 1,000/month free."),
+            "ociServiceUsage": True,
+        }], "OCI Notifications", "Observability and Management", kind, "auto",
+            "orange")
+    # ---- Defender CSPM -> Cloud Guard (no matching meters in this bill) ------
+    if kind == "reg_defender_cloudguard":
+        return ([{
+            "sku": "", "description": "OCI Cloud Guard (included)",
+            "quantity": round(qty, 4), "unit": clean_text(row.get("usage_unit")),
+            "rate": 0.0, "monthly": 0.0,
+            "mapping": ("CSPM/Resource-Manager posture management -> OCI Cloud "
+                        "Guard, included at no charge for OCI resources (doc #13 "
+                        "split). Workload Defender meters carry separately."),
+            "ociServiceUsage": True,
+        }], "OCI Cloud Guard (included)", "Security and Identity", kind, "auto",
+            "orange")
+    # ---- AKS Uptime SLA -> $0 ------------------------------------------------
+    if kind == "reg_aks_sla":
+        return ([{
+            "sku": "", "description": "OKE control plane (Basic - no charge)",
+            "quantity": round(qty, 2), "unit": "cluster-hour", "rate": 0.0,
+            "monthly": 0.0,
+            "mapping": (f"AKS Standard Uptime SLA ({qty:,.0f} cluster-hours) -> $0: "
+                        f"OKE BASIC clusters carry no control-plane charge. NOT a "
+                        f"free Kubernetes platform - workers, pods, LBs, storage, "
+                        f"egress, logging and security map separately. If the "
+                        f"financially-backed SLA is required, OKE ENHANCED bills "
+                        f"B96545 $0.10/cluster-hr = ${qty * 0.10:,.2f}/mo (an exact "
+                        f"wash with the Azure charge)."),
+            "ociServiceUsage": True,
+        }], "OKE control plane (included)", "Other Services", kind, "auto",
+            "orange")
+    # ---- Storage HNS zero-source rows ----------------------------------------
+    if kind == "reg_storage_hns":
+        return ([{
+            "sku": "", "description": "ADLS hierarchical namespace (capacity de-duplicated)",
+            "quantity": round(qty, 2), "unit": clean_text(row.get("usage_unit")),
+            "rate": 0.0, "monthly": 0.0,
+            "mapping": ("Zero-cost ADLS Gen2 hierarchical-namespace meter: the "
+                        "stored GB already bill on the tiered blob rows, so pricing "
+                        "this row again would double-count capacity (it previously "
+                        "added phantom OCI cost)."),
+            "ociServiceUsage": True,
+        }], "OCI Object Storage (capacity already counted)", "Storage", kind,
+            "auto", "")
+    return None
+
+
+OCI_WAF_REQ_NOTE = ("OCI WAF requests bill $0.60/1M beyond 10M free (B94277) - "
+                    "capture request counts before committing.")
+
+
+# ---- Microsoft Fabric F-capacity -> exclusive parent rollup (policy doc #12,
+# large_shared_service_rollup_policy_v1, 2026-08-19). OPT-IN scope: Fabric is the
+# policy's worked example (source_group_id azure_fabric_f64_qmed_bi_dev, SKU
+# AAL-49223). Bill facts verified: ONE reservation Purchase row carries the whole
+# cost ($5,002.24, 64 F64 units); every other Fabric Capacity meter (Compute Pool
+# 45,520 CU-hrs, Power BI 1,979, RTI 66, Copilot 46, Dataflows, Warehouse,
+# Activator, OneLake operations CUs) bills $0 - covered by the reservation. The
+# export cannot allocate the parent cost among those capabilities, so: PARENT
+# (cost > 0) = carried ONCE (red via carry-trumps), default_mapping carry;
+# CHILDREN ($0 capacity rows) = INFORMATIONAL (rollup_mode
+# informational_until_allocated): they expose the OCI target DIRECTION but
+# contribute no source cost and no target price, and are EXCLUDED from ordinary
+# independent matching (previously OneLake operations CUs leaked into azops ->
+# Object Requests, and Power BI into Oracle Analytics - $0 today, but a silent
+# duplication path). OneLake DATA STORED meters (GB/month) are separately billed
+# -> standalone mappings, untouched (policy separate_meters). Allocated children
+# (allocation_percent summing to 100%) are NOT implemented - no approved
+# telemetry-based allocation exists; when one arrives, children replace (never
+# add to) the carried parent.
+AZ_FABRIC_FLAG = "Fabric capacity rollup - architecture review required"
+# Child capability -> OCI target direction (policy child_mapping_ids), matched on
+# meter keywords, most specific first.
+AZ_FABRIC_CHILD_TARGETS = (
+    ("power bi", "Oracle Analytics Cloud (or retain Power BI)"),
+    ("copilot", "OCI Generative AI"),
+    ("rti ", "OCI Streaming"),
+    ("event", "OCI Streaming"),
+    ("warehouse", "Autonomous AI Lakehouse"),
+    ("high scale dataflow", "OCI Data Integration"),
+    ("dataflows", "OCI Data Integration"),
+    ("compute pool", "OCI Data Flow"),
+    ("onelake", "OCI Object Storage (operations bundled - no per-request CU meter)"),
+)
+
+
+def _is_azure_fabric_row(row):
+    return "fabric" in normalize(row.get("source_service"))
+
+
+def price_azure_fabric_row(row):
+    """Microsoft Fabric F-capacity rollup (policy doc #12). Returns (line_items,
+    label, category, kind) or None. kind 'fabric_parent' = the reservation row
+    carrying the whole cost once; 'fabric_child' = a $0 capacity meter exposed as
+    an informational child. OneLake data-stored (GB/month) rows return None -
+    separately billed, standalone."""
+    if not _is_azure_fabric_row(row):
+        return None
+    meter = normalize(row.get("__meterName") or row.get("source_product"))
+    unit = normalize(row.get("usage_unit")).replace(" ", "")
+    if "data stored" in meter or unit in ("1gb/month", "gb/month", "gbmonth", "1gbmonth"):
+        return None  # separately billed OneLake storage - standalone mapping
+    qty = to_number(row.get("usage_quantity"), 0)
+    src = to_number(row.get("source_monthly_cost"), 0)
+    if src > 0:
+        # Exclusive parent: the reservation/paid capacity row, counted ONCE.
+        return (_dropdown_carry_items(row,
+                "EXCLUSIVE PARENT of the Fabric F-capacity rollup group "
+                "(policy: allocation_policy=exclusive_parent, default_mapping="
+                "carry, rollup_reason=shared_capacity_or_platform_bundle). One "
+                "reservation covers compute pools, Power BI, dataflows, "
+                "warehouse, RTI, and Copilot/AI - the export cannot allocate the "
+                "cost among them, so it is counted ONCE here and carried. The "
+                "$0 capability rows underneath are informational children; they "
+                "replace this carry only after an approved telemetry-based "
+                "allocation sums to exactly 100%."),
+                "Microsoft Fabric F-capacity (rollup parent - carried once)",
+                "Other Services", "fabric_parent")
+    target = next((t for k, t in AZ_FABRIC_CHILD_TARGETS if k in meter),
+                  "OCI target TBD (unrecognized Fabric capability)")
+    return ([{
+        "sku": "", "description": f"Informational child -> {target}",
+        "quantity": round(qty, 4),
+        "unit": clean_text(row.get("usage_unit")) or "CU-hour",
+        "rate": 0.0, "monthly": 0.0,
+        "mapping": (f"INFORMATIONAL CHILD of the Fabric F-capacity rollup "
+                    f"(rollup_mode=informational_until_allocated, "
+                    f"allocation_percent=null): usage covered by the reservation "
+                    f"carried once on the parent row, so this row contributes NO "
+                    f"separate source cost or target price. OCI direction: "
+                    f"{target}. Excluded from ordinary independent matching so "
+                    f"the parent cost is never duplicated. Enable an allocated "
+                    f"child only with approved telemetry evidence (all children "
+                    f"must sum to exactly 100%)."),
+        "ociServiceUsage": True,
+    }], f"Fabric child (informational) -> {target}", "Other Services",
+        "fabric_child")
+
+
+AZ_APPSVC_FLAG = "App Service - ARCHITECTURE REVIEW REQUIRED"
+# Doc #11 (2026-08-19) adds the OPTIONAL alternate: approximate Container
+# Instances sizing for containerizable LINUX plan rows - per Chris's rulings the
+# DEFAULT stays carry (red); the CI conversion is a per-row dropdown choice
+# (orange - priceable_with_platform_review). Rates cetools-verified LIVE (USD
+# PAYG): Container Instances bill the allocated OCPU/memory at the underlying
+# compute shape rates with NO per-container fee (Oracle CI pricing page) - E4
+# Flex B93113 $0.025/OCPU-hr + B93114 $0.0015/GB-hr. Sizing rule (doc #11):
+# target OCPUs per active source worker = MAX(1, plan vCPUs / 2); memory = plan
+# GiB retained; billing worker-hours already include scale-out, so hours x
+# per-worker spec = capacity-hours. Unit of mapping is the PLAN worker pool -
+# never one OCI target per hosted app. Windows/IIS/.NET-Framework plans, Static
+# Web, SSL and unknown plan SKUs stay carry-only (doc: do not force into CI).
+# The category's verified bill total is $3,515.73/mo (the cited ~$2.9k is a
+# subset until its filter is documented).
+AZ_APPSVC_DEFAULT_PATH = "appsvc_carry"
+AZ_APPSVC_PATHS = {
+    "appsvc_ci": "OCI Container Instances + Load Balancer (approximate sizing)",
+    "appsvc_carry": "Carried over source cost (architecture review required)",
+}
+OCI_CI_OCPU_SKU, OCI_CI_OCPU_RATE = "B93113", 0.025    # E4 Flex OCPU-hr, cetools
+OCI_CI_MEM_SKU, OCI_CI_MEM_RATE = "B93114", 0.0015     # E4 Flex GB-hr, cetools
+# Azure App Service plan SKU -> (vCPU, GiB) per worker. Doc #11 table (B1, S3,
+# P0v3, P1v3) plus published Azure plan specs for the same families. Unknown
+# SKUs (incl. the v4 premiums) safe-fail to carry-only rather than guess.
+AZ_APPSVC_PLAN_SPECS = {
+    "b1": (1, 1.75), "b2": (2, 3.5), "b3": (4, 7),
+    "s1": (1, 1.75), "s2": (2, 3.5), "s3": (4, 7),
+    "p0v3": (1, 4.0), "p1v3": (2, 8.0), "p2v3": (4, 16.0), "p3v3": (8, 32.0),
+    "p1v2": (1, 3.5), "p2v2": (2, 7.0), "p3v2": (4, 14.0),
+}
+_AZ_APPSVC_SKU_RE = re.compile(r"\b([bsp]\d{1,2})(?:\s*(v\d))?\b")
+AZ_APPSVC_NOTE = (
+    "Carried at source by ruling (2026-08-19): Azure App Service is multi-tenant "
+    "PaaS with no direct OCI charge-model equivalent, so the target is an "
+    "architecture decision - candidate landings: OCI Compute VMs, OKE, Container "
+    "Instances, OCI Functions; Static Web Apps -> API Gateway + Object Storage or "
+    "a web tier. ARCHITECTURE REVIEW REQUIRED before mapping: runtime stacks and "
+    "OS, deployment slots/CI, autoscale rules, always-on vs consumption, custom "
+    "domains/TLS (incl. IP SSL), VNet integration/private endpoints, and Static "
+    "Web Apps' bundled CDN/functions behavior. Re-price against real OCI SKUs "
+    "once the landing design is approved.")
+AZ_APPSVC_CI_NOTE = (
+    "APPROXIMATE COMPUTE CAPACITY CONVERSION (doc #11), not platform-feature "
+    "parity: one App Service PLAN worker pool -> OCI Container Instances behind "
+    "an OCI Load Balancer; never one OCI target per hosted app. EXCLUDES (price "
+    "separately): Load Balancer, outbound traffic, logging, registry storage, "
+    "WAF/CDN. Feature-parity controls that must travel: deployment slots -> "
+    "explicit blue/green or canary behind the LB (no native slot swap); managed "
+    "identity/Key Vault refs -> resource principals + dynamic groups + OCI Vault; "
+    "VNet integration/private endpoints -> private Container Instances in a VCN "
+    "subnet with NSGs; built-in App Service auth -> app-level OIDC or OCI "
+    "Identity Domains; autoscale -> Oracle's alarms/Notifications/Functions/"
+    "Resource Manager reference design, or OKE for sustained complex scaling. "
+    "The export has no plan IDs, app membership, scale-out counts, runtime, or "
+    "slot data - VERIFY worker counts and app-per-plan sharing before costing "
+    "(one source worker is not necessarily one application).")
+
+
+def _is_azure_appservice_row(row):
+    return "app service" in normalize(row.get("source_service"))
+
+
+def _azure_appservice_plan_spec(row):
+    """(vCPU, GiB) for a recognized plan SKU token in the meter text ('B1',
+    'P1 v3', 'S3'), else None. Word-boundary regex - no substring matching."""
+    meter = normalize(row.get("__meterName") or row.get("source_product"))
+    for base, v in _AZ_APPSVC_SKU_RE.findall(meter):
+        key = base + (v or "")
+        if key in AZ_APPSVC_PLAN_SPECS:
+            return AZ_APPSVC_PLAN_SPECS[key], key
+    return None
+
+
+def _azure_appservice_kind(row):
+    """'appsvc_linux_plan' = containerizable Linux plan with a recognized SKU
+    (gets the CI dropdown); 'appsvc_other' = everything else App Service
+    (Windows/OS-dependent plans, Static Web, SSL, free tiers, unknown SKUs) -
+    carry-only per doc #11's target-path table."""
+    if not _is_azure_appservice_row(row):
+        return None
+    blob = normalize(" ".join(clean_text(row.get(k)) for k in
+                              ("__meterName", "source_product", "__meterSub")))
+    if "linux" in blob and _azure_appservice_plan_spec(row) is not None:
+        return "appsvc_linux_plan"
+    return "appsvc_other"
+
+
+def price_azure_appservice_row(row, path=None):
+    """Azure App Service rows: DEFAULT carry at source (red, pending landing
+    architecture); containerizable Linux plan rows additionally offer the doc #11
+    approximate Container Instances sizing as a per-row dropdown choice (orange).
+    Returns (line_items, label, category, kind, path) or None."""
+    kind = _azure_appservice_kind(row)
+    if kind is None:
+        return None
+    if kind == "appsvc_other":
+        return (_dropdown_carry_items(row, AZ_APPSVC_NOTE),
+                "App Service (carried - architecture review required)",
+                "Other Services", kind, "auto")
+    if path not in AZ_APPSVC_PATHS:
+        path = AZ_APPSVC_DEFAULT_PATH
+    if path == "appsvc_carry":
+        return (_dropdown_carry_items(row, AZ_APPSVC_NOTE),
+                "App Service (carried - architecture review required)",
+                "Other Services", kind, path)
+    qty = to_number(row.get("usage_quantity"), 0)
+    if qty <= 0:
+        return ([], AZ_APPSVC_PATHS[path], "Other Services", kind, path)
+    (vcpu, mem_gb), sku_key = _azure_appservice_plan_spec(row)
+    ocpu_per_worker = max(1.0, vcpu / 2.0)
+    ocpu_hours = qty * ocpu_per_worker
+    gb_hours = qty * mem_gb
+    basis = (f"{qty:,.0f} {sku_key.upper()} worker-hours ({vcpu:g} vCPU / "
+             f"{mem_gb:g} GiB per worker; billing hours already include "
+             f"scale-out) -> MAX(1, {vcpu:g}/2) = {ocpu_per_worker:g} OCPU and "
+             f"{mem_gb:g} GB per worker on Container Instances (E4 Flex rates, "
+             f"no per-container fee, cetools-verified). " + AZ_APPSVC_CI_NOTE)
+    return ([{
+        "sku": OCI_CI_OCPU_SKU,
+        "description": "OCI Container Instances - OCPU (E4 Flex rate)",
+        "quantity": round(ocpu_hours, 2), "unit": "OCPU-hour",
+        "rate": OCI_CI_OCPU_RATE, "monthly": money(ocpu_hours * OCI_CI_OCPU_RATE),
+        "mapping": basis, "ociServiceUsage": True,
+    }, {
+        "sku": OCI_CI_MEM_SKU,
+        "description": "OCI Container Instances - Memory (E4 Flex rate)",
+        "quantity": round(gb_hours, 2), "unit": "GB-hour",
+        "rate": OCI_CI_MEM_RATE, "monthly": money(gb_hours * OCI_CI_MEM_RATE),
+        "mapping": "Plan memory retained per worker (doc #11 rounding rule). "
+                   + AZ_APPSVC_CI_NOTE,
+        "ociServiceUsage": True,
+    }], AZ_APPSVC_PATHS[path], "Other Services", kind, path)
+
+
+# ---- Azure Database for MySQL Flexible Server -> OCI MySQL HeatWave DB System
+# (doc #9, 2026-08-19). Bill facts verified: B1MS 3,720 hours across four
+# subscription/region allocations (744 / 1,488 / 744 / 744 = five server-month
+# equivalents), 100 GB stored, $75.40 compute + $13.02 storage + $77.20 paid I/O
+# = $165.61/mo. Rates cetools-verified LIVE (USD PAYG - never
+# currencyCodeLocalizations[0], that's AED): B108030 MySQL Database - ECPU
+# $0.0366/ECPU-hr; B92426 MySQL Database - Storage $0.04/GB-month. Rule: raw
+# ECPUs = Azure MySQL vCores / 2, applied PER SOURCE SERVER (never pooled),
+# rounded up to the next supported shape with a hard 2-ECPU floor -> B1MS
+# (1 vCore) => MySQL.2 (2 ECPU / 16 GiB), the minimum paid shape. Standalone
+# default; NO HeatWave analytics cluster attached (the product name alone does
+# not include one). The 50-GB minimum provisioned storage per DB system is
+# priced on the compute rows (server-months x 50 GB, gross - the tenancy-wide
+# 50-GB allowance is not netted); stored-data rows then bill only GB beyond
+# that shared minimum (this bill: 100 GB stored < 250 GB minimum -> $0).
+# Paid-IO rows are $0: OCI MySQL has no per-operation billing SKU - that is a
+# METER MISMATCH, not free performance (I/O scales with provisioned storage:
+# Higher Performance Block Volume, ~75 IOPS/GiB => ~3,750 IOPS at the 50-GB
+# minimum vs Azure B1MS's 640 max) - so every row is flagged for performance
+# validation. Unknown MySQL compute meters (non-burstable, unrecognized size)
+# safe-fail to None and keep their existing mapping rather than guess a shape.
+OCI_MYSQL_ECPU_SKU, OCI_MYSQL_ECPU_RATE = "B108030", 0.0366      # ECPU-hr, cetools USD PAYG
+OCI_MYSQL_STORAGE_SKU, OCI_MYSQL_STORAGE_RATE = "B92426", 0.04   # GB-month, cetools USD PAYG
+OCI_MYSQL_MIN_STORAGE_GB = 50.0        # per DB system (Oracle docs: 50 GiB minimum)
+OCI_MYSQL_SHAPE_ECPUS = (2, 4, 8, 16, 32, 48, 64, 96, 192, 256)  # supported MySQL.n shapes
+AZ_MYSQL_HOURS_PER_MONTH = 744.0       # server-month equivalence basis (doc #9)
+AZ_MYSQL_FLAG = "MySQL conversion - review required"
+AZ_MYSQL_DEFAULT_PATH = "mysql_std"
+AZ_MYSQL_PATHS = {
+    "mysql_std": "OCI MySQL HeatWave DB System (standalone, per-server shape)",
+    "mysql_ha": "OCI MySQL HeatWave DB System (HA - 3 MySQL instances per system)",
+    "mysql_carry": "Carried over source cost (by selection)",
+}
+# Azure MySQL Flexible Server burstable compute meters -> vCores, matched as whole
+# word tokens (substring matching is a repeat offender). Sizes per Azure Bs-series.
+AZ_MYSQL_BURSTABLE_VCORES = {
+    "b1s": 1, "b1ms": 1, "b2s": 2, "b2ms": 2, "b4ms": 4, "b8ms": 8,
+    "b12ms": 12, "b16ms": 16, "b20ms": 20,
+}
+AZ_MYSQL_VALIDATE_NOTE = (
+    "VALIDATE before a production BOM: per-server peak IOPS and latency (Azure B1MS "
+    "lists 640 max IOPS; OCI MySQL delivers ~75 IOPS/GiB - about 3,750 IOPS at the "
+    "50-GB minimum - but performance scales with PROVISIONED storage, so Oracle "
+    "recommends a proof-of-concept benchmark); storage growth beyond the 50-GB "
+    "minimum; connection counts, CPU-credit consumption and working-set memory "
+    "(B1MS bursts from a 20% baseline on 2 GiB; MySQL.2 is an always-on 2 ECPU / "
+    "16 GiB); and HA/replica requirements. EXCLUDES backup storage (bills "
+    "separately), HeatWave analytics clusters (attach only for analytics/Lakehouse/"
+    "AutoML/GenAI requirements), and network egress.")
+
+
+def _is_azure_mysql_row(row):
+    return "mysql" in normalize(row.get("source_service"))
+
+
+def _azure_mysql_burstable_vcores(row):
+    """vCores for a burstable Bs-series compute meter, matched on whole word tokens
+    across the meter/product text; None when no recognized size token is present."""
+    blob = normalize(" ".join(clean_text(row.get(k)) for k in
+                              ("__meterName", "source_product", "__meterSub",
+                               "__azureProduct")))
+    for tok in re.findall(r"[a-z0-9]+", blob):
+        if tok in AZ_MYSQL_BURSTABLE_VCORES:
+            return AZ_MYSQL_BURSTABLE_VCORES[tok]
+    return None
+
+
+def _azure_mysql_kind(row):
+    """'mysql_compute' (recognized burstable meter, hours) / 'mysql_storage' (stored
+    data, GB-month, not backup) / 'mysql_io' (paid I/O operations) / None (backup
+    storage and unrecognized meters keep their existing mapping)."""
+    if not _is_azure_mysql_row(row):
+        return None
+    blob = normalize(" ".join(clean_text(row.get(k)) for k in
+                              ("__meterName", "source_product", "__meterSub",
+                               "__azureProduct")))
+    unit = normalize(row.get("usage_unit")).replace(" ", "")
+    if unit in ("1hour", "hour", "hours"):
+        return "mysql_compute" if _azure_mysql_burstable_vcores(row) is not None else None
+    if unit in ("1gb/month", "gb/month", "gbmonth", "1gbmonth") and "backup" not in blob:
+        return "mysql_storage"
+    if ("operation" in blob or "transaction" in blob) and "backup" not in blob:
+        return "mysql_io"
+    return None
+
+
+def price_azure_mysql_row(row, path=None, min_storage_pool=None, computes_carried=False):
+    """Price an Azure Database for MySQL Flexible Server bill row on OCI MySQL
+    HeatWave DB System. Returns (line_items, label, category, kind, path) or None.
+    kind 'mysql_compute' rows drive the dropdown (standalone / HA / carry) and also
+    carry the 50-GB-per-system minimum storage; 'mysql_storage' and 'mysql_io' are
+    automatic. min_storage_pool is the bill-wide [remaining minimum GB] the
+    stored-data rows draw down; computes_carried: every compute row is carried ->
+    storage and I/O rows carry too (their OCI treatment assumes the DB systems
+    exist)."""
+    kind = _azure_mysql_kind(row)
+    if kind is None:
+        return None
+    qty = to_number(row.get("usage_quantity"), 0)
+    if kind == "mysql_io":
+        # Automatic (no dropdown): $0 by meter mismatch while compute converts.
+        if computes_carried:
+            return (_dropdown_carry_items(row, "Carried automatically: every MySQL "
+                                               "compute row is carried, so paid I/O "
+                                               "stays with them at source."),
+                    "Carried over source cost (with MySQL rows)", "Database",
+                    kind, "auto")
+        return ([{
+            "sku": "", "description": "MySQL I/O (no per-operation SKU on OCI)",
+            "quantity": round(qty, 4),
+            "unit": clean_text(row.get("usage_unit")) or "operations",
+            "rate": 0.0, "monthly": 0.0,
+            "mapping": ("Azure Paid-IO operations map to $0 because OCI MySQL has "
+                        "no equivalent per-operation billing SKU. METER MISMATCH, "
+                        "not free performance: OCI MySQL I/O comes with provisioned "
+                        "storage (Higher Performance Block Volume, ~75 IOPS/GiB => "
+                        "~3,750 IOPS at the 50-GB minimum vs Azure B1MS's 640 max "
+                        "supported IOPS). " + AZ_MYSQL_VALIDATE_NOTE),
+            "ociServiceUsage": True,
+        }], "OCI MySQL HeatWave DB System - I/O (included with storage)",
+            "Database", kind, "auto")
+    if kind == "mysql_storage":
+        # Automatic (no dropdown): stored data draws on the 50-GB-per-system minimum
+        # already priced on the compute rows; only overage GB bills at B92426.
+        if computes_carried:
+            return (_dropdown_carry_items(row, "Carried automatically: every MySQL "
+                                               "compute row is carried, so stored "
+                                               "data stays with them at source."),
+                    "Carried over source cost (with MySQL rows)", "Database",
+                    kind, "auto")
+        if qty <= 0:
+            return None
+        pool = min_storage_pool if isinstance(min_storage_pool, list) else [0.0]
+        covered = min(pool[0], qty)
+        pool[0] -= covered
+        chargeable = max(0.0, qty - covered)
+        return ([{
+            "sku": OCI_MYSQL_STORAGE_SKU,
+            "description": "MySQL Database - Storage (GB/month)",
+            "quantity": round(qty, 2), "unit": "GB-month",
+            "rate": OCI_MYSQL_STORAGE_RATE,
+            "monthly": money(chargeable * OCI_MYSQL_STORAGE_RATE),
+            "mapping": ((f"{qty:,.0f} GB stored"
+                         + (f" - {covered:,.0f} GB covered by the 50-GB-per-DB-system "
+                            f"minimum already priced on the MySQL compute row(s)"
+                            if covered > 0 else "")
+                         + (f"; {chargeable:,.0f} GB beyond the minimum bills at "
+                            f"${OCI_MYSQL_STORAGE_RATE}/GB-month "
+                            f"({OCI_MYSQL_STORAGE_SKU}, cetools-verified)."
+                            if chargeable > 0 else ".")
+                         + " OCI MySQL bills PROVISIONED storage (50-GB minimum per "
+                           "DB system), not stored GB. " + AZ_MYSQL_VALIDATE_NOTE)),
+            "ociServiceUsage": True,
+        }], "OCI MySQL HeatWave DB System - Storage", "Database", kind, "auto")
+    # mysql_compute (recognized burstable meter, hours).
+    if path not in AZ_MYSQL_PATHS:
+        path = AZ_MYSQL_DEFAULT_PATH
+    if path == "mysql_carry":
+        return (_dropdown_carry_items(row), AZ_MYSQL_PATHS[path], "Database",
+                kind, path)
+    if qty <= 0:
+        return ([], AZ_MYSQL_PATHS[path], "Database", kind, path)
+    vcores = _azure_mysql_burstable_vcores(row)
+    raw_ecpus = vcores / 2.0
+    shape = next(s for s in OCI_MYSQL_SHAPE_ECPUS if s >= max(2.0, raw_ecpus))
+    instances = 3 if path == "mysql_ha" else 1
+    ecpu_hours = qty * shape * instances
+    server_months = qty / AZ_MYSQL_HOURS_PER_MONTH
+    min_storage_gb = server_months * OCI_MYSQL_MIN_STORAGE_GB
+    topo = (("HA SELECTED: each OCI DB system runs 3 MySQL instances (x3 compute). "
+             "NOT source parity - Azure's burstable tier supports neither HA nor "
+             "read replicas; replicated-storage and network effects are NOT "
+             "modeled.") if path == "mysql_ha" else
+            ("Standalone (source parity: Azure burstable supports neither HA nor "
+             "read replicas); no HeatWave analytics cluster attached."))
+    basis = (f"{qty:,.0f} {clean_text(row.get('__meterName')) or 'burstable'} "
+             f"server-hours = {server_months:,.2f} server-month equivalent(s) "
+             f"(/{AZ_MYSQL_HOURS_PER_MONTH:,.0f}). Per-server rule (doc #9): raw "
+             f"ECPUs = vCores / 2 -> {vcores:g} vCore(s) / 2 = {raw_ecpus:g}, "
+             f"rounded up to MySQL.{shape:g} ({shape:g} ECPU / hard 2-ECPU floor, "
+             f"next supported shape). {qty:,.0f} hrs x {shape:g} ECPU"
+             + (" x 3 instances" if instances == 3 else "")
+             + f" x ${OCI_MYSQL_ECPU_RATE}/ECPU-hr ({OCI_MYSQL_ECPU_SKU}, "
+             f"cetools-verified). DISCLAIMER - vCores/2 with the 2-ECPU minimum is "
+             f"a BOM SIZING CONVENTION, not a workload benchmark or performance "
+             f"guarantee: a 1-vCore burstable source lands on an always-on "
+             f"2-ECPU/16-GiB shape (the minimum drives the cost), and vCores are "
+             f"NEVER pooled across servers - each source server gets its own DB "
+             f"system. {topo} " + AZ_MYSQL_VALIDATE_NOTE)
+    return ([{
+        "sku": OCI_MYSQL_ECPU_SKU, "description": "MySQL Database - ECPU (ECPU-hr)",
+        "quantity": round(ecpu_hours, 2), "unit": "ECPU-hour",
+        "rate": OCI_MYSQL_ECPU_RATE,
+        "monthly": money(ecpu_hours * OCI_MYSQL_ECPU_RATE),
+        "mapping": basis, "ociServiceUsage": True,
+    }, {
+        "sku": OCI_MYSQL_STORAGE_SKU,
+        "description": "MySQL Database - Storage, 50-GB minimum/system (GB/month)",
+        "quantity": round(min_storage_gb, 2), "unit": "GB-month",
+        "rate": OCI_MYSQL_STORAGE_RATE,
+        "monthly": money(min_storage_gb * OCI_MYSQL_STORAGE_RATE),
+        "mapping": (f"50-GB minimum provisioned storage per MySQL DB system "
+                    f"(Oracle docs): {server_months:,.2f} server-month(s) x "
+                    f"{OCI_MYSQL_MIN_STORAGE_GB:g} GB x "
+                    f"${OCI_MYSQL_STORAGE_RATE}/GB-month ({OCI_MYSQL_STORAGE_SKU}, "
+                    f"cetools-verified), GROSS - the tenancy-wide 50-GB MySQL "
+                    f"storage allowance is not netted. Stored-data rows bill only "
+                    f"GB beyond this shared minimum."
+                    + (" HA replicated-storage effects are NOT modeled."
+                       if instances == 3 else "")),
+        "ociServiceUsage": True,
+    }], AZ_MYSQL_PATHS[path], "Database", kind, path)
+
+
+def collect_azure_mysql_min_storage_gb(rows, mysql_path_overrides=None):
+    """Bill-wide minimum-storage pool (GB-months) the MySQL stored-data rows draw
+    down: 50 GB per DB-system server-month, summed over the compute rows that are
+    NOT individually carried (a carried server keeps its Azure storage, so it
+    contributes no OCI minimum)."""
+    total = 0.0
+    for r in rows:
+        if _azure_mysql_kind(r) != "mysql_compute":
+            continue
+        if (mysql_path_overrides or {}).get(str(r.get("__id"))) == "mysql_carry":
+            continue
+        hours = to_number(r.get("usage_quantity"), 0)
+        if hours > 0:
+            total += hours / AZ_MYSQL_HOURS_PER_MONTH * OCI_MYSQL_MIN_STORAGE_GB
+    return total
 
 
 # ---- Azure Firewall -> OCI Network Firewall (Chris's doc #5, 2026-08-19) ------------
@@ -7904,6 +9181,10 @@ def price_azure_storage_ops_row(row):
     OCI Block Volume performance units (no charge); blob/object operations map to OCI
     Object Requests (B91627, $0.0034 / 10,000). Returns (items, label, cat, sku, carried)
     or None."""
+    if _is_azure_mysql_row(row):
+        return None  # MySQL Flexible Server Paid-IO meters belong to the MySQL conversion (doc #9)
+    if _is_azure_fabric_row(row):
+        return None  # Fabric OneLake operations CUs belong to the capacity rollup (policy doc #12)
     meter = normalize(row.get("__meterName"))
     if "operation" not in meter and "transaction" not in meter:
         return None
@@ -9357,7 +10638,7 @@ def aggregate_daily_bill_lines(bill_lines, headers, mappings):
     return out, orig_rows, counts
 
 
-def parse_cloud_bill(path, provider_hint=PROVIDER_AUTO, sheet_override=""):
+def parse_cloud_bill(path, provider_hint=PROVIDER_AUTO, sheet_override="", pre_reduced=False):
     suffix = Path(path).suffix.lower()
     if suffix == ".pdf":
         return parse_pdf_cloud_bill(path, provider_hint)
@@ -9417,6 +10698,7 @@ def parse_cloud_bill(path, provider_hint=PROVIDER_AUTO, sheet_override=""):
         return next((i for i, h in enumerate(headers) if normalize(h).replace(" ", "") in want), None)
     az_addinfo_idx = _hidx("additionalinfo")
     az_meter_idx = _hidx("metername")
+    az_partnum_idx = _hidx("partnumber")
     # EA/MCA exports carry the human product string ("Tiered Block Blob - Archive LRS -
     # Data Stored - US East 2") in Product/ProductName. The storage TIER (Archive/Cool,
     # disk E4/P10) often lives ONLY there - MeterCategory is just "Storage" and MeterName
@@ -9427,13 +10709,26 @@ def parse_cloud_bill(path, provider_hint=PROVIDER_AUTO, sheet_override=""):
     az_metercat_idx = _hidx("metercategory")
     az_metersub_idx = _hidx("metersubcategory")
     az_consumed_idx = _hidx("consumedservice")
+    reducer_identity_idx = _hidx("resource_identity_status") if pre_reduced else None
+    reducer_count_idx = _hidx("source_row_count") if pre_reduced else None
+    reducer_first_date_idx = _hidx("first_usage_date") if pre_reduced else None
+    reducer_last_date_idx = _hidx("last_usage_date") if pre_reduced else None
+    if reducer_identity_idx is not None:
+        fields.append({
+            "key": "resource_identity_status",
+            "label": "Resource Identity",
+            "description": "Whether the large-file reducer found a usable source resource boundary.",
+            "important": True,
+            "sourceColumn": reducer_identity_idx + 1,
+            "sourceHeader": headers[reducer_identity_idx],
+        })
     rows = []
     rate_card = build_rate_card(DEFAULT_SHAPE_KEY, True)
     provider_label = detected_provider if detected_provider != "Unknown" else ""
     bill_lines = raw.iloc[data_start_idx:]
     source_line_count = len(bill_lines.index)
     agg_first_rows, agg_counts = None, None
-    if source_line_count >= CLOUD_BILL_AGGREGATE_MIN_ROWS:
+    if not pre_reduced and source_line_count >= CLOUD_BILL_AGGREGATE_MIN_ROWS:
         bill_lines, agg_first_rows, agg_counts = aggregate_daily_bill_lines(bill_lines, headers, mappings)
     for _pos in range(len(bill_lines.index)):
         values = bill_lines.iloc[_pos].tolist()
@@ -9451,6 +10746,14 @@ def parse_cloud_bill(path, provider_hint=PROVIDER_AUTO, sheet_override=""):
                 if 0 <= col_idx < len(values):
                     value = values[col_idx]
             row[field["key"]] = cloud_bill_value(field["key"], value)
+        if reducer_identity_idx is not None and reducer_identity_idx < len(values):
+            row["resource_identity_status"] = clean_text(values[reducer_identity_idx])
+        if reducer_count_idx is not None and reducer_count_idx < len(values):
+            row["__aggregatedLines"] = int(to_number(values[reducer_count_idx], 1) or 1)
+        if reducer_first_date_idx is not None and reducer_first_date_idx < len(values):
+            row["__firstUsageDate"] = clean_text(values[reducer_first_date_idx])
+        if reducer_last_date_idx is not None and reducer_last_date_idx < len(values):
+            row["__lastUsageDate"] = clean_text(values[reducer_last_date_idx])
         row["source_provider"] = row.get("source_provider") or provider_label
         row["source_currency"] = row.get("source_currency") or "USD"
         row["source_tags"] = summarize_source_tags(values, tag_columns, row.get("source_tags"))
@@ -9460,9 +10763,16 @@ def parse_cloud_bill(path, provider_hint=PROVIDER_AUTO, sheet_override=""):
             row["__recordType"] = clean_text(values[recordtype_idx])
         for _key, _idx in (("__azureInfo", az_addinfo_idx), ("__meterName", az_meter_idx),
                            ("__meterCategory", az_metercat_idx), ("__meterSub", az_metersub_idx),
-                           ("__consumedService", az_consumed_idx), ("__azureProduct", az_product_idx)):
+                           ("__consumedService", az_consumed_idx), ("__azureProduct", az_product_idx),
+                           ("__partNumber", az_partnum_idx)):
             if _idx is not None and _idx < len(values):
                 row[_key] = clean_text(values[_idx])
+        # SKU/Meter fallback (Chris 2026-08-19): enrollment rows can have an EMPTY
+        # Meter Sub-Category (the column the SKU/Meter field maps to) - fall back
+        # to MeterName, then PartNumber, instead of showing "Missing data".
+        if not clean_text(row.get("source_product")):
+            row["source_product"] = (clean_text(row.get("__meterName"))
+                                     or clean_text(row.get("__partNumber")))
         normalize_azure_storage_units(row)
         enrich_cloud_bill_resource_fields(row)
         seed_cloud_bill_mapping(row, fields, rate_card)
@@ -9606,9 +10916,10 @@ def _reconcile_onprem_sizing(result, baseline):
     return result
 
 
-def parse_workbook(path, full_service_beta=False, intake_mode=INTAKE_MODE_ON_PREM, provider_hint=PROVIDER_AUTO, sheet_override=""):
+def parse_workbook(path, full_service_beta=False, intake_mode=INTAKE_MODE_ON_PREM,
+                   provider_hint=PROVIDER_AUTO, sheet_override="", pre_reduced=False):
     if intake_mode == INTAKE_MODE_CLOUD_BILL:
-        parsed = parse_cloud_bill(path, provider_hint, sheet_override)
+        parsed = parse_cloud_bill(path, provider_hint, sheet_override, pre_reduced=pre_reduced)
         metadata = parsed.setdefault("metadata", {})
         metadata["llmBillMappingNeeded"] = bool(metadata.get("unmappedCount"))
         if not metadata["llmBillMappingNeeded"]:
@@ -10513,7 +11824,25 @@ def detect_cpu_unit(fields, rows=None):
     return "ocpu"
 
 
-def calculate_pricing(fields, rows, shape_key=DEFAULT_SHAPE_KEY, full_service_beta=False, intake_mode=INTAKE_MODE_ON_PREM, bom_match=False, hide_gpu_pricing=False, hide_windows_pricing=False, rightsize=False, auto=False, hours_per_month=None, source_provider=None, auto_tier="best", shape_overrides=None, cost_overrides=None, cpu_unit="auto", hours_override=False, oic_message_packs=None, hide_sql_pricing=False, sql_path_overrides=None, gh_path_overrides=None, aws_dev_overrides=None, fw_path_overrides=None, redis_path_overrides=None):
+# Flag badge severity (Chris's ruling 2026-08-19): RED = the row's dollars are
+# CARRIED at source (unresolved - decided at row-output time from the line items,
+# so dropdown-selected and auto carries both go red); ORANGE = converted, but the
+# conversion embeds architecture/topology assumptions that need review (DTU-like);
+# everything else stays YELLOW (the default review badge).
+FLAG_SEVERITY_BY_TEXT = {
+    AZ_SQL_DTU_FLAG: "orange",
+    AZ_SQL_VCORE_FLAG: "orange",
+    AZ_FW_FLAG: "orange",
+    AZ_PG_FLAG: "orange",
+    AZ_MYSQL_FLAG: "orange",
+    AZ_REDIS_FLAG: "orange",
+    AZ_INCLUDED_FLAG: "orange",
+    AZ_APPSVC_FLAG: "orange",   # its default-carry rows still go red (carry trumps)
+    AZ_FABRIC_FLAG: "orange",   # informational children; the carried parent trumps to red
+}
+
+
+def calculate_pricing(fields, rows, shape_key=DEFAULT_SHAPE_KEY, full_service_beta=False, intake_mode=INTAKE_MODE_ON_PREM, bom_match=False, hide_gpu_pricing=False, hide_windows_pricing=False, rightsize=False, auto=False, hours_per_month=None, source_provider=None, auto_tier="best", shape_overrides=None, cost_overrides=None, cpu_unit="auto", hours_override=False, oic_message_packs=None, hide_sql_pricing=False, sql_path_overrides=None, gh_path_overrides=None, aws_dev_overrides=None, fw_path_overrides=None, redis_path_overrides=None, pg_path_overrides=None, mysql_path_overrides=None, appsvc_path_overrides=None, reg_path_overrides=None):
     # cpu_unit override (on-prem uploads): the parser normalizes the source CPU column
     # to OCPUs assuming it holds vCPUs (2 vCPU = 1 OCPU). 'auto' (default) detects the
     # unit from the column header and falls back to vCPU; 'ocpu' uses the source count
@@ -10739,6 +12068,23 @@ def calculate_pricing(fields, rows, shape_key=DEFAULT_SHAPE_KEY, full_service_be
                    if _azure_firewall_kind(r) == "azfw_deployment"] if cloud_bill_mode else []
     azfw_deployments_carried = bool(_fw_dep_ids) and all(
         (fw_path_overrides or {}).get(i) == "fw_carry" for i in _fw_dep_ids)
+    # Azure MySQL: shared minimum-storage pool (50 GB per DB-system server-month,
+    # priced on the non-carried compute rows) that stored-data rows draw down before
+    # billing overage GB, and the all-computes-carried check that makes storage/IO
+    # rows auto-carry alongside.
+    _mysql_compute_ids = [str(r.get("__id")) for r in rows
+                          if _azure_mysql_kind(r) == "mysql_compute"] if cloud_bill_mode else []
+    azmysql_computes_carried = bool(_mysql_compute_ids) and all(
+        (mysql_path_overrides or {}).get(i) == "mysql_carry" for i in _mysql_compute_ids)
+    mysql_min_storage_pool = [collect_azure_mysql_min_storage_gb(rows, mysql_path_overrides)
+                              if cloud_bill_mode else 0.0]
+    # Remaining-services register (doc #13): shared free pools for the Monitor
+    # split (Monitoring 500M datapoints, Notifications 1K emails; Logging reuses
+    # oci_logging_pool; App Gateway WAF reuses oci_waf_instance_pool).
+    reg_ctx = {"logging_pool": oci_logging_pool,
+               "waf_instance_pool": oci_waf_instance_pool,
+               "monitor_dp_pool": [OCI_MON_FREE_DATAPOINTS_M],
+               "email_pool": [1.0]} if cloud_bill_mode else {}
     # Every vCore SQL COMPUTE row carried? Then license meters auto-carry with them
     # (otherwise they are $0-absorbed into the compute rows' license treatment).
     _vc_compute_ids = [str(r.get("__id")) for r in rows
@@ -11396,7 +12742,8 @@ def calculate_pricing(fields, rows, shape_key=DEFAULT_SHAPE_KEY, full_service_be
         azsqldtu_handled = False
         if cloud_bill_mode and not row_free_on_oci and not ws_handled and not azlic_handled and not azops_handled:
             _dtu_path = (sql_path_overrides or {}).get(str(row.get("__id")))
-            dtu_result = price_azure_sql_dtu_row(row, _dtu_path)
+            dtu_result = price_azure_sql_dtu_row(row, _dtu_path,
+                                                 include_windows=not hide_windows_pricing)
             if dtu_result is not None:
                 dtu_items, dtu_label, dtu_cat, dtu_sku, _dc = dtu_result
                 line_items.extend(dtu_items)
@@ -11427,7 +12774,8 @@ def calculate_pricing(fields, rows, shape_key=DEFAULT_SHAPE_KEY, full_service_be
         if cloud_bill_mode and not row_free_on_oci and not ws_handled and not azlic_handled and not azops_handled and not azsqldtu_handled:
             _vc_path = (sql_path_overrides or {}).get(str(row.get("__id")))
             vc_result = price_azure_sql_vcore_row(row, _vc_path,
-                                                  compute_rows_carried=vcore_compute_all_carried)
+                                                  compute_rows_carried=vcore_compute_all_carried,
+                                                  include_windows=not hide_windows_pricing)
             if vc_result is not None:
                 vc_items, vc_label, vc_cat, vc_kind = vc_result
                 line_items.extend(vc_items)
@@ -11458,10 +12806,207 @@ def calculate_pricing(fields, rows, shape_key=DEFAULT_SHAPE_KEY, full_service_be
                 totals["fullServiceMonthly"] += sum(li.get("monthly", 0) for li in vc_items)
                 azsqldtu_handled = True
 
+        # Azure services included at no charge on OCI (VPN/VNet/Update Manager/
+        # registry - Chris-approved list). Automatic, flagged.
+        azincl_handled = False
+        if cloud_bill_mode and not row_free_on_oci and not ws_handled and not azlic_handled and not azops_handled and not azsqldtu_handled:
+            incl_result = price_azure_included_row(row, transfer_pools=oci_transfer_pools)
+            if incl_result is not None:
+                incl_items, incl_label, incl_cat = incl_result
+                line_items.extend(incl_items)
+                row["oci_product"] = incl_label
+                row["oci_service_category"] = incl_cat
+                row["_sqlMappingFlag"] = AZ_INCLUDED_FLAG   # forced-flag channel
+                _in_src = to_number(row.get("source_monthly_cost"), 0)
+                full_service_mapping = {
+                    "sku": (incl_items[0].get("sku") if incl_items else ""), "ociProduct": incl_label,
+                    "sourceProvider": clean_text(row.get("source_provider")),
+                    "sourceService": clean_text(row.get("source_service")),
+                    "sourceProduct": clean_text(row.get("source_product")),
+                    "sourceMonthlyCost": money(_in_src),
+                    "sourceCurrency": clean_text(row.get("source_currency")) or "USD",
+                    "quantity": round(to_number(row.get("usage_quantity"), 0), 4),
+                    "unit": clean_text(row.get("usage_unit")) or (incl_items[0].get("unit") if incl_items else ""),
+                    "confidence": 0.85, "reviewRequired": True,
+                }
+                totals["sourceMonthlyCost"] += _in_src
+                totals["mappedSourceMonthlyCost"] += _in_src
+                totals["mappedServiceRows"] += 1
+                totals["fullServiceMonthly"] += sum(li.get("monthly", 0) for li in incl_items)
+                azincl_handled = True
+
+        # Azure PostgreSQL Flexible Server -> OCI Database with PostgreSQL (2:1
+        # consolidation default / boundary-preserving / carry; storage automatic at
+        # B99062). Always flagged for review - topology unknown without inventory.
+        azpg_handled = False
+        if cloud_bill_mode and not row_free_on_oci and not ws_handled and not azlic_handled and not azops_handled and not azsqldtu_handled and not azincl_handled:
+            _pg_path = (pg_path_overrides or {}).get(str(row.get("__id")))
+            pg_result = price_azure_postgres_row(row, _pg_path)
+            if pg_result is not None:
+                pg_items, pg_label, pg_cat, pg_kind, pg_path = pg_result
+                line_items.extend(pg_items)
+                row["oci_product"] = pg_label
+                row["oci_service_category"] = pg_cat
+                row["_sqlMappingFlag"] = AZ_PG_FLAG   # forced-flag channel
+                row["__azPgKind"] = pg_kind
+                row["__azPgPath"] = pg_path
+                _pg_src = to_number(row.get("source_monthly_cost"), 0)
+                full_service_mapping = {
+                    "sku": (pg_items[0].get("sku") if pg_items else ""), "ociProduct": pg_label,
+                    "sourceProvider": clean_text(row.get("source_provider")),
+                    "sourceService": clean_text(row.get("source_service")),
+                    "sourceProduct": clean_text(row.get("source_product")),
+                    "sourceMonthlyCost": money(_pg_src),
+                    "sourceCurrency": clean_text(row.get("source_currency")) or "USD",
+                    "quantity": round(to_number(row.get("usage_quantity"), 0), 4),
+                    "unit": clean_text(row.get("usage_unit")) or (pg_items[0].get("unit") if pg_items else ""),
+                    "confidence": 0.6, "reviewRequired": True,
+                }
+                totals["sourceMonthlyCost"] += _pg_src
+                totals["mappedSourceMonthlyCost"] += _pg_src
+                totals["mappedServiceRows"] += 1
+                totals["fullServiceMonthly"] += sum(li.get("monthly", 0) for li in pg_items)
+                azpg_handled = True
+
+        # Azure MySQL Flexible Server -> OCI MySQL HeatWave DB System (standalone
+        # per-server shape default / HA / carry; stored data and paid I/O automatic).
+        # Always flagged for review - sizing is a BOM convention, not a benchmark.
+        azmysql_handled = False
+        if cloud_bill_mode and not row_free_on_oci and not ws_handled and not azlic_handled and not azops_handled and not azsqldtu_handled and not azincl_handled and not azpg_handled:
+            _my_path = (mysql_path_overrides or {}).get(str(row.get("__id")))
+            my_result = price_azure_mysql_row(row, _my_path,
+                                              min_storage_pool=mysql_min_storage_pool,
+                                              computes_carried=azmysql_computes_carried)
+            if my_result is not None:
+                my_items, my_label, my_cat, my_kind, my_path = my_result
+                line_items.extend(my_items)
+                row["oci_product"] = my_label
+                row["oci_service_category"] = my_cat
+                row["_sqlMappingFlag"] = AZ_MYSQL_FLAG   # forced-flag channel
+                row["__azMysqlKind"] = my_kind
+                row["__azMysqlPath"] = my_path
+                _my_src = to_number(row.get("source_monthly_cost"), 0)
+                full_service_mapping = {
+                    "sku": (my_items[0].get("sku") if my_items else ""), "ociProduct": my_label,
+                    "sourceProvider": clean_text(row.get("source_provider")),
+                    "sourceService": clean_text(row.get("source_service")),
+                    "sourceProduct": clean_text(row.get("source_product")),
+                    "sourceMonthlyCost": money(_my_src),
+                    "sourceCurrency": clean_text(row.get("source_currency")) or "USD",
+                    "quantity": round(to_number(row.get("usage_quantity"), 0), 4),
+                    "unit": clean_text(row.get("usage_unit")) or (my_items[0].get("unit") if my_items else ""),
+                    "confidence": 0.7, "reviewRequired": True,
+                }
+                totals["sourceMonthlyCost"] += _my_src
+                totals["mappedSourceMonthlyCost"] += _my_src
+                totals["mappedServiceRows"] += 1
+                totals["fullServiceMonthly"] += sum(li.get("monthly", 0) for li in my_items)
+                azmysql_handled = True
+
+        # Azure App Service -> carried at source with a RED architecture-review
+        # flag (Chris's ruling 2026-08-19). Automatic; re-price only once an OCI
+        # landing architecture is approved.
+        azappsvc_handled = False
+        if cloud_bill_mode and not row_free_on_oci and not ws_handled and not azlic_handled and not azops_handled and not azsqldtu_handled and not azincl_handled and not azpg_handled and not azmysql_handled:
+            _asp = (appsvc_path_overrides or {}).get(str(row.get("__id")))
+            as_result = price_azure_appservice_row(row, _asp)
+            if as_result is not None:
+                as_items, as_label, as_cat, as_kind, as_path = as_result
+                line_items.extend(as_items)
+                row["oci_product"] = as_label
+                row["oci_service_category"] = as_cat
+                row["_sqlMappingFlag"] = AZ_APPSVC_FLAG   # forced-flag channel
+                # Severity: carried rows go red via the carry-trumps rule at row
+                # output; a CI-priced row is an architecture-review conversion.
+                row["__azAppSvcKind"] = as_kind
+                row["__azAppSvcPath"] = as_path
+                _as_src = to_number(row.get("source_monthly_cost"), 0)
+                full_service_mapping = {
+                    "sku": "", "ociProduct": as_label,
+                    "sourceProvider": clean_text(row.get("source_provider")),
+                    "sourceService": clean_text(row.get("source_service")),
+                    "sourceProduct": clean_text(row.get("source_product")),
+                    "sourceMonthlyCost": money(_as_src),
+                    "sourceCurrency": clean_text(row.get("source_currency")) or "USD",
+                    "quantity": round(to_number(row.get("usage_quantity"), 0), 4),
+                    "unit": clean_text(row.get("usage_unit")),
+                    "confidence": 0.5, "reviewRequired": True,
+                }
+                totals["sourceMonthlyCost"] += _as_src
+                totals["mappedSourceMonthlyCost"] += _as_src
+                totals["mappedServiceRows"] += 1
+                totals["fullServiceMonthly"] += sum(li.get("monthly", 0) for li in as_items)
+                azappsvc_handled = True
+
+        # Microsoft Fabric F-capacity -> exclusive parent rollup (policy doc #12):
+        # parent carried once; $0 capability rows become informational children.
+        azfabric_handled = False
+        if cloud_bill_mode and not row_free_on_oci and not ws_handled and not azlic_handled and not azops_handled and not azsqldtu_handled and not azincl_handled and not azpg_handled and not azmysql_handled and not azappsvc_handled:
+            fb_result = price_azure_fabric_row(row)
+            if fb_result is not None:
+                fb_items, fb_label, fb_cat, fb_kind = fb_result
+                line_items.extend(fb_items)
+                row["oci_product"] = fb_label
+                row["oci_service_category"] = fb_cat
+                row["_sqlMappingFlag"] = AZ_FABRIC_FLAG   # forced-flag channel
+                row["__azFabricKind"] = fb_kind
+                _fb_src = to_number(row.get("source_monthly_cost"), 0)
+                full_service_mapping = {
+                    "sku": "", "ociProduct": fb_label,
+                    "sourceProvider": clean_text(row.get("source_provider")),
+                    "sourceService": clean_text(row.get("source_service")),
+                    "sourceProduct": clean_text(row.get("source_product")),
+                    "sourceMonthlyCost": money(_fb_src),
+                    "sourceCurrency": clean_text(row.get("source_currency")) or "USD",
+                    "quantity": round(to_number(row.get("usage_quantity"), 0), 4),
+                    "unit": clean_text(row.get("usage_unit")),
+                    "confidence": 0.6, "reviewRequired": True,
+                }
+                totals["sourceMonthlyCost"] += _fb_src
+                totals["mappedSourceMonthlyCost"] += _fb_src
+                totals["mappedServiceRows"] += 1
+                totals["fullServiceMonthly"] += sum(li.get("monthly", 0) for li in fb_items)
+                azfabric_handled = True
+
+        # Remaining-services register (doc #13 + rulings): App Gateway LB+WAF,
+        # Event Hubs / Foundry / LB optional conversions, Monitor split, Defender
+        # split, AKS SLA $0, storage tail flags. One generic dropdown channel.
+        azreg_handled = False
+        if cloud_bill_mode and not row_free_on_oci and not ws_handled and not azlic_handled and not azops_handled and not azsqldtu_handled and not azincl_handled and not azpg_handled and not azmysql_handled and not azappsvc_handled and not azfabric_handled:
+            _rg_path = (reg_path_overrides or {}).get(str(row.get("__id")))
+            rg_result = price_azure_register_row(row, _rg_path, ctx=reg_ctx)
+            if rg_result is not None:
+                rg_items, rg_label, rg_cat, rg_kind, rg_path, rg_level = rg_result
+                line_items.extend(rg_items)
+                row["oci_product"] = rg_label
+                row["oci_service_category"] = rg_cat
+                row["_sqlMappingFlag"] = AZ_REG_FLAG   # forced-flag channel
+                if rg_level:
+                    row["_sqlMappingFlagLevel"] = rg_level
+                row["__azRegKind"] = rg_kind
+                row["__azRegPath"] = rg_path
+                _rg_src = to_number(row.get("source_monthly_cost"), 0)
+                full_service_mapping = {
+                    "sku": (rg_items[0].get("sku") if rg_items else ""), "ociProduct": rg_label,
+                    "sourceProvider": clean_text(row.get("source_provider")),
+                    "sourceService": clean_text(row.get("source_service")),
+                    "sourceProduct": clean_text(row.get("source_product")),
+                    "sourceMonthlyCost": money(_rg_src),
+                    "sourceCurrency": clean_text(row.get("source_currency")) or "USD",
+                    "quantity": round(to_number(row.get("usage_quantity"), 0), 4),
+                    "unit": clean_text(row.get("usage_unit")) or (rg_items[0].get("unit") if rg_items else ""),
+                    "confidence": 0.6, "reviewRequired": True,
+                }
+                totals["sourceMonthlyCost"] += _rg_src
+                totals["mappedSourceMonthlyCost"] += _rg_src
+                totals["mappedServiceRows"] += 1
+                totals["fullServiceMonthly"] += sum(li.get("monthly", 0) for li in rg_items)
+                azreg_handled = True
+
         # Azure Redis -> OCI Cache with Redis 7.0 (3-node HA default / single-node /
         # carry). Always flagged for review; unknown tiers safe-fail to carry.
         azredis_handled = False
-        if cloud_bill_mode and not row_free_on_oci and not ws_handled and not azlic_handled and not azops_handled and not azsqldtu_handled:
+        if cloud_bill_mode and not row_free_on_oci and not ws_handled and not azlic_handled and not azops_handled and not azsqldtu_handled and not azincl_handled and not azpg_handled and not azmysql_handled and not azappsvc_handled and not azfabric_handled and not azreg_handled:
             _rd_path = (redis_path_overrides or {}).get(str(row.get("__id")))
             rd_result = price_azure_redis_row(row, _rd_path)
             if rd_result is not None:
@@ -11493,7 +13038,7 @@ def calculate_pricing(fields, rows, shape_key=DEFAULT_SHAPE_KEY, full_service_be
         # data rows automatic through the 10 TB allowance). Always flagged for
         # architecture validation.
         azfw_handled = False
-        if cloud_bill_mode and not row_free_on_oci and not ws_handled and not azlic_handled and not azops_handled and not azsqldtu_handled and not azredis_handled:
+        if cloud_bill_mode and not row_free_on_oci and not ws_handled and not azlic_handled and not azops_handled and not azsqldtu_handled and not azincl_handled and not azpg_handled and not azmysql_handled and not azappsvc_handled and not azfabric_handled and not azreg_handled and not azredis_handled:
             _fw_path = (fw_path_overrides or {}).get(str(row.get("__id")))
             fw_result = price_azure_firewall_row(row, _fw_path, data_pool=nfw_data_pool,
                                                  deployments_carried=azfw_deployments_carried)
@@ -11527,7 +13072,7 @@ def calculate_pricing(fields, rows, shape_key=DEFAULT_SHAPE_KEY, full_service_be
         # dropdown picks security scope / base plan / artifacts home). Always flagged;
         # GitHub-billed items are 3rd-party and never discounted.
         github_handled = False
-        if cloud_bill_mode and not row_free_on_oci and not ws_handled and not azlic_handled and not azops_handled and not azsqldtu_handled and not azredis_handled and not azfw_handled:
+        if cloud_bill_mode and not row_free_on_oci and not ws_handled and not azlic_handled and not azops_handled and not azsqldtu_handled and not azincl_handled and not azpg_handled and not azmysql_handled and not azappsvc_handled and not azfabric_handled and not azreg_handled and not azredis_handled and not azfw_handled:
             _gh_path = (gh_path_overrides or {}).get(str(row.get("__id")))
             gh_result = price_github_direct_row(row, _gh_path,
                                                 copilot_pool=gh_copilot_pool)
@@ -11563,7 +13108,7 @@ def calculate_pricing(fields, rows, shape_key=DEFAULT_SHAPE_KEY, full_service_be
         # meters get a per-row dropdown (carry last); absorbed meters are $0 with the
         # quantity retained; decision/vendor meters carry at source. Always flagged.
         awsdev_handled = False
-        if cloud_bill_mode and not row_free_on_oci and not ws_handled and not azlic_handled and not azops_handled and not azsqldtu_handled and not azredis_handled and not azfw_handled and not github_handled:
+        if cloud_bill_mode and not row_free_on_oci and not ws_handled and not azlic_handled and not azops_handled and not azsqldtu_handled and not azincl_handled and not azpg_handled and not azmysql_handled and not azappsvc_handled and not azfabric_handled and not azreg_handled and not azredis_handled and not azfw_handled and not github_handled:
             _ad_path = (aws_dev_overrides or {}).get(str(row.get("__id")))
             ad_result = price_aws_devservices_row(row, _ad_path,
                                                   transfer_pools=oci_transfer_pools)
@@ -11598,8 +13143,8 @@ def calculate_pricing(fields, rows, shape_key=DEFAULT_SHAPE_KEY, full_service_be
         # product at its real rate (S3->Object Storage, EFS/FSx->File Storage,
         # EBS->Block Volume), priced on the actual storage-capacity quantity from the
         # bill - not scattered across catalog items per line.
-        storage_handled = oic_handled or rds_handled or networking_handled or redshift_handled or waf_handled or obs_handled or ws_handled or azlic_handled or azops_handled or azsqldtu_handled or azredis_handled or azfw_handled or github_handled or awsdev_handled
-        if cloud_bill_mode and not row_free_on_oci and not oic_handled and not rds_handled and not networking_handled and not redshift_handled and not waf_handled and not obs_handled and not ws_handled and not azlic_handled and not azops_handled and not azsqldtu_handled and not azredis_handled and not azfw_handled and not github_handled and not awsdev_handled:
+        storage_handled = oic_handled or rds_handled or networking_handled or redshift_handled or waf_handled or obs_handled or ws_handled or azlic_handled or azops_handled or azsqldtu_handled or azincl_handled or azpg_handled or azmysql_handled or azappsvc_handled or azfabric_handled or azreg_handled or azredis_handled or azfw_handled or github_handled or awsdev_handled
+        if cloud_bill_mode and not row_free_on_oci and not oic_handled and not rds_handled and not networking_handled and not redshift_handled and not waf_handled and not obs_handled and not ws_handled and not azlic_handled and not azops_handled and not azsqldtu_handled and not azincl_handled and not azpg_handled and not azmysql_handled and not azappsvc_handled and not azfabric_handled and not azreg_handled and not azredis_handled and not azfw_handled and not github_handled and not awsdev_handled:
             ut2 = normalize(row.get("__usageType"))
             base = clean_text(row.get("oci_product")).split(" (approx")[0].strip()
             # EBS volumes/snapshots bill under EC2 - route them to Block Volume.
@@ -12035,6 +13580,10 @@ def calculate_pricing(fields, rows, shape_key=DEFAULT_SHAPE_KEY, full_service_be
             "region": region,
             "sizeCheck": size_check,
             "mappingFlag": mapping_flag,
+            "mappingFlagLevel": ("red" if (line_items
+                                           and all(li.get("carriedOver") for li in line_items))
+                                 else clean_text(row.get("_sqlMappingFlagLevel"))
+                                 or FLAG_SEVERITY_BY_TEXT.get(mapping_flag, "")),
             "costAction": cost_action or "",
             # Azure SQL DTU rows: which pooled conversion path priced this row (drives
             # the per-row path dropdown in the Review table).
@@ -12051,6 +13600,15 @@ def calculate_pricing(fields, rows, shape_key=DEFAULT_SHAPE_KEY, full_service_be
             "azFwKind": clean_text(row.get("__azFwKind")),
             "azFwPath": clean_text(row.get("__azFwPath")),
             "azRedisPath": clean_text(row.get("__azRedisPath")),
+            "azPgKind": clean_text(row.get("__azPgKind")),
+            "azPgPath": clean_text(row.get("__azPgPath")),
+            "azMysqlKind": clean_text(row.get("__azMysqlKind")),
+            "azMysqlPath": clean_text(row.get("__azMysqlPath")),
+            "azAppSvcKind": clean_text(row.get("__azAppSvcKind")),
+            "azAppSvcPath": clean_text(row.get("__azAppSvcPath")),
+            "azFabricKind": clean_text(row.get("__azFabricKind")),
+            "azRegKind": clean_text(row.get("__azRegKind")),
+            "azRegPath": clean_text(row.get("__azRegPath")),
             "awsDevPath": clean_text(row.get("__awsDevPath")),
             "thirdPartyMonthly": money(sum(float(_li.get("monthly") or 0)
                                            for _li in (line_items or []) if _li.get("thirdParty"))),
@@ -13575,6 +15133,7 @@ class IntakeHandler(BaseHTTPRequestHandler):
         content_type = self.headers.get("Content-Type", "")
         compressed_upload = content_type.startswith(("application/gzip", "application/x-gzip"))
         uploaded_bytes = None
+        uploaded_file_stream = None
         if compressed_upload:
             query = parse_qs(urlparse(self.path).query)
             intake_mode = normalize_intake_mode(
@@ -13596,6 +15155,10 @@ class IntakeHandler(BaseHTTPRequestHandler):
                     or (query.get("fullServiceBeta") or [""])[0]
                 ).lower()
                 in {"1", "true", "yes", "on"}
+            )
+            large_import_kind = normalize_large_import_kind(
+                self.headers.get("X-Large-Import-Kind")
+                or (query.get("largeImportKind") or [""])[0]
             )
             filename = Path(
                 unquote(
@@ -13645,8 +15208,14 @@ class IntakeHandler(BaseHTTPRequestHandler):
                 or clean_text(form.getvalue("fullServiceBeta")).lower()
                 in {"1", "true", "yes", "on"}
             )
+            large_import_kind = normalize_large_import_kind(
+                form.getvalue("largeImportKind")
+            )
             filename = clean_text(getattr(file_item, "filename", "")) or "upload.xlsx"
-            uploaded_bytes = file_item.file.read()
+            if large_import_kind:
+                uploaded_file_stream = file_item.file
+            else:
+                uploaded_bytes = file_item.file.read()
         else:
             self.send_error_json(
                 400,
@@ -13654,15 +15223,54 @@ class IntakeHandler(BaseHTTPRequestHandler):
             )
             return
 
-        allowed_suffixes = (".xlsx", ".xls", ".csv", ".tsv", ".pdf") if intake_mode == INTAKE_MODE_CLOUD_BILL else (".xlsx", ".xls", ".csv", ".tsv")
+        expected_mode = (
+            INTAKE_MODE_ON_PREM if large_import_kind == "on_prem"
+            else INTAKE_MODE_CLOUD_BILL
+        )
+        if large_import_kind and intake_mode != expected_mode:
+            self.send_error_json(
+                400,
+                "The selected large-file type does not match the intake mode.",
+            )
+            return
+        allowed_suffixes = ((".xlsx", ".csv", ".tsv") if large_import_kind
+                            else (".xlsx", ".xls", ".csv", ".tsv", ".pdf")
+                            if intake_mode == INTAKE_MODE_CLOUD_BILL
+                            else (".xlsx", ".xls", ".csv", ".tsv"))
         if not filename.lower().endswith(allowed_suffixes):
-            message = "Please upload a PDF, CSV, TSV, or Excel bill export." if intake_mode == INTAKE_MODE_CLOUD_BILL else "Please upload an Excel workbook or a CSV/TSV inventory export."
+            message = ("Please upload a supported large-file .xlsx, .csv, or .tsv export."
+                       if large_import_kind
+                       else "Please upload a PDF, CSV, TSV, or Excel bill export."
+                       if intake_mode == INTAKE_MODE_CLOUD_BILL
+                       else "Please upload an Excel workbook or a CSV/TSV inventory export.")
             self.send_error_json(400, message)
             return
 
         safe_name = re.sub(r"[^A-Za-z0-9_.-]+", "_", filename)
         saved_path = UPLOAD_DIR / f"{int(time.time())}_{safe_name}"
-        saved_path.write_bytes(uploaded_bytes)
+        if uploaded_file_stream is not None:
+            written = 0
+            upload_too_large = False
+            with saved_path.open("wb") as destination:
+                while True:
+                    chunk = uploaded_file_stream.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    written += len(chunk)
+                    if written > MAX_DECOMPRESSED_UPLOAD_BYTES:
+                        upload_too_large = True
+                        break
+                    destination.write(chunk)
+            if upload_too_large:
+                saved_path.unlink(missing_ok=True)
+                self.send_error_json(
+                    413,
+                    f"The upload exceeds {MAX_UPLOAD_MB_LABEL}. Raise it with "
+                    "OIA_MAX_UPLOAD_MB and restart if this machine has enough disk and memory.",
+                )
+                return
+        else:
+            saved_path.write_bytes(uploaded_bytes)
 
         # One of OUR exports dropped onto the inventory/bill uploader. Every Full BOM carries
         # the complete saved workflow in a hidden _workflow sheet, so the right answer is to
@@ -13670,7 +15278,7 @@ class IntakeHandler(BaseHTTPRequestHandler):
         # an inventory finds nothing and the upload reports "0 rows · No usable rows were
         # found". The file the user is holding does contain their whole estimate - refusing it
         # because it arrived at the wrong drop zone is a needless dead end.
-        if filename.lower().endswith(".xlsx"):
+        if filename.lower().endswith(".xlsx") and not large_import_kind:
             try:
                 saved_workflow = bom_export.read_workflow_state(str(saved_path))
             except Exception:
@@ -13686,12 +15294,51 @@ class IntakeHandler(BaseHTTPRequestHandler):
         # In cloud-bill mode, when the user hasn't forced a provider, guess from the
         # filename so parsing/mapping starts from the right cloud.
         filename_guess = guess_provider_from_filename(filename) if intake_mode == INTAKE_MODE_CLOUD_BILL else PROVIDER_AUTO
-        effective_hint = provider_hint if provider_hint != PROVIDER_AUTO else filename_guess
+        effective_hint = (large_import_kind if large_import_kind in {"aws", "azure"}
+                          else provider_hint if provider_hint != PROVIDER_AUTO
+                          else filename_guess)
 
         try:
-            parsed = parse_workbook(saved_path, full_service_beta, intake_mode, effective_hint, sheet_override)
+            reducer_audit = None
+            parse_path = saved_path
+            parse_sheet = sheet_override
+            if large_import_kind:
+                reduced_label = large_import_kind.replace("_", "-")
+                reduced_path = saved_path.with_name(
+                    f"{saved_path.stem}.large-{reduced_label}-reduced.csv"
+                )
+                reducer_audit = reduce_large_import(
+                    saved_path,
+                    reduced_path,
+                    large_import_kind,
+                    sheet_name=sheet_override,
+                )
+                parse_path = reduced_path
+                parse_sheet = ""
+            parsed = parse_workbook(
+                parse_path,
+                full_service_beta,
+                intake_mode,
+                effective_hint,
+                parse_sheet,
+                pre_reduced=large_import_kind in {"aws", "azure"},
+            )
             parsed["fileName"] = filename
             parsed["uploadedPath"] = str(saved_path)
+            if reducer_audit:
+                metadata = parsed.setdefault("metadata", {})
+                metadata["largeFileReduction"] = True
+                metadata["largeImportKind"] = large_import_kind
+                metadata["sourceImportMode"] = reducer_audit["sourceImportMode"]
+                metadata["reducerAudit"] = reducer_audit
+                metadata["rawSourcePath"] = str(saved_path)
+                metadata["reducedArtifactPath"] = reducer_audit["reducedFilePath"]
+                metadata.setdefault("extractionNotes", []).append(
+                    f"Large {large_import_kind.replace('_', '-')} preprocessor streamed "
+                    f"{reducer_audit['inputRows']:,} source rows into "
+                    f"{reducer_audit['outputRows']:,} parser-ready rows. The raw upload was "
+                    "retained as the audit source."
+                )
             # Warn when an already-built comparison/BOM workbook is dropped into cloud-bill
             # mode - its numbers are outputs, not a raw bill, so parsing them produces
             # garbage. Point the user at the "Convert an alternate OCI BOM" flow instead.
@@ -13722,6 +15369,8 @@ class IntakeHandler(BaseHTTPRequestHandler):
                     else "content"
                 )
             self.send_json(200, parsed)
+        except LargeImportReductionError as exc:
+            self.send_error_json(400, f"Could not preprocess large import: {exc}")
         except Exception as exc:
             self.send_error_json(500, f"Could not parse workbook: {exc}")
 
@@ -13750,6 +15399,10 @@ class IntakeHandler(BaseHTTPRequestHandler):
             aws_dev_overrides = payload.get("awsDevOverrides") if isinstance(payload.get("awsDevOverrides"), dict) else {}
             fw_path_overrides = payload.get("fwPathOverrides") if isinstance(payload.get("fwPathOverrides"), dict) else {}
             redis_path_overrides = payload.get("redisPathOverrides") if isinstance(payload.get("redisPathOverrides"), dict) else {}
+            pg_path_overrides = payload.get("pgPathOverrides") if isinstance(payload.get("pgPathOverrides"), dict) else {}
+            mysql_path_overrides = payload.get("mysqlPathOverrides") if isinstance(payload.get("mysqlPathOverrides"), dict) else {}
+            appsvc_path_overrides = payload.get("appsvcPathOverrides") if isinstance(payload.get("appsvcPathOverrides"), dict) else {}
+            reg_path_overrides = payload.get("regPathOverrides") if isinstance(payload.get("regPathOverrides"), dict) else {}
             cost_overrides = payload.get("costOverrides") if isinstance(payload.get("costOverrides"), dict) else {}
             cpu_unit = str(payload.get("cpuUnit", "auto")).lower()
             if cpu_unit not in ("auto", "vcpu", "ocpu"):
@@ -13760,7 +15413,7 @@ class IntakeHandler(BaseHTTPRequestHandler):
             if not isinstance(fields, list) or not fields or not isinstance(rows, list) or not rows:
                 self.send_error_json(400, "Pricing requires fields and rows.")
                 return
-            pricing = calculate_pricing(fields, rows, shape_key, full_service_beta, intake_mode, bom_match, hide_gpu_pricing, hide_windows_pricing, rightsize, auto, hours_per_month, source_provider, auto_tier, shape_overrides, cost_overrides, cpu_unit, hours_override=bool(payload.get('hoursOverride')), oic_message_packs=to_number(payload.get('oicMessagePacks'), 0) or None, hide_sql_pricing=hide_sql_pricing, sql_path_overrides=sql_path_overrides, gh_path_overrides=gh_path_overrides, aws_dev_overrides=aws_dev_overrides, fw_path_overrides=fw_path_overrides, redis_path_overrides=redis_path_overrides)
+            pricing = calculate_pricing(fields, rows, shape_key, full_service_beta, intake_mode, bom_match, hide_gpu_pricing, hide_windows_pricing, rightsize, auto, hours_per_month, source_provider, auto_tier, shape_overrides, cost_overrides, cpu_unit, hours_override=bool(payload.get('hoursOverride')), oic_message_packs=to_number(payload.get('oicMessagePacks'), 0) or None, hide_sql_pricing=hide_sql_pricing, sql_path_overrides=sql_path_overrides, gh_path_overrides=gh_path_overrides, aws_dev_overrides=aws_dev_overrides, fw_path_overrides=fw_path_overrides, redis_path_overrides=redis_path_overrides, pg_path_overrides=pg_path_overrides, mysql_path_overrides=mysql_path_overrides, appsvc_path_overrides=appsvc_path_overrides, reg_path_overrides=reg_path_overrides)
             pricing["bomMatch"] = bom_match
             pricing["hideGpuPricing"] = hide_gpu_pricing
             pricing["hideWindowsPricing"] = hide_windows_pricing
@@ -13810,6 +15463,10 @@ class IntakeHandler(BaseHTTPRequestHandler):
             aws_dev_overrides = payload.get("awsDevOverrides") if isinstance(payload.get("awsDevOverrides"), dict) else {}
             fw_path_overrides = payload.get("fwPathOverrides") if isinstance(payload.get("fwPathOverrides"), dict) else {}
             redis_path_overrides = payload.get("redisPathOverrides") if isinstance(payload.get("redisPathOverrides"), dict) else {}
+            pg_path_overrides = payload.get("pgPathOverrides") if isinstance(payload.get("pgPathOverrides"), dict) else {}
+            mysql_path_overrides = payload.get("mysqlPathOverrides") if isinstance(payload.get("mysqlPathOverrides"), dict) else {}
+            appsvc_path_overrides = payload.get("appsvcPathOverrides") if isinstance(payload.get("appsvcPathOverrides"), dict) else {}
+            reg_path_overrides = payload.get("regPathOverrides") if isinstance(payload.get("regPathOverrides"), dict) else {}
             cost_overrides = payload.get("costOverrides") if isinstance(payload.get("costOverrides"), dict) else {}
             cpu_unit = str(payload.get("cpuUnit", "auto")).lower()
             if cpu_unit not in ("auto", "vcpu", "ocpu"):
@@ -13827,7 +15484,7 @@ class IntakeHandler(BaseHTTPRequestHandler):
                                             shape_overrides, cost_overrides, cpu_unit,
                                             hours_override=bool(payload.get("hoursOverride")),
                                             oic_message_packs=to_number(payload.get("oicMessagePacks"), 0) or None,
-                                            hide_sql_pricing=hide_sql_pricing, sql_path_overrides=sql_path_overrides, gh_path_overrides=gh_path_overrides, aws_dev_overrides=aws_dev_overrides, fw_path_overrides=fw_path_overrides, redis_path_overrides=redis_path_overrides)
+                                            hide_sql_pricing=hide_sql_pricing, sql_path_overrides=sql_path_overrides, gh_path_overrides=gh_path_overrides, aws_dev_overrides=aws_dev_overrides, fw_path_overrides=fw_path_overrides, redis_path_overrides=redis_path_overrides, pg_path_overrides=pg_path_overrides, mysql_path_overrides=mysql_path_overrides, appsvc_path_overrides=appsvc_path_overrides, reg_path_overrides=reg_path_overrides)
 
             import bom_diagram, bom_template, tempfile, zipfile, io
             keys = bom_template._resolve_inventory_keys(fields) if fields else {}
@@ -13919,6 +15576,10 @@ class IntakeHandler(BaseHTTPRequestHandler):
             aws_dev_overrides = payload.get("awsDevOverrides") if isinstance(payload.get("awsDevOverrides"), dict) else {}
             fw_path_overrides = payload.get("fwPathOverrides") if isinstance(payload.get("fwPathOverrides"), dict) else {}
             redis_path_overrides = payload.get("redisPathOverrides") if isinstance(payload.get("redisPathOverrides"), dict) else {}
+            pg_path_overrides = payload.get("pgPathOverrides") if isinstance(payload.get("pgPathOverrides"), dict) else {}
+            mysql_path_overrides = payload.get("mysqlPathOverrides") if isinstance(payload.get("mysqlPathOverrides"), dict) else {}
+            appsvc_path_overrides = payload.get("appsvcPathOverrides") if isinstance(payload.get("appsvcPathOverrides"), dict) else {}
+            reg_path_overrides = payload.get("regPathOverrides") if isinstance(payload.get("regPathOverrides"), dict) else {}
             cost_overrides = payload.get("costOverrides") if isinstance(payload.get("costOverrides"), dict) else {}
             cpu_unit = str(payload.get("cpuUnit", "auto")).lower()
             if cpu_unit not in ("auto", "vcpu", "ocpu"):
@@ -13958,7 +15619,7 @@ class IntakeHandler(BaseHTTPRequestHandler):
             if not isinstance(fields, list) or not fields or not isinstance(rows, list) or not rows:
                 self.send_error_json(400, "Export requires fields and rows.")
                 return
-            pricing = calculate_pricing(fields, rows, shape_key, full_service_beta, intake_mode, bom_match, hide_gpu_pricing, hide_windows_pricing, rightsize, auto, hours_per_month, source_provider, auto_tier, shape_overrides, cost_overrides, cpu_unit, hours_override=bool(payload.get('hoursOverride')), oic_message_packs=to_number(payload.get('oicMessagePacks'), 0) or None, hide_sql_pricing=hide_sql_pricing, sql_path_overrides=sql_path_overrides, gh_path_overrides=gh_path_overrides, aws_dev_overrides=aws_dev_overrides, fw_path_overrides=fw_path_overrides, redis_path_overrides=redis_path_overrides)
+            pricing = calculate_pricing(fields, rows, shape_key, full_service_beta, intake_mode, bom_match, hide_gpu_pricing, hide_windows_pricing, rightsize, auto, hours_per_month, source_provider, auto_tier, shape_overrides, cost_overrides, cpu_unit, hours_override=bool(payload.get('hoursOverride')), oic_message_packs=to_number(payload.get('oicMessagePacks'), 0) or None, hide_sql_pricing=hide_sql_pricing, sql_path_overrides=sql_path_overrides, gh_path_overrides=gh_path_overrides, aws_dev_overrides=aws_dev_overrides, fw_path_overrides=fw_path_overrides, redis_path_overrides=redis_path_overrides, pg_path_overrides=pg_path_overrides, mysql_path_overrides=mysql_path_overrides, appsvc_path_overrides=appsvc_path_overrides, reg_path_overrides=reg_path_overrides)
 
             # "Full BOM": the 12-sheet customer-facing deliverable (Table of Contents,
             # Assumptions, Rate Card, Pricing Overview, Compute, Storage, Networking, DR,

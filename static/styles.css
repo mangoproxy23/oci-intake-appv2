@@ -616,6 +616,21 @@ textarea {
   line-height: 1.4;
 }
 
+.mode-card--compact {
+  align-self: center;
+  gap: 0;
+  padding: 7px 14px;
+}
+
+.mode-card--compact strong {
+  opacity: 0.25;
+}
+
+.mode-card[hidden],
+.provider-control[hidden] {
+  display: none !important;
+}
+
 .provider-control {
   display: grid;
   gap: 7px;
@@ -1952,6 +1967,88 @@ td input[type="checkbox"] {
   border: 1px solid #f0c36d;
 }
 
+.size-flag-review-orange {
+  background: #fff0e1;
+  color: #a04a00;
+  border: 1px solid #f5c08a;
+}
+
+.size-flag-review-orange.flag-clickable:hover {
+  background: #ffe2c4;
+}
+
+.size-flag-review-red {
+  background: #fdecea;
+  color: #b3261e;
+  border: 1px solid #f2b8b5;
+}
+
+.size-flag-review-red.flag-clickable:hover {
+  background: #f9d7d3;
+}
+
+.cloudbill-suspect-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 26, 32, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.cloudbill-suspect-dialog {
+  background: var(--surface, #fff);
+  color: inherit;
+  border-radius: 10px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+  max-width: 440px;
+  padding: 22px 26px;
+}
+
+.cloudbill-suspect-dialog h3 {
+  margin: 0 0 8px;
+}
+
+.cloudbill-suspect-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+
+.cloudbill-suspect-yes {
+  padding: 7px 14px;
+  font-weight: 600;
+  color: #fff;
+  background: #1f8a4c;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.cloudbill-suspect-yes:hover {
+  background: #176a3a;
+}
+
+.cloudbill-suspect-no {
+  padding: 7px 14px;
+  font-weight: 600;
+  color: #fff;
+  background: #b3261e;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.cloudbill-suspect-no:hover {
+  background: #8c1d17;
+}
+
+:root[data-theme="dark"] .cloudbill-suspect-dialog {
+  background: #1e2429;
+}
+
 .flag-clickable {
   cursor: pointer;
 }
@@ -1983,8 +2080,15 @@ td input[type="checkbox"] {
 }
 
 .size-flag-carried {
-  background: #e7f1ff;
-  color: #0b5cad;
+  background: #fdecea;
+  color: #b3261e;
+  border: 1px solid #f2b8b5;
+}
+
+:root[data-theme="dark"] .size-flag-carried {
+  border-color: #8c3a34;
+  background: #3a1f1d;
+  color: #f2b8b5;
 }
 
 .size-flag-removed {
@@ -5140,6 +5244,18 @@ td input[type="checkbox"] {
   border-color: #80662f;
   background: #342b18;
   color: #f3d89e;
+}
+
+:root[data-theme="dark"] .size-flag-review-orange {
+  border-color: #8c5a2a;
+  background: #3a2a14;
+  color: #f5c08a;
+}
+
+:root[data-theme="dark"] .size-flag-review-red {
+  border-color: #8c3a34;
+  background: #3a1f1d;
+  color: #f2b8b5;
 }
 
 :root[data-theme="dark"] .cross-cloud-card.cross-cloud-oci {

@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+# Strip Claude attribution trailers from every commit message in this repo, before the
+# commit is written.
+#
+# Why this exists: Claude Code's built-in instructions tell it to append
+#
+#     Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+#     Claude-Session: https://claude.ai/code/session_...
+#
+# to commit messages. Chris does not want that - it makes GitHub credit a `claude`
+# contributor on his repos. Asking each session not to do it works until a session forgets
+# or a new one starts. This hook does not forget: it runs on every commit, by any tool, and
+# removes the lines whether a human, an agent, or a script put them there.
+#
+# It only ever DELETES those two specific trailer lines. Nothing else in the message is
+# touched, and a message without them passes through byte-identical.
+#
+# Install (this file lives at .git/hooks/commit-msg and is not version-controlled, so it
+# has to be re-installed after a fresh clone):
+#     chmod +x .git/hooks/commit-msg
+#
+# To check it is live:
+#     git commit --allow-empty -m "hook test" -m "Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
+#     git log -1 --format=%B     # the trailer should be gone
+#     git reset --hard HEAD~1
+#
+# To bypass it once, for whatever reason:
+#     KEEP_CLAUDE_TRAILERS=1 git commit ...
+
+set -euo pipefail
+
+MSG_FILE="$1"
+
+if [ "${KEEP_CLAUDE_TRAILERS:-}" = "1" ]; then
+  exit 0
+fi
+
+python3 - "$MSG_FILE" <<'PY'
+import sys
+
+path = sys.argv[1]
+with open(path, "r", encoding="utf-8") as fh:
+    original = fh.read()
+
+kept = [
+    line for line in original.split("\n")
+    if not line.startswith("Co-Authored-By: Claude")
+    and not line.startswith("Claude-Session:")
+]
+cleaned = "\n".join(kept).rstrip("\n") + "\n"
+
+if cleaned != original:
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(cleaned)
+    sys.stderr.write("commit-msg hook: removed Claude attribution trailer(s).\n")
+PY

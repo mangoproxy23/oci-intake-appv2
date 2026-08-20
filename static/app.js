@@ -16,6 +16,7 @@ const state = {
   uploadReady: false,
   workflowMaxUnlockedStep: 0,
   intakeMode: "on_prem",
+  largeImportKind: "",
   providerHint: "auto",
   uploadMetadata: {},
   fullServiceBeta: false,
@@ -55,6 +56,10 @@ const state = {
   awsDevOverrides: {},
   fwPathOverrides: {},
   redisPathOverrides: {},
+  pgPathOverrides: {},
+  mysqlPathOverrides: {},
+  appsvcPathOverrides: {},
+  regPathOverrides: {},
   approvedFlags: {},
   flagMenuRow: null,
   hiddenSources: {},
@@ -169,6 +174,7 @@ const CLOUD_BILL_PREVIEW_FIELD_RULES = [
   { label: "RAM (GB)", containsAny: [["ram"], ["memory"], ["memory gb"], ["ram gb"]] },
   { label: "Source Cost", containsAny: [["source cost"], ["source monthly cost"], ["cost"], ["unblended cost"]] },
   { label: "Currency", containsAny: [["currency"], ["billing currency"]] },
+  { label: "Resource Identity", containsAny: [["resource identity"]] },
   { label: "OCI Service", containsAny: [["oci service"], ["oci service category"], ["target service"]] },
   { label: "OCI Product", containsAny: [["oci product"], ["target product"], ["mapped sku"]] },
   { label: "Confidence", containsAny: [["mapping confidence"], ["confidence"], ["review status"]] },
@@ -201,11 +207,14 @@ const els = {
   dropZone: document.querySelector("#dropZone"),
   modeOnPrem: document.querySelector("#modeOnPrem"),
   modeCloudBill: document.querySelector("#modeCloudBill"),
+  modeLargeImport: document.querySelector("#modeLargeImport"),
   modeOtherOciBill: document.querySelector("#modeOtherOciBill"),
   modeEyebrow: document.querySelector("#modeEyebrow"),
   uploadHeading: document.querySelector("#uploadHeading"),
   uploadDescription: document.querySelector("#uploadDescription"),
   dropZoneHint: document.querySelector("#dropZoneHint"),
+  largeImportControl: document.querySelector("#largeImportControl"),
+  largeImportKind: document.querySelector("#largeImportKind"),
   providerControl: document.querySelector("#providerControl"),
   providerHint: document.querySelector("#providerHint"),
   uploadStatus: document.querySelector("#uploadStatus"),
@@ -1169,6 +1178,10 @@ function isCloudBillMode() {
   return state.intakeMode === "cloud_bill";
 }
 
+function isLargeImportMode() {
+  return Boolean(state.largeImportKind);
+}
+
 // Other OCI Bill: a finished OCI BOM from somewhere else (Oracle's cost estimator, a partner, an
 // older export of this app). It skips inventory parsing entirely - the file already carries OCI
 // SKUs, quantities and prices, so it goes straight to the converter and lands on the Shape page.
@@ -1440,46 +1453,99 @@ function previewFields() {
 
 function syncModeUi() {
   const cloudBill = isCloudBillMode();
+  const largeImport = isLargeImportMode();
+  const largeKind = state.largeImportKind;
   const otherBill = isOtherOciBillMode();
   if (typeof syncExistingInfraUi === "function") syncExistingInfraUi();
   state.fullServiceBeta = cloudBill;
-  els.modeOnPrem?.classList.toggle("is-selected", !cloudBill && !otherBill);
-  els.modeCloudBill?.classList.toggle("is-selected", cloudBill);
+  els.modeOnPrem?.classList.toggle("is-selected", !cloudBill && !otherBill && !largeImport);
+  els.modeCloudBill?.classList.toggle("is-selected", cloudBill && !largeImport);
+  els.modeLargeImport?.classList.toggle("is-selected", largeImport);
   els.modeOtherOciBill?.classList.toggle("is-selected", otherBill);
-  els.providerControl?.classList.toggle("is-hidden", !cloudBill);
+  els.largeImportControl?.classList.toggle("is-hidden", !largeImport);
+  els.providerControl?.classList.toggle("is-hidden", !cloudBill || largeImport);
   // OIC message packs only apply in cloud-bill mode (SQS/SNS/Transfer Family mapping).
   els.oicMessagePacksControl?.classList.toggle("is-hidden", !cloudBill);
   if (els.providerHint) {
     els.providerHint.value = state.providerHint;
+    els.providerHint.disabled = largeImport;
   }
+  if (els.largeImportKind && largeKind) els.largeImportKind.value = largeKind;
   // Cloud bill accepts several formats; Chrome can grey out CSV/TSV even when listed,
   // so don't filter at all here - the backend validates the file type on upload.
   // On-prem inventories also come as CSV/TSV exports (discovery tools, CMDB dumps), and
   // the backend parses those through the same header heuristics as an Excel sheet.
-  els.fileInput.accept = cloudBill ? "" : otherBill ? ".xlsx,.xls,.csv,.tsv,.json" : ".xlsx,.xls,.csv,.tsv";
-  els.modeEyebrow.textContent = cloudBill ? "Cloud Bill" : otherBill ? "Other OCI Bill" : "On-Prem Inventory";
-  els.uploadHeading.textContent = cloudBill
+  els.fileInput.accept = largeImport ? ".xlsx,.csv,.tsv" : cloudBill ? "" : otherBill ? ".xlsx,.xls,.csv,.tsv,.json" : ".xlsx,.xls,.csv,.tsv";
+  const largeKindLabel = largeKind === "on_prem" ? "On-Prem Inventory" : largeKind === "aws" ? "AWS Bill" : "Azure Enrollment";
+  els.modeEyebrow.textContent = largeImport ? `Very Large ${largeKindLabel}` : cloudBill ? "Cloud Bill" : otherBill ? "Other OCI Bill" : "On-Prem Inventory";
+  els.uploadHeading.textContent = largeImport
+    ? largeKind === "on_prem" ? "Stream Very Large Inventory" : "Reduce Very Large File"
+    : cloudBill
     ? "Upload Cloud Bill"
     : otherBill ? "Import Other OCI Bill" : "Upload Inventory";
-  els.uploadDescription.textContent = cloudBill
+  els.uploadDescription.textContent = largeImport
+    ? largeKind === "on_prem"
+      ? "The raw file is retained as the audit source. Relevant inventory columns are streamed into the parser without aggregating or merging any machine rows."
+      : "The raw file is retained as the audit source. Rows aggregate only when every available billing, SKU, price, resource, account, region, and environment boundary matches exactly. Missing resource identity remains visibly flagged."
+    : cloudBill
     ? "Upload an AWS, Azure, or GCP bill export. PDF invoices and CSV, TSV, or Excel exports are mapped to OCI-equivalent services and meters."
     : otherBill
     ? "Upload an existing BOM from the cost estimator tool, or other formats. Every OCI SKU and line item is recognized against the app's catalog, re-priced, and loaded live into your results - a BOM this app exported is restored in full instead."
     : state.openaiApiConnected
     ? "Drop an Excel workbook here. OpenAI can inspect the workbook, choose the inventory table, and normalize server/application fields for review."
     : "Drop an Excel workbook here. The local parser will choose the inventory table and normalize CPU, RAM, storage, environment, and application fields for review.";
-  els.dropZone.querySelector("strong").textContent = cloudBill
+  els.dropZone.querySelector("strong").textContent = largeImport
+    ? `Choose Very Large ${largeKindLabel}`
+    : cloudBill
     ? "Choose Bill Export"
     : otherBill ? "Choose BOM" : "Choose Spreadsheet";
-  els.dropZoneHint.textContent = cloudBill
+  els.dropZoneHint.textContent = largeImport
+    ? `or drag a very large ${largeKindLabel} XLSX, CSV, or TSV onto this upload area`
+    : cloudBill
     ? "or drag a PDF, CSV, TSV, or Excel bill export onto this upload area"
     : otherBill
     ? "Cost estimator proposal, a partner BOM, or an export from this app (.xlsx / .csv)"
     : "or drag the workbook onto this upload area";
 }
 
+// An obvious cloud bill dropped into On-prem mode: ask before parsing it as
+// servers (Chris's ruling 2026-08-19). "Yes" switches to Cloud Bill mode and
+// re-parses the same file; "No" (red) keeps the on-prem parse.
+function maybeWarnCloudBillInOnPrem(payload) {
+  const provider = payload?.metadata?.cloudBillSuspected;
+  if (!provider || state.intakeMode !== "on_prem") return;
+  document.getElementById("cloudBillSuspectOverlay")?.remove();
+  const overlay = document.createElement("div");
+  overlay.id = "cloudBillSuspectOverlay";
+  overlay.className = "cloudbill-suspect-overlay";
+  overlay.innerHTML = `
+    <div class="cloudbill-suspect-dialog" role="alertdialog" aria-modal="true">
+      <h3>Are you sure this isn't a cloud bill?</h3>
+      <p>This file looks like ${escapeHtml(provider === "Cloud" ? "a cloud" : `an ${provider}`)} bill export
+      (billing meters, not a server inventory). Parsing it in On-prem mode will treat bill lines as servers.</p>
+      <div class="cloudbill-suspect-actions">
+        <button type="button" class="cloudbill-suspect-yes" id="cloudBillSuspectYes">Yes — use Cloud Bill mode</button>
+        <button type="button" class="cloudbill-suspect-no" id="cloudBillSuspectNo">No</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  document.getElementById("cloudBillSuspectYes").addEventListener("click", () => {
+    overlay.remove();
+    setIntakeMode("cloud_bill");
+    if (state.lastUploadFile) uploadFile(state.lastUploadFile);
+  });
+  document.getElementById("cloudBillSuspectNo").addEventListener("click", () => overlay.remove());
+}
+
 function setIntakeMode(mode) {
-  state.intakeMode = normalizeIntakeMode(mode);
+  if (mode === "large_import") {
+    state.largeImportKind = els.largeImportKind?.value || state.largeImportKind || "azure";
+    state.intakeMode = state.largeImportKind === "on_prem" ? "on_prem" : "cloud_bill";
+    state.providerHint = state.largeImportKind === "on_prem" ? "auto" : state.largeImportKind;
+  } else {
+    state.largeImportKind = "";
+    state.intakeMode = normalizeIntakeMode(mode);
+  }
   state.providerHint = state.intakeMode === "cloud_bill" ? state.providerHint : "auto";
   clearIntakeStatuses();   // switching intake path - drop stale load/convert banners
   syncModeUi();
@@ -1856,7 +1922,8 @@ function removeReviewRow(row) {
   if (id) {
     [state.selectedRows, state.approvedFlags, state.shapeOverrides, state.costOverrides,
      state.sqlPathOverrides, state.ghPathOverrides, state.awsDevOverrides,
-     state.fwPathOverrides, state.redisPathOverrides]
+     state.fwPathOverrides, state.redisPathOverrides, state.pgPathOverrides,
+     state.mysqlPathOverrides, state.appsvcPathOverrides, state.regPathOverrides]
       .forEach((map) => { if (map && typeof map === "object") delete map[id]; });
   }
   // Sizing changed - invalidate the estimate so Price re-runs on the reduced set.
@@ -2479,6 +2546,9 @@ async function jsonRequestOptions(payload) {
 }
 
 async function compressedUploadRequest(file, sheetOverride = "") {
+  // The opt-in reducer is designed for local, disk-backed streaming. Multipart
+  // lets the server spool the raw upload instead of inflating a gzip body into RAM.
+  if (state.largeImportKind) return null;
   if (
     file.size < COMPRESSED_UPLOAD_THRESHOLD
     || typeof CompressionStream === "undefined"
@@ -2509,6 +2579,7 @@ async function compressedUploadRequest(file, sheetOverride = "") {
         "X-Intake-Mode": state.intakeMode,
         "X-Provider-Hint": state.providerHint,
         "X-Full-Service-Beta": state.fullServiceBeta ? "true" : "false",
+        "X-Large-Import-Kind": state.largeImportKind || "",
         // Header values must be latin-1; a sheet name can hold anything.
         ...(sheetOverride ? { "X-Sheet-Name": encodeURIComponent(sheetOverride) } : {}),
       },
@@ -2547,6 +2618,7 @@ async function uploadFile(file, sheetOverride = "") {
     body.append("intakeMode", state.intakeMode);
     body.append("providerHint", state.providerHint);
     body.append("fullServiceBeta", state.fullServiceBeta ? "true" : "false");
+    body.append("largeImportKind", state.largeImportKind || "");
     if (sheetOverride) body.append("sheetName", sheetOverride);
     const request = compressedRequest || {
       url: "/api/upload",
@@ -2590,14 +2662,22 @@ async function uploadFile(file, sheetOverride = "") {
     syncVendorForSelectedShape();
     state.uploadMetadata = payload.metadata || {};
     state.intakeMode = payload.metadata?.intakeMode || state.intakeMode;
+    state.largeImportKind = payload.metadata?.largeImportKind || state.largeImportKind;
     state.fullServiceBeta = state.intakeMode === "cloud_bill";
     ensureIdentityReviewFields();
     ensureHoursRunningReviewField();
     const docModeLabel = state.intakeMode === "cloud_bill"
       ? `${payload.metadata?.detectedProvider || "Cloud"} bill`
       : "On-prem inventory";
-    showSelectedDoc(payload.fileName, `${formatNumber(payload.rows.length)} rows · ${docModeLabel}`);
+    const reducerAudit = payload.metadata?.reducerAudit;
+    showSelectedDoc(
+      payload.fileName,
+      reducerAudit
+        ? `${formatNumber(reducerAudit.inputRows)} source rows → ${formatNumber(reducerAudit.outputRows)} parser-ready rows · ${state.largeImportKind === "on_prem" ? "on-prem inventory" : `${state.largeImportKind.toUpperCase()} bill`}`
+        : `${formatNumber(payload.rows.length)} rows · ${docModeLabel}`,
+    );
     if (els.inventoryNotice) els.inventoryNotice.hidden = !payload.metadata?.inventorySuspected;
+    maybeWarnCloudBillInOnPrem(payload);
     // Warn if a finished comparison/BOM workbook was dropped into cloud-bill mode.
     const cmpNotice = document.getElementById("comparisonBomNotice");
     if (cmpNotice) {
@@ -2648,7 +2728,11 @@ async function uploadFile(file, sheetOverride = "") {
     }
     unlockWorkflowStep("review");
     showUploadPage();
-    els.uploadStatus.textContent = "Spreadsheet ready. Continue to review.";
+    els.uploadStatus.textContent = reducerAudit
+      ? state.largeImportKind === "on_prem"
+        ? `Streaming verified: ${formatNumber(reducerAudit.inputRows)} inventory rows preserved; ${formatNumber(reducerAudit.columnsRetained?.length || 0)} relevant and audit columns retained. No machine rows were merged.`
+        : `Reduction verified: ${formatNumber(reducerAudit.inputRows)} input rows → ${formatNumber(reducerAudit.outputRows)} output rows; quantity and cost totals match. ${formatNumber(reducerAudit.rowsWithUnavailableResourceIdentity)} reduced rows have unavailable resource identity.`
+      : "Spreadsheet ready. Continue to review.";
     els.uploadStatus.style.color = "var(--success)";
     syncIntakeLayout();
     els.engineStatus.textContent = isCloudBillMode()
@@ -2693,6 +2777,7 @@ function makeBlankRow(prefix = "manual") {
 
 function initializeManualReviewTable() {
   state.intakeMode = "on_prem";
+  state.largeImportKind = "";
   state.providerHint = "auto";
   state.fullServiceBeta = false;
   state.fields = MANUAL_REVIEW_FIELDS.map((field) => ({
@@ -3044,6 +3129,7 @@ function collectWorkflowState() {
     version: 1,
     savedAt: new Date().toISOString(),
     intakeMode: state.intakeMode,
+    largeImportKind: state.largeImportKind,
     providerHint: state.providerHint,
     fullServiceBeta: state.fullServiceBeta,
     hideGpuPricing: state.hideGpuPricing,
@@ -3084,6 +3170,10 @@ function collectWorkflowState() {
     awsDevOverrides: state.awsDevOverrides,
     fwPathOverrides: state.fwPathOverrides,
     redisPathOverrides: state.redisPathOverrides,
+    pgPathOverrides: state.pgPathOverrides,
+    mysqlPathOverrides: state.mysqlPathOverrides,
+    appsvcPathOverrides: state.appsvcPathOverrides,
+    regPathOverrides: state.regPathOverrides,
     approvedFlags: state.approvedFlags,
     hiddenSources: state.hiddenSources,
     selectedRows: state.selectedRows,
@@ -3129,6 +3219,7 @@ async function applyWorkflowState(wf) {
     lastShapeByVendor: { amd: "e6-standard-ax" },
     existingInfraCost: 0,
     crossCloudTopTier: false,
+    largeImportKind: "",
     uploadReady: false,
     workflowMaxUnlockedStep: 0,
     uploadMetadata: {},
@@ -3145,6 +3236,10 @@ async function applyWorkflowState(wf) {
     awsDevOverrides: {},
     fwPathOverrides: {},
     redisPathOverrides: {},
+    pgPathOverrides: {},
+    mysqlPathOverrides: {},
+    appsvcPathOverrides: {},
+    regPathOverrides: {},
     approvedFlags: {},
     hiddenSources: {},
     selectedRows: {},
@@ -3152,7 +3247,7 @@ async function applyWorkflowState(wf) {
     resultSort: [],
   });
   const assign = [
-    "intakeMode", "providerHint", "fullServiceBeta", "hideGpuPricing",
+    "intakeMode", "largeImportKind", "providerHint", "fullServiceBeta", "hideGpuPricing",
     "hideWindowsPricing", "hideSqlPricing",
     "cpuUnit",
     "bomName", "ociDiscount", "rightsize", "autoMap", "autoTier", "oicMessagePacks",
@@ -3165,7 +3260,7 @@ async function applyWorkflowState(wf) {
     "workflowMaxUnlockedStep",
     "showMissingOnly", "extraServices", "fields", "rows",
     "shapeOverrides", "costOverrides", "sqlPathOverrides", "ghPathOverrides", "awsDevOverrides",
-    "fwPathOverrides", "redisPathOverrides",
+    "fwPathOverrides", "redisPathOverrides", "pgPathOverrides", "mysqlPathOverrides", "appsvcPathOverrides", "regPathOverrides",
     "approvedFlags", "hiddenSources", "selectedRows", "columnPrefs", "resultSort",
   ];
   assign.forEach((k) => { if (wf[k] !== undefined) state[k] = wf[k]; });
@@ -3212,7 +3307,7 @@ async function applyWorkflowState(wf) {
       : {};
   [
     "shapeOverrides", "costOverrides", "sqlPathOverrides", "ghPathOverrides", "awsDevOverrides",
-    "fwPathOverrides", "redisPathOverrides", "approvedFlags", "hiddenSources", "selectedRows", "columnPrefs",
+    "fwPathOverrides", "redisPathOverrides", "pgPathOverrides", "mysqlPathOverrides", "appsvcPathOverrides", "regPathOverrides", "approvedFlags", "hiddenSources", "selectedRows", "columnPrefs",
   ].forEach((key) => {
     if (!state[key] || typeof state[key] !== "object" || Array.isArray(state[key])) {
       state[key] = {};
@@ -4057,6 +4152,10 @@ function pricingInputs() {
     awsDevOverrides: state.awsDevOverrides,
     fwPathOverrides: state.fwPathOverrides,
     redisPathOverrides: state.redisPathOverrides,
+    pgPathOverrides: state.pgPathOverrides,
+    mysqlPathOverrides: state.mysqlPathOverrides,
+    appsvcPathOverrides: state.appsvcPathOverrides,
+    regPathOverrides: state.regPathOverrides,
     hoursPerMonth: state.hoursPerMonth,
     hoursOverride: state.hoursOverride,
     oicMessagePacks: state.oicMessagePacks,
@@ -4708,9 +4807,22 @@ function serviceSourceLabel(mapping) {
   return [mapping.sourceProvider, mapping.sourceService || mapping.sourceProduct].filter(Boolean).join(" / ") || "-";
 }
 
+// Azure units arrive as billing bundles ("1 GB/Month", "1 Hour", "1/Month",
+// "10 Hours"): shown after a quantity they read as a stray number ("64 1 Hour").
+// Strip a leading "1" bundle token for DISPLAY only ("1/Month" -> "per Month");
+// leave compact per-unit codes like "1M"/"10M" alone (the 1 is part of the code).
+function displayUsageUnit(unit) {
+  const u = String(unit || "").trim();
+  const slash = u.match(/^1\s*\/\s*(.+)$/);      // "1/Month" -> "per Month"
+  if (slash) return `per ${slash[1].trim()}`;
+  const bundle = u.match(/^1\s+(.+)$/);           // "1 GB/Month" -> "GB/Month"
+  if (bundle) return bundle[1].trim();
+  return u;
+}
+
 function serviceQuantityLabel(mapping, row) {
   if (mapping?.quantity) {
-    return `${formatNumber(mapping.quantity)} ${mapping.unit || ""}`.trim();
+    return `${formatNumber(mapping.quantity)} ${displayUsageUnit(mapping.unit)}`.trim();
   }
   const specs = row?.specs || {};
   const storage = Number(specs.blockStorageGb || 0) + Number(specs.fileStorageGb || 0);
@@ -5080,6 +5192,69 @@ const AZ_REDIS_PATH_OPTIONS = [
   ["redis_single", "OCI Cache (single node, no HA)"],
   ["redis_carry", "Carry over source cost"],
 ];
+// Azure PostgreSQL -> OCI Database with PostgreSQL: 2:1 consolidation default /
+// boundary-preserving 1:1 / carry last. Storage rows are automatic (no dropdown).
+const AZ_PG_PATH_OPTIONS = [
+  ["pg_2to1", "OCI PostgreSQL (2:1 vCore consolidation)"],
+  ["pg_boundary", "OCI PostgreSQL (1 OCPU per vCore)"],
+  ["pg_carry", "Carry over source cost"],
+];
+function azPgPathSelectHtml(row) {
+  if (row.azPgKind !== "pg_compute") return "";
+  const cur = state.pgPathOverrides[row.rowId] || row.azPgPath || "pg_2to1";
+  const opts = AZ_PG_PATH_OPTIONS
+    .map(([v, l]) => `<option value="${v}" ${v === cur ? "selected" : ""}>${escapeHtml(l)}</option>`)
+    .join("");
+  return ` <select class="cell-select az-pg-path-select" data-az-pg-path-row="${escapeHtml(String(row.rowId))}" title="OCI PostgreSQL mapping option for this row (re-prices it)">${opts}</select>`;
+}
+
+// Remaining-services register (doc #13): ONE generic dropdown; options by kind.
+const AZ_REG_PATH_OPTIONS = {
+  reg_appgw_fixed: [["appgw_convert", "OCI Flexible LB + WAF (approx.)"], ["appgw_carry", "Carry over source cost"]],
+  reg_appgw_cu: [["appgw_convert", "OCI Flexible LB + WAF (approx.)"], ["appgw_carry", "Carry over source cost"]],
+  reg_eh_tu: [["eh_streaming", "OCI Streaming (approx., 1 KB/event)"], ["eh_carry", "Carry over source cost"]],
+  reg_eh_ingress: [["eh_streaming", "OCI Streaming (approx., 1 KB/event)"], ["eh_carry", "Carry over source cost"]],
+  reg_fdry: [["fdry_genai", "OCI Generative AI (per-meter)"], ["fdry_carry", "Carry over source cost"]],
+  reg_lb_rules: [["lb_convert", "OCI Flexible LB (approx.)"], ["lb_carry", "Carry over source cost"]],
+  reg_lb_data: [["lb_convert", "OCI Flexible LB (approx.)"], ["lb_carry", "Carry over source cost"]],
+};
+function azRegPathSelectHtml(row) {
+  const options = AZ_REG_PATH_OPTIONS[row.azRegKind];
+  if (!options) return "";
+  const cur = state.regPathOverrides[row.rowId] || row.azRegPath || options[options.length - 1][0];
+  const opts = options
+    .map(([v, l]) => `<option value="${v}" ${v === cur ? "selected" : ""}>${escapeHtml(l)}</option>`)
+    .join("");
+  return ` <select class="cell-select az-reg-path-select" data-az-reg-path-row="${escapeHtml(String(row.rowId))}" title="Register mapping option for this row (re-prices it)">${opts}</select>`;
+}
+
+const AZ_APPSVC_PATH_OPTIONS = [
+  ["appsvc_ci", "OCI Container Instances + LB (approx. sizing)"],
+  ["appsvc_carry", "Carry over source cost"],
+];
+function azAppSvcPathSelectHtml(row) {
+  if (row.azAppSvcKind !== "appsvc_linux_plan") return "";
+  const cur = state.appsvcPathOverrides[row.rowId] || row.azAppSvcPath || "appsvc_carry";
+  const opts = AZ_APPSVC_PATH_OPTIONS
+    .map(([v, l]) => `<option value="${v}" ${v === cur ? "selected" : ""}>${escapeHtml(l)}</option>`)
+    .join("");
+  return ` <select class="cell-select az-appsvc-path-select" data-az-appsvc-path-row="${escapeHtml(String(row.rowId))}" title="App Service mapping option for this row (re-prices it)">${opts}</select>`;
+}
+
+const AZ_MYSQL_PATH_OPTIONS = [
+  ["mysql_std", "OCI MySQL (standalone, per-server shape)"],
+  ["mysql_ha", "OCI MySQL (HA - 3 instances/system)"],
+  ["mysql_carry", "Carry over source cost"],
+];
+function azMysqlPathSelectHtml(row) {
+  if (row.azMysqlKind !== "mysql_compute") return "";
+  const cur = state.mysqlPathOverrides[row.rowId] || row.azMysqlPath || "mysql_std";
+  const opts = AZ_MYSQL_PATH_OPTIONS
+    .map(([v, l]) => `<option value="${v}" ${v === cur ? "selected" : ""}>${escapeHtml(l)}</option>`)
+    .join("");
+  return ` <select class="cell-select az-mysql-path-select" data-az-mysql-path-row="${escapeHtml(String(row.rowId))}" title="OCI MySQL mapping option for this row (re-prices it)">${opts}</select>`;
+}
+
 function azRedisPathSelectHtml(row) {
   if (!row.azRedisPath) return "";
   const cur = state.redisPathOverrides[row.rowId] || row.azRedisPath;
@@ -5222,6 +5397,7 @@ function applyShapeToVm(row, shape) {
       && Number(s.bmOcpu || 0) >= specOcpu && Number(s.bmMemoryGb || 0) >= specMem);
     row.sizeCheck = (bmAlt || flexAlt)
       ? { status: "baremetal", shape: bmAlt ? bmAlt.label : null,
+          severe: specOcpu > fxOcpu * 1.2 || specMem > fxMem * 1.2,
           flexAlt: flexAlt
             ? { shape: flexAlt.label, maxOcpu: Number(flexAlt.maxOcpu || 0), maxMem: Number(flexAlt.maxMemGb || 0) }
             : null,
@@ -5325,7 +5501,9 @@ function mappingFlagBadge(row) {
     return ` <span class="size-flag size-flag-approved" title="Mapping approved">✓ approved</span>`;
   }
   if (row.mappingFlag) {
-    let html = ` <span class="size-flag size-flag-review flag-clickable" data-flag-row="${escapeHtml(String(row.rowId))}" title="Click to approve this mapping">⚠ ${escapeHtml(row.mappingFlag)}</span>`;
+    const sev = row.mappingFlagLevel === "red" ? " size-flag-review-red"
+      : row.mappingFlagLevel === "orange" ? " size-flag-review-orange" : "";
+    let html = ` <span class="size-flag size-flag-review${sev} flag-clickable" data-flag-row="${escapeHtml(String(row.rowId))}" title="Click to approve this mapping">⚠ ${escapeHtml(row.mappingFlag)}</span>`;
     if (String(state.flagMenuRow) === String(row.rowId)) {
       html += ` <button type="button" class="flag-approve-btn" data-approve-row="${escapeHtml(String(row.rowId))}">Approve mapping</button>`;
     }
@@ -5386,8 +5564,10 @@ function sizeFlagBadge(row) {
   } else if (check.status === "baremetal") {
     // Not mapped to bare metal - the row overflows its selected flex shape and is billed at
     // the cap. LARGER SHAPE: a bigger flex shape fits it. OVERSIZED: only bare metal would.
+    // Badly mis-sized (>20% over the shape's max CPU or RAM) renders RED, not amber.
     const label = check.flexAlt ? "LARGER SHAPE" : "OVERSIZED";
-    badges.push(` <span class="size-flag size-flag-baremetal" title="${escapeHtml(check.message || "")}">${label}</span>`);
+    const cls = check.severe ? "size-flag-impossible" : "size-flag-baremetal";
+    badges.push(` <span class="size-flag ${cls}" title="${escapeHtml(check.message || "")}">${label}</span>`);
   }
   if (Array.isArray(row.lineItems) && row.lineItems.some((li) => li && li.isGpu)) {
     badges.push(` <span class="size-flag size-flag-gpu" title="Mapped to an OCI GPU shape">GPU</span>`);
@@ -5426,7 +5606,7 @@ function renderResultsTable(rows, fullServiceBeta = false, cloudBill = false, co
         key: "ociTarget",
         label: "OCI Target",
         sortValue: (row) => row.fullServiceMapping?.ociProduct || row.lineItems?.[0]?.description || "Needs review",
-        render: (row) => escapeHtml(row.fullServiceMapping?.ociProduct || row.lineItems?.[0]?.description || "Needs review") + computeShapeBadge(row) + mappingFlagBadge(row) + sqlPathSelectHtml(row) + ghPathSelectHtml(row) + awsDevPathSelectHtml(row) + azFwPathSelectHtml(row) + azRedisPathSelectHtml(row),
+        render: (row) => escapeHtml(row.fullServiceMapping?.ociProduct || row.lineItems?.[0]?.description || "Needs review") + computeShapeBadge(row) + mappingFlagBadge(row) + sqlPathSelectHtml(row) + ghPathSelectHtml(row) + awsDevPathSelectHtml(row) + azFwPathSelectHtml(row) + azRedisPathSelectHtml(row) + azPgPathSelectHtml(row) + azMysqlPathSelectHtml(row) + azAppSvcPathSelectHtml(row) + azRegPathSelectHtml(row),
       },
       {
         key: "shape",
@@ -5695,6 +5875,30 @@ if (els.resultsTable) {
       return;
     }
     // AWS developer-services mapping dropdown -> per-row override and re-price.
+    const azPgSel = event.target.closest("select[data-az-pg-path-row]");
+    if (azPgSel) {
+      state.pgPathOverrides[azPgSel.dataset.azPgPathRow] = azPgSel.value;
+      priceRows({ keepView: true });
+      return;
+    }
+    const azRegSel = event.target.closest("select[data-az-reg-path-row]");
+    if (azRegSel) {
+      state.regPathOverrides[azRegSel.dataset.azRegPathRow] = azRegSel.value;
+      priceRows({ keepView: true });
+      return;
+    }
+    const azAppSvcSel = event.target.closest("select[data-az-appsvc-path-row]");
+    if (azAppSvcSel) {
+      state.appsvcPathOverrides[azAppSvcSel.dataset.azAppsvcPathRow] = azAppSvcSel.value;
+      priceRows({ keepView: true });
+      return;
+    }
+    const azMysqlSel = event.target.closest("select[data-az-mysql-path-row]");
+    if (azMysqlSel) {
+      state.mysqlPathOverrides[azMysqlSel.dataset.azMysqlPathRow] = azMysqlSel.value;
+      priceRows({ keepView: true });
+      return;
+    }
     const azRedisSel = event.target.closest("select[data-az-redis-path-row]");
     if (azRedisSel) {
       state.redisPathOverrides[azRedisSel.dataset.azRedisPathRow] = azRedisSel.value;
@@ -5808,6 +6012,7 @@ els.selectedDocClear?.addEventListener("click", () => {
 });
 els.switchToOnPrem?.addEventListener("click", () => {
   state.intakeMode = "on_prem";
+  state.largeImportKind = "";
   state.providerHint = "auto";
   state.fullServiceBeta = false;
   syncModeUi();
@@ -6604,6 +6809,7 @@ els.steps.forEach((step) => {
 });
 els.modeOnPrem?.addEventListener("click", () => setIntakeMode("on_prem"));
 els.modeCloudBill?.addEventListener("click", () => setIntakeMode("cloud_bill"));
+els.modeLargeImport?.addEventListener("click", () => setIntakeMode("large_import"));
 els.modeOtherOciBill?.addEventListener("click", () => setIntakeMode("other_oci_bill"));
 els.providerHint?.addEventListener("change", () => {
   state.providerHint = els.providerHint.value || "auto";
@@ -6613,6 +6819,13 @@ els.providerHint?.addEventListener("change", () => {
   if (state.intakeMode === "cloud_bill" && state.lastUploadFile) {
     uploadFile(state.lastUploadFile);
   }
+});
+els.largeImportKind?.addEventListener("change", () => {
+  state.largeImportKind = els.largeImportKind.value || "azure";
+  state.intakeMode = state.largeImportKind === "on_prem" ? "on_prem" : "cloud_bill";
+  state.providerHint = state.largeImportKind === "on_prem" ? "auto" : state.largeImportKind;
+  syncModeUi();
+  if (state.lastUploadFile) uploadFile(state.lastUploadFile).catch(setUploadingError);
 });
 syncModeUi();
 syncIntakeLayout();

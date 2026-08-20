@@ -91,5 +91,41 @@ class IdentityColumnTests(unittest.TestCase):
         self.assertEqual(server_signal["column"], "Machine ID")
 
 
+class CostCenterEnvironmentFallbackTest(unittest.TestCase):
+    """Chris's ruling 2026-08-19: the environment field can use the cost-center
+    column - as the LAST fallback, so a real environment column always wins."""
+
+    def _fields(self, labels):
+        return [{"key": l.lower().replace(" ", "_"), "label": l} for l in labels]
+
+    def test_cost_center_resolves_when_no_environment_column(self):
+        fields = self._fields(["Server Name", "Cost Center", "CPU"])
+        rows = [{"server_name": "web01", "cost_center": "PROD-Finance", "cpu": 4}]
+        env = [s for s in app.inventory_data_check(fields, rows)["signals"]
+               if s["key"] == "environment"][0]
+        self.assertEqual(env["column"], "Cost Center")
+
+    def test_resource_group_is_the_third_fallback(self):
+        # Precedence: environment > cost center > resource group (rulings 2026-08-19).
+        rows = [{"server_name": "web01", "resource_group": "rg-prod-web",
+                 "cost_center": "PROD-Fin", "cpu": 4}]
+        rg_only = self._fields(["Server Name", "Resource Group", "CPU"])
+        env = [s for s in app.inventory_data_check(rg_only, rows)["signals"]
+               if s["key"] == "environment"][0]
+        self.assertEqual(env["column"], "Resource Group")
+        both = self._fields(["Server Name", "Resource Group", "Cost Center", "CPU"])
+        env2 = [s for s in app.inventory_data_check(both, rows)["signals"]
+                if s["key"] == "environment"][0]
+        self.assertEqual(env2["column"], "Cost Center")
+
+    def test_real_environment_column_beats_cost_center(self):
+        fields = self._fields(["Server Name", "Environment", "Cost Center", "CPU"])
+        rows = [{"server_name": "web01", "environment": "prod",
+                 "cost_center": "PROD-Finance", "cpu": 4}]
+        env = [s for s in app.inventory_data_check(fields, rows)["signals"]
+               if s["key"] == "environment"][0]
+        self.assertEqual(env["column"], "Environment")
+
+
 if __name__ == "__main__":
     unittest.main()
